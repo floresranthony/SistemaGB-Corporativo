@@ -1,0 +1,6 @@
+{
+  "name": "Sistema Web Corporativo Bax",
+  "description": "Sistema de Logística y Recursos Humanos corporativo para Grupo Bax con dashboard integral, manejo de almacenes y perfiles.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
