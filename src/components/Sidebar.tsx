@@ -40,6 +40,7 @@ export function Sidebar({
           if (currentRole === "logistica") {
             if (group.name === "Dashboards" && item.path !== "/dashboards/logistico") return false;
             if (group.name === "Recursos Humanos") return false;
+            if (group.name === "Configuración" && item.path === "/config/accesos") return false;
             return true;
           }
 

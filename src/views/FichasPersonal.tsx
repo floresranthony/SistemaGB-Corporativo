@@ -46,6 +46,7 @@ export function FichasPersonal() {
   const [filterFechaHasta, setFilterFechaHasta] = useState("");
   const [filterCliente, setFilterCliente] = useState("");
   const [filterVacacionesAlerta, setFilterVacacionesAlerta] = useState("");
+  const [filterInconsistencia, setFilterInconsistencia] = useState(false);
 
   // DB Data
   const [personas, setPersonas] = useState<any[]>([]);
@@ -144,7 +145,7 @@ export function FichasPersonal() {
   // Reset page when search filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, filterSede, filterEmpresa, filterFechaDesde, filterFechaHasta, filterEstadoContrato, filterFechaVencimiento, filterTab, filterCliente, filterVacacionesAlerta]);
+  }, [searchQuery, filterSede, filterEmpresa, filterFechaDesde, filterFechaHasta, filterEstadoContrato, filterFechaVencimiento, filterTab, filterCliente, filterVacacionesAlerta, filterInconsistencia]);
 
   // Contract history modal per collaborator
   const [isContractHistoryModalOpen, setIsContractHistoryModalOpen] = useState(false);
@@ -638,13 +639,20 @@ export function FichasPersonal() {
             errors.push(`Fecha primer contrato '${rawFechaPrimerContrato || ""}' es inválida. Usar formato DD-MM-YYYY`);
           }
 
+          // Job validations: optional if hasActiveVinculoDb is true (contract updates)
+          const empresaRuc = String(rowData.empresa_interna_ruc || "").trim();
+          const matchedEmpresa = empresas.find(e => e.ruc === empresaRuc);
+
           // Determine update mode vs new mode
           const alreadyExists = personas.some(p => p.numero_documento === numDoc);
           const existingPersonRecord = personas.find(p => p.numero_documento === numDoc);
-          const hasActiveVinculoDb = alreadyExists && existingPersonRecord?.vinculos_laborales?.some((v: any) => v.estado === "Activo");
+          // Check if there is an active contract specifically for the matched company
+          const hasActiveVinculoDb = alreadyExists && existingPersonRecord?.vinculos_laborales?.some(
+            (v: any) => v.estado === "Activo" && v.empresa_interna_id === matchedEmpresa?.id
+          );
 
           const hasJobData = !!(
-            String(rowData.empresa_interna_ruc || "").trim() ||
+            empresaRuc ||
             String(rowData.cliente_nombre || "").trim() ||
             String(rowData.sede_nombre || "").trim() ||
             String(rowData.cargo_nombre || "").trim() ||
@@ -657,9 +665,6 @@ export function FichasPersonal() {
 
           const isUpdateOnly = alreadyExists && !hasJobData;
 
-          // Job validations: optional if hasActiveVinculoDb is true (contract updates)
-          const empresaRuc = String(rowData.empresa_interna_ruc || "").trim();
-          const matchedEmpresa = empresas.find(e => e.ruc === empresaRuc);
           if (!isUpdateOnly) {
             if (!empresaRuc && !hasActiveVinculoDb) errors.push("RUC de empresa es obligatorio");
             else if (empresaRuc && !matchedEmpresa) errors.push(`Empresa RUC '${empresaRuc}' no encontrada`);
@@ -1690,6 +1695,12 @@ export function FichasPersonal() {
       if (filterVacacionesAlerta === "no" && hasAlert) return false;
     }
 
+    // 7. Inconsistencia filter
+    if (filterInconsistencia) {
+      const belongsToCompany = v?.sedes?.clientes?.empresa_interna_id === v?.empresa_interna_id;
+      if (!v || belongsToCompany) return false;
+    }
+
     return true;
   });
 
@@ -2024,6 +2035,18 @@ export function FichasPersonal() {
                       Cesados ({stats.kpiCesadosCount})
                     </button>
                   </div>
+
+                  {/* Filtro Inconsistencias */}
+                  <label className="inline-flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100/75 text-amber-800 px-3 py-2 rounded-lg text-xs font-bold border border-amber-200 shadow-sm cursor-pointer select-none transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={filterInconsistencia}
+                      onChange={(e) => setFilterInconsistencia(e.target.checked)}
+                      className="rounded text-amber-600 focus:ring-amber-500 h-3.5 w-3.5 cursor-pointer accent-amber-600"
+                    />
+                    <span>⚠️ Con Inconsistencias</span>
+                  </label>
+
                   <button 
                     onClick={exportPersonasToExcel}
                     className="inline-flex items-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-2 rounded-lg text-xs font-semibold border border-blue-200 transition-colors shadow-sm cursor-pointer"
@@ -2031,7 +2054,7 @@ export function FichasPersonal() {
                     <FileDown className="w-4 h-4" />
                     Exportar Excel
                   </button>
-                  {(filterSede || filterEmpresa || filterFechaDesde || filterFechaHasta || filterEstadoContrato || filterFechaVencimiento || filterCliente || filterVacacionesAlerta) && (
+                  {(filterSede || filterEmpresa || filterFechaDesde || filterFechaHasta || filterEstadoContrato || filterFechaVencimiento || filterCliente || filterVacacionesAlerta || filterInconsistencia) && (
                     <button
                       onClick={() => {
                         setFilterSede("");
@@ -2042,6 +2065,7 @@ export function FichasPersonal() {
                         setFilterFechaVencimiento("");
                         setFilterCliente("");
                         setFilterVacacionesAlerta("");
+                        setFilterInconsistencia(false);
                       }}
                       className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-700 text-xs font-medium px-2 py-1 hover:bg-slate-100 rounded-md transition-colors cursor-pointer"
                     >

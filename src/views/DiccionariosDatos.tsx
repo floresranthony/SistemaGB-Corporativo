@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "../utils/supabase";
+import { useAuth } from "../utils/authContext";
 import { 
   Database, 
   Plus, 
@@ -60,6 +61,42 @@ export function DiccionariosDatos() {
     { value: "proveedores", label: "Proveedores", table: "proveedores" },
     { value: "tallas", label: "Tallas de Vestimenta", table: "tallas" }
   ];
+
+  const { role } = useAuth();
+
+  const rrhhTabs: DictionaryType[] = [
+    "cargos",
+    "tipos_documento",
+    "tipos_trabajador",
+    "bancos",
+    "sistemas_pension",
+    "regimenes_laborales",
+    "modalidades_contrato",
+    "ubigeo_distritos"
+  ];
+
+  const logisticaTabs: DictionaryType[] = [
+    "categorias_producto",
+    "unidades_medida",
+    "proveedores",
+    "tallas"
+  ];
+
+  const filteredTabs = React.useMemo(() => {
+    return tabs.filter((t) => {
+      if (role === "admin") return true;
+      if (role === "rrhh") return rrhhTabs.includes(t.value);
+      if (role === "logistica" || role === "almacen") return logisticaTabs.includes(t.value);
+      return false;
+    });
+  }, [role]);
+
+  // Adjust activeTab if the current one is not allowed for the user's role
+  useEffect(() => {
+    if (filteredTabs.length > 0 && !filteredTabs.some(t => t.value === activeTab)) {
+      setActiveTab(filteredTabs[0].value);
+    }
+  }, [role, filteredTabs, activeTab]);
 
   // Load Data
   const fetchData = async (tab: DictionaryType) => {
@@ -315,7 +352,7 @@ export function DiccionariosDatos() {
           </div>
           <div>
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">Catálogo Activo</span>
-            <span className="text-lg font-bold text-slate-800">{tabs.find(t => t.value === activeTab)?.label}</span>
+            <span className="text-lg font-bold text-slate-800">{filteredTabs.find(t => t.value === activeTab)?.label}</span>
           </div>
         </div>
         
@@ -352,7 +389,7 @@ export function DiccionariosDatos() {
             Diccionarios Disponibles
           </span>
           <div className="flex md:flex-col overflow-x-auto md:overflow-x-visible pb-2 md:pb-0 gap-1 scrollbar-none">
-            {tabs.map((tab) => {
+            {filteredTabs.map((tab) => {
               const isActive = activeTab === tab.value;
               return (
                 <button
@@ -381,7 +418,7 @@ export function DiccionariosDatos() {
               <Search className="absolute left-3 top-2.5 h-4.5 w-4.5 text-slate-400" />
               <input
                 type="text"
-                placeholder={`Buscar en ${tabs.find(t => t.value === activeTab)?.label.toLowerCase()}...`}
+                placeholder={`Buscar en ${filteredTabs.find(t => t.value === activeTab)?.label.toLowerCase()}...`}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50/20 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all"
@@ -555,7 +592,7 @@ export function DiccionariosDatos() {
             <div>
               <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-6">
                 <h3 className="font-heading text-lg font-bold text-slate-800">
-                  {editingId ? "Editar Registro" : "Nuevo Registro"} - {tabs.find(t => t.value === activeTab)?.label}
+                  {editingId ? "Editar Registro" : "Nuevo Registro"} - {filteredTabs.find(t => t.value === activeTab)?.label}
                 </h3>
                 <button
                   onClick={() => setIsModalOpen(false)}

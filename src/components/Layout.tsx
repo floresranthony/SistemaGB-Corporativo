@@ -27,19 +27,105 @@ interface LayoutProps {
   children?: React.ReactNode;
 }
 
+const isPathAllowed = (path: string, currentRole: string): boolean => {
+  if (currentRole === "admin" || currentRole === "gerencia") {
+    return true;
+  }
+
+  for (const group of navigationStructure) {
+    for (const item of group.items) {
+      if (item.path === path) {
+        // Logistica permissions
+        if (currentRole === "logistica") {
+          if (group.name === "Dashboards" && item.path !== "/dashboards/logistico") return false;
+          if (group.name === "Recursos Humanos") return false;
+          if (group.name === "Configuración" && item.path === "/config/accesos") return false;
+          return true;
+        }
+
+        // RRHH permissions
+        if (currentRole === "rrhh") {
+          if (group.name === "Dashboards" && item.path !== "/dashboards/rrhh" && item.path !== "/dashboards/logistico") return false;
+          if (group.name === "Requerimientos" && item.path !== "/requerimientos/uniformes") return false;
+          if (group.name === "Almacén") return false;
+          if (group.name === "Configuración" && item.path !== "/config/diccionarios") return false;
+          return true;
+        }
+
+        // Almacen permissions
+        if (currentRole === "almacen") {
+          if (group.name === "Dashboards" && item.path !== "/dashboards/logistico") return false;
+          if (group.name === "Recursos Humanos") return false;
+          if (group.name === "Requerimientos" && item.path !== "/requerimientos/uniformes") return false;
+          if (group.name === "Reportes") return false;
+          if (group.name === "Configuración") return false;
+          return true;
+        }
+
+        // Supervisor permissions
+        if (currentRole === "supervisor") {
+          if (group.name === "Dashboards" && item.path !== "/dashboards/logistico") return false;
+          if (group.name === "Recursos Humanos" && item.path !== "/rrhh/pizarra") return false;
+          if (group.name === "Almacén") return false;
+          if (group.name === "Reportes") return false;
+          if (group.name === "Configuración" && item.path !== "/config/estructura") return false;
+          return true;
+        }
+
+        return true;
+      }
+    }
+  }
+
+  return false;
+};
+
+const getDefaultPath = (currentRole: string): string => {
+  if (currentRole === "rrhh") return "/dashboards/rrhh";
+  if (currentRole === "logistica") return "/dashboards/logistico";
+  if (currentRole === "almacen") return "/almacen/catalogo";
+  if (currentRole === "supervisor") return "/rrhh/pizarra";
+  return "/config/estructura";
+};
+
 export function Layout() {
-  const { role } = useAuth();
+  const { role, signOut } = useAuth();
   const currentRole = role || "admin";
 
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Redirect root path to default path
+  // Redirect root path or unallowed path to default path
   React.useEffect(() => {
-    if (location.pathname === "/") {
-      navigate("/config/estructura", { replace: true });
+    if (location.pathname === "/" || !isPathAllowed(location.pathname, currentRole)) {
+      navigate(getDefaultPath(currentRole), { replace: true });
     }
-  }, [location.pathname, navigate]);
+  }, [location.pathname, navigate, currentRole]);
+
+  // Cierre de sesión automático por inactividad (1 hora)
+  React.useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+
+    const resetTimer = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        signOut();
+        alert("Tu sesión ha sido cerrada automáticamente por inactividad.");
+      }, 3600000); // 1 hora en ms
+    };
+
+    // Eventos que demuestran actividad
+    const events = ["mousedown", "mousemove", "keypress", "scroll", "touchstart"];
+    events.forEach((event) => window.addEventListener(event, resetTimer));
+
+    // Inicializar el timer
+    resetTimer();
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      events.forEach((event) => window.removeEventListener(event, resetTimer));
+    };
+  }, [signOut]);
 
   const activePath = location.pathname === "/" ? "/config/estructura" : location.pathname;
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -81,6 +167,13 @@ export function Layout() {
       case "/almacen/kardex":
         return <KardexEntregas />;
       case "/config/accesos":
+        if (role === "logistica" || role === "almacen" || role === "rrhh" || role === "supervisor") {
+          return (
+            <div className="p-8 text-center text-slate-600 font-bold bg-white rounded-2xl border border-slate-150 shadow-sm max-w-lg mx-auto mt-12">
+              ⚠️ Acceso Denegado: Tu rol de usuario no tiene autorización para ver la gestión de Accesos y Roles.
+            </div>
+          );
+        }
         return <AccesosRoles />;
       case "/config/diccionarios":
         return <DiccionariosDatos />;

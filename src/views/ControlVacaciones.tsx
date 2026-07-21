@@ -630,21 +630,20 @@ export function ControlVacaciones() {
         </div>
       </div>
 
-      {/* Main Table */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col flex-1 min-h-[400px]">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto overflow-y-auto flex-1 relative">
           <table className="w-full text-left border-collapse min-w-[900px]">
             <thead>
-              <tr className="border-b border-slate-100 bg-slate-50/20 text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                <th className="px-6 py-4">Colaborador</th>
-                <th className="px-6 py-4">Empresa / Puesto</th>
-                <th className="px-6 py-4">Ingreso / Régimen</th>
-                <th className="px-6 py-4 text-center">Años Serv.</th>
-                <th className="px-6 py-4 text-center bg-slate-50/40">Ganados</th>
-                <th className="px-6 py-4 text-center bg-slate-50/40">Gozados</th>
-                <th className="px-6 py-4 text-center bg-slate-50/40">Pendientes</th>
-                <th className="px-6 py-4">Alerta Legal</th>
-                <th className="px-6 py-4 text-right print:hidden">Acción</th>
+              <tr className="border-b border-slate-100 text-[9px] font-bold text-slate-400 uppercase tracking-widest sticky top-0 z-10 shadow-[0_1px_0_0_rgba(226,232,240,1)]">
+                <th className="px-6 py-4 bg-slate-50">Colaborador</th>
+                <th className="px-6 py-4 bg-slate-50">Empresa / Puesto</th>
+                <th className="px-6 py-4 bg-slate-50">Ingreso / Régimen</th>
+                <th className="px-6 py-4 text-center bg-slate-50">Años Serv.</th>
+                <th className="px-6 py-4 text-center bg-slate-100">Ganados</th>
+                <th className="px-6 py-4 text-center bg-slate-100">Gozados</th>
+                <th className="px-6 py-4 text-center bg-slate-100">Pendientes</th>
+                <th className="px-6 py-4 bg-slate-50">Alerta Legal</th>
+                <th className="px-6 py-4 text-right print:hidden bg-slate-50">Acción</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs text-slate-700">

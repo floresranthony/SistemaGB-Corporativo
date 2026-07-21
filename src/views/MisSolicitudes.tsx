@@ -67,6 +67,11 @@ interface Requerimiento {
     nombres: string;
     apellidos: string;
   };
+  usuario_aprobador?: {
+    id: number;
+    nombres: string;
+    apellidos: string;
+  } | null;
 }
 
 interface MisSolicitudesProps {
@@ -120,6 +125,18 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
 
   // Form Fields
   const [selectedSedeId, setSelectedSedeId] = useState<number | "">("");
+  const [selectedClienteId, setSelectedClienteId] = useState<number | "">("");
+
+  const uniqueClientes = React.useMemo(() => {
+    const map = new Map<number, string>();
+    sedes.forEach(s => {
+      if (s.clientes) {
+        map.set(s.clientes.id, s.clientes.razon_social);
+      }
+    });
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [sedes]);
+
   const [isExtraordinarySupport, setIsExtraordinarySupport] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
 
@@ -349,9 +366,21 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
             nombre,
             contacto_telefono,
             presupuesto,
-            clientes (id, razon_social)
+            clientes (
+              id,
+              razon_social,
+              empresa_interna_id,
+              empresas_internas (
+                *
+              )
+            )
           ),
           usuarios:usuario_solicitante_id (
+            id,
+            nombres,
+            apellidos
+          ),
+          usuario_aprobador:usuario_aprobador_id (
             id,
             nombres,
             apellidos
@@ -520,9 +549,21 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
             nombre,
             contacto_telefono,
             presupuesto,
-            clientes (id, razon_social)
+            clientes (
+              id,
+              razon_social,
+              empresa_interna_id,
+              empresas_internas (
+                *
+              )
+            )
           ),
           usuarios:usuario_solicitante_id (
+            id,
+            nombres,
+            apellidos
+          ),
+          usuario_aprobador:usuario_aprobador_id (
             id,
             nombres,
             apellidos
@@ -1281,6 +1322,7 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
 
       setCart([]);
       setSelectedSedeId("");
+      setSelectedClienteId("");
       setIsExtraordinarySupport(false);
       
       const successText = isDraft
@@ -1311,6 +1353,26 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
     }
 
     const docName = `VALE-${selectedReq.codigo}`;
+
+    // Resolve dynamic company logo
+    const internalCompany = selectedReq.sedes?.clientes?.empresas_internas;
+    let companyLogo = "/logo.png"; // Fallback to current global logo.png
+    
+    if (internalCompany) {
+      if (internalCompany.logo_url) {
+        companyLogo = internalCompany.logo_url;
+      } else {
+        // Fallback checks based on RUC or name if logo_url is empty in DB
+        const rucClean = String(internalCompany.ruc || "").trim();
+        const socialClean = String(internalCompany.razon_social || "").toLowerCase();
+        
+        if (rucClean === "20601234567" || socialClean.includes("bax")) {
+          companyLogo = "/logo_bax.jpg";
+        } else if (rucClean === "20609876543" || socialClean.includes("office") || socialClean.includes("mac")) {
+          companyLogo = "/logo_office.jpg";
+        }
+      }
+    }
 
     // Standard HTML page string with exact A4 screen pixel aspect ratio (794px width x 1122px height)
     // Zero Tailwind stylesheet hooks prevents color space parsing oklch failures.
@@ -1376,7 +1438,7 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
                   <tbody>
                     <tr>
                       <td style="width: 25%; border: 1px solid black; padding: 8px; text-align: center; vertical-align: middle;">
-                        <img src="/logo.png" alt="Logo" style="max-height: 48px; max-width: 120px; display: block; margin: 0 auto;" />
+                        <img src="${companyLogo}" alt="Logo" style="max-height: 48px; max-width: 120px; display: block; margin: 0 auto;" />
                       </td>
                       <td style="width: 50%; border: 1px solid black; padding: 8px; text-align: center; vertical-align: middle;">
                         <div style="color: #dc2626; font-weight: 900; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; text-align: center;">REQUERIMIENTO DE MATERIALES</div>
@@ -1889,12 +1951,15 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
   const renderDetailView = () => {
     if (!selectedReq) return null;
 
+    const solicitorName = selectedReq.usuarios ? `${selectedReq.usuarios.nombres} ${selectedReq.usuarios.apellidos}` : "";
+    const approverName = selectedReq.usuario_aprobador ? `${selectedReq.usuario_aprobador.nombres} ${selectedReq.usuario_aprobador.apellidos}` : "";
+
     const timeline = [
-      { name: "Borrador", completed: true, date: selectedReq.fecha_solicitud },
-      { name: "Enviado a logística", completed: selectedReq.estado !== "Borrador", date: selectedReq.fecha_solicitud },
-      { name: "Aprobado", completed: !!selectedReq.fecha_aprobacion && selectedReq.estado !== "Rechazado", date: selectedReq.fecha_aprobacion },
-      { name: "Enviado", completed: !!selectedReq.fecha_envio, date: selectedReq.fecha_envio },
-      { name: "Entregado", completed: selectedReq.estado === "Entregado" || selectedReq.estado === "Entregado Incompleto", date: selectedReq.fecha_entrega, stateText: selectedReq.estado === "Entregado Incompleto" ? "Incompleto" : "Completo" }
+      { name: "Borrador", completed: true, date: selectedReq.fecha_solicitud, actor: solicitorName },
+      { name: "Enviado a logística", completed: selectedReq.estado !== "Borrador", date: selectedReq.fecha_solicitud, actor: solicitorName },
+      { name: "Aprobado", completed: !!selectedReq.fecha_aprobacion && selectedReq.estado !== "Rechazado", date: selectedReq.fecha_aprobacion, actor: approverName },
+      { name: "Enviado", completed: !!selectedReq.fecha_envio, date: selectedReq.fecha_envio, actor: "Logística / Almacén" },
+      { name: "Entregado", completed: selectedReq.estado === "Entregado" || selectedReq.estado === "Entregado Incompleto", date: selectedReq.fecha_entrega, stateText: selectedReq.estado === "Entregado Incompleto" ? "Incompleto" : "Completo", actor: solicitorName }
     ];
 
     const canApprove = selectedReq.estado === "Pendiente Aprobacion" && isApproverRole;
@@ -2240,10 +2305,15 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
                         <span className={`text-xs font-bold block ${step.completed ? "text-slate-800" : "text-slate-400"}`}>
                           {step.name} {step.stateText ? `(${step.stateText})` : ""}
                         </span>
-                        {step.completed && formattedStepDate && (
-                          <span className="text-[10px] text-slate-400 font-medium font-mono block mt-0.5">
-                            {formattedStepDate}
-                          </span>
+                        {step.completed && (formattedStepDate || step.actor) && (
+                          <div className="text-[10px] text-slate-400 font-medium mt-0.5 space-y-0.5">
+                            {formattedStepDate && <span className="font-mono block">{formattedStepDate}</span>}
+                            {step.actor && (
+                              <span className="text-slate-500 block">
+                                Por: <strong className="text-slate-650">{step.actor}</strong>
+                              </span>
+                            )}
+                          </div>
                         )}
                       </div>
                     </div>
@@ -2275,9 +2345,10 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
               setViewState("list");
               setCart([]);
               setSelectedSedeId("");
+              setSelectedClienteId("");
               setIsExtraordinarySupport(false);
             }}
-            className="inline-flex items-center gap-1.5 text-slate-600 border border-slate-255 bg-white hover:bg-slate-50 px-3.5 py-2 rounded-lg text-xs font-bold transition-all shadow-sm"
+            className="inline-flex items-center gap-1.5 text-slate-600 border border-slate-255 bg-white hover:bg-slate-50 px-3.5 py-2 rounded-lg text-xs font-bold transition-all shadow-sm cursor-pointer"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             Volver al Listado
@@ -2301,6 +2372,7 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
                     onChange={(e) => {
                       setIsExtraordinarySupport(e.target.checked);
                       setSelectedSedeId("");
+                      setSelectedClienteId("");
                     }}
                     className="rounded text-blue-600 focus:ring-blue-100 border-slate-300"
                   />
@@ -2310,20 +2382,45 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
                 </div>
               )}
 
-              <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Sede Operativa / Cliente</label>
-                <select
-                  value={selectedSedeId}
-                  onChange={(e) => setSelectedSedeId(e.target.value ? Number(e.target.value) : "")}
-                  className="w-full p-2.5 border border-slate-250 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 font-medium"
-                >
-                  <option value="">Seleccione una sede...</option>
-                  {sedes.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.nombre} ({s.clientes?.razon_social})
-                    </option>
-                  ))}
-                </select>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Cliente</label>
+                  <select
+                    value={selectedClienteId}
+                    onChange={(e) => {
+                      setSelectedClienteId(e.target.value ? Number(e.target.value) : "");
+                      setSelectedSedeId("");
+                    }}
+                    className="w-full p-2.5 border border-slate-250 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 font-medium cursor-pointer text-slate-700"
+                  >
+                    <option value="">Seleccione un cliente...</option>
+                    {uniqueClientes.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {selectedClienteId && (
+                  <div className="animate-fade-in">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Sede Operativa</label>
+                    <select
+                      value={selectedSedeId}
+                      onChange={(e) => setSelectedSedeId(e.target.value ? Number(e.target.value) : "")}
+                      className="w-full p-2.5 border border-slate-250 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 font-medium cursor-pointer text-slate-700"
+                    >
+                      <option value="">Seleccione una sede...</option>
+                      {sedes
+                        .filter((s) => s.clientes?.id === selectedClienteId)
+                        .map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.nombre}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                )}
               </div>
 
               {selectedSedeId && (

@@ -13,6 +13,7 @@ CREATE TABLE empresas_internas (
     razon_social VARCHAR(150) NOT NULL, 
     representante_legal VARCHAR(150),       
     direccion_fiscal VARCHAR(255),          
+    logo_url TEXT DEFAULT NULL,
     activo BOOLEAN DEFAULT TRUE
 );
 

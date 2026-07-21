@@ -66,8 +66,15 @@ export function KardexEntregas() {
         .from("vinculos_laborales")
         .select(`
           *,
-          empresas_internas (id, razon_social),
-          sedes (id, nombre),
+          empresas_internas (*),
+          sedes (
+            id,
+            nombre,
+            clientes (
+              id,
+              razon_social
+            )
+          ),
           cargos (id, nombre),
           regimenes_laborales (id, nombre, dias_vacaciones),
           contratos (
@@ -150,11 +157,296 @@ export function KardexEntregas() {
   };
 
   const handlePrintConformity = () => {
+    if (!selectedPerson || !activeVinculo) return;
+
     setGeneratingPdf(true);
-    setTimeout(() => {
+
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      alert("Por favor, permite las ventanas emergentes (popups) en tu navegador para poder previsualizar el Cargo de Conformidad.");
       setGeneratingPdf(false);
-      window.print();
-    }, 1200);
+      return;
+    }
+
+    const docName = `CARGO-${selectedPerson.numero_documento}`;
+
+    // Resolve company logo
+    const internalCompany = activeVinculo.empresas_internas;
+    let companyLogo = "/logo.png";
+    if (internalCompany) {
+      if (internalCompany.logo_url) {
+        companyLogo = internalCompany.logo_url;
+      } else {
+        const rucClean = String(internalCompany.ruc || "").trim();
+        const socialClean = String(internalCompany.razon_social || "").toLowerCase();
+        if (rucClean === "20601234567" || socialClean.includes("bax")) {
+          companyLogo = "/logo_bax.jpg";
+        } else if (rucClean === "20609876543" || socialClean.includes("office") || socialClean.includes("mac")) {
+          companyLogo = "/logo_office.jpg";
+        }
+      }
+    }
+
+    // Build EPP elements rows (max 15 rows for A4 single-page format)
+    const maxRows = 15;
+    let tableRowsHtml = "";
+    for (let i = 0; i < maxRows; i++) {
+      const delivery = entregas[i];
+      if (delivery) {
+        const dateStr = delivery.requerimientos?.fecha_entrega 
+          ? new Date(delivery.requerimientos.fecha_entrega).toLocaleDateString("es-PE")
+          : "-";
+        const sizeStr = delivery.producto_tallas?.tallas?.valor ? ` (Talla: ${delivery.producto_tallas.tallas.valor})` : "";
+        const prodName = `${delivery.productos?.nombre || ""}${sizeStr}`;
+        
+        tableRowsHtml += `
+          <tr style="height: 24px;">
+            <td style="border: 1px solid black; text-align: center; font-weight: bold; font-size: 10px;">${i + 1}</td>
+            <td style="border: 1px solid black; padding: 0 8px; font-size: 10px; font-weight: 600; text-align: left;">${prodName}</td>
+            <td style="border: 1px solid black; text-align: center; font-size: 10px; font-weight: 700;">${delivery.cantidad_entregada}</td>
+            <td style="border: 1px solid black; text-align: center; font-size: 10px; font-family: monospace;">${dateStr}</td>
+            <td style="border: 1px solid black; text-align: center; font-size: 10px; font-family: monospace;">${dateStr}</td>
+            <td style="border: 1px solid black;"></td>
+          </tr>
+        `;
+      } else {
+        tableRowsHtml += `
+          <tr style="height: 24px;">
+            <td style="border: 1px solid black; text-align: center; font-weight: bold; font-size: 10px; color: #94a3b8;">${i + 1}</td>
+            <td style="border: 1px solid black;"></td>
+            <td style="border: 1px solid black;"></td>
+            <td style="border: 1px solid black;"></td>
+            <td style="border: 1px solid black;"></td>
+            <td style="border: 1px solid black;"></td>
+          </tr>
+        `;
+      }
+    }
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>${docName}</title>
+          <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+          <style>
+            body {
+              margin: 0;
+              padding: 0;
+              background-color: #f1f5f9;
+            }
+            #print-kardex-conformidad {
+              background-color: white;
+              width: 794px;
+              height: 1122px;
+              margin: 20px auto;
+              padding: 40px;
+              box-sizing: border-box;
+              box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+              display: flex;
+              flex-direction: column;
+              justify-content: space-between;
+            }
+            @media print {
+              body {
+                background-color: white;
+                padding: 0;
+              }
+              #print-kardex-conformidad {
+                box-shadow: none;
+                width: 100%;
+                height: auto;
+                padding: 0;
+                margin: 0;
+              }
+              .no-print {
+                display: none !important;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="no-print" style="background-color: #0f172a; padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10000; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); font-family: system-ui, -apple-system, sans-serif; color: white; width: 100%; box-sizing: border-box;">
+            <div style="display: flex; flex-direction: column; text-align: left;">
+              <span style="font-weight: 800; font-size: 13px; letter-spacing: 0.3px;">Previsualización de Cargo de Conformidad</span>
+              <span style="font-size: 10px; color: #94a3b8; font-weight: 600; margin-top: 2px;">Colaborador: ${selectedPerson.apellidos}, ${selectedPerson.nombres}</span>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button onclick="imprimirConformidad()" style="background-color: #3b82f6; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-size: 11px; font-weight: bold; cursor: pointer; font-family: system-ui, sans-serif; display: flex; align-items: center; gap: 4px; transition: all 0.15s; text-transform: uppercase; letter-spacing: 0.3px;">
+                🖨️ Imprimir Cargo
+              </button>
+              <button onclick="descargarPDF()" style="background-color: #10b981; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-size: 11px; font-weight: bold; cursor: pointer; font-family: system-ui, sans-serif; display: flex; align-items: center; gap: 4px; transition: all 0.15s; text-transform: uppercase; letter-spacing: 0.3px;">
+                📥 Descargar PDF
+              </button>
+            </div>
+          </div>
+
+          <div id="print-kardex-conformidad">
+            <div style="border: 2px solid black; padding: 20px; display: flex; flex-direction: column; justify-content: space-between; height: 100%; color: black; box-sizing: border-box; background-color: white;">
+              <div>
+                <!-- Header Table -->
+                <table style="width: 100%; border-collapse: collapse; border: 1px solid black; margin-bottom: 12px; font-family: Arial, sans-serif;">
+                  <tbody>
+                    <tr>
+                      <td style="width: 20%; border: 1px solid black; padding: 6px; text-align: center; vertical-align: middle;">
+                        <img src="${companyLogo}" alt="Logo" style="max-height: 44px; max-width: 110px; display: block; margin: 0 auto;" />
+                      </td>
+                      <td style="width: 55%; border: 1px solid black; padding: 6px; text-align: center; vertical-align: middle;">
+                        <div style="font-weight: 900; font-size: 13px; text-transform: uppercase; text-align: center; color: black; letter-spacing: 0.3px;">REGISTRO DE ENTREGA DE EPP O E. EMERGENCIA</div>
+                      </td>
+                      <td style="width: 25%; border: 1px solid black; padding: 6px; font-size: 9px; font-weight: bold; vertical-align: middle; color: black; font-family: monospace;">
+                        <div style="border-bottom: 1px solid black; padding-bottom: 2px;">CÓDIGO: RG-53-SIG-GB</div>
+                        <div style="border-bottom: 1px solid black; padding-top: 2px; padding-bottom: 2px;">REVISIÓN: 00</div>
+                        <div style="border-bottom: 1px solid black; padding-top: 2px; padding-bottom: 2px;">APROBADO: C.A.C</div>
+                        <div style="padding-top: 2px;">FECHA: 26/10/2022</div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                <!-- Empresa Block -->
+                <div style="border: 1px solid black; margin-bottom: 12px; font-family: Arial, sans-serif; font-size: 9px; color: black;">
+                  <div style="background-color: #cbd5e1; font-weight: bold; padding: 3px 6px; border-bottom: 1px solid black; text-transform: uppercase; font-size: 9px; text-align: left;">
+                    DATOS DE LA EMPRESA
+                  </div>
+                  <table style="width: 100%; border-collapse: collapse;">
+                    <tbody>
+                      <tr>
+                        <td style="width: 50%; padding: 4px 6px; border-bottom: 1px solid black; border-right: 1px solid black; text-align: left;">
+                          <strong>RAZÓN SOCIAL:</strong> ${internalCompany?.razon_social || "GRUPO BAX"}
+                        </td>
+                        <td style="width: 50%; padding: 4px 6px; border-bottom: 1px solid black; text-align: left;">
+                          <strong>RUC:</strong> ${internalCompany?.ruc || "-"}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="width: 50%; padding: 4px 6px; border-right: 1px solid black; text-align: left;">
+                          <strong>ACTIVIDAD ECONÓMICA:</strong> LIMPIEZA CONVENCIONAL E INDUSTRIAL
+                        </td>
+                        <td style="width: 50%; padding: 4px 6px; text-align: left;">
+                          <strong>DOMICILIO:</strong> ${internalCompany?.direccion_fiscal || "-"}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td colspan="2" style="padding: 4px 6px; border-top: 1px solid black; text-align: left;">
+                          <strong>CLIENTE:</strong> ${activeVinculo?.sedes?.clientes?.razon_social || "-"}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <!-- Trabajador Block -->
+                <div style="border: 1px solid black; margin-bottom: 12px; font-family: Arial, sans-serif; font-size: 9px; color: black;">
+                  <div style="background-color: #cbd5e1; font-weight: bold; padding: 3px 6px; border-bottom: 1px solid black; text-transform: uppercase; font-size: 9px; text-align: left;">
+                    DATOS DEL TRABAJADOR
+                  </div>
+                  <table style="width: 100%; border-collapse: collapse;">
+                    <tbody>
+                      <tr>
+                        <td style="width: 50%; padding: 4px 6px; border-bottom: 1px solid black; border-right: 1px solid black; text-align: left;">
+                          <strong>NOMBRES Y APELLIDOS:</strong> ${selectedPerson.apellidos}, ${selectedPerson.nombres}
+                        </td>
+                        <td style="width: 50%; padding: 4px 6px; border-bottom: 1px solid black; text-align: left;">
+                          <strong>ÁREA / SEDE:</strong> ${activeVinculo?.sedes?.nombre || "-"}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="width: 50%; padding: 4px 6px; border-bottom: 1px solid black; border-right: 1px solid black; text-align: left;">
+                          <strong>CARGO:</strong> ${activeVinculo?.cargos?.nombre || "-"}
+                        </td>
+                        <td style="width: 50%; padding: 4px 6px; border-bottom: 1px solid black; text-align: left;">
+                          <strong>DNI:</strong> ${selectedPerson.numero_documento}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td colspan="2" style="padding: 4px 6px; text-align: left;">
+                          <strong>TALLA DE:</strong> &nbsp;&nbsp;&nbsp;&nbsp; 
+                          ZAPATO: <span style="text-decoration: underline; font-weight: bold;">&nbsp;&nbsp;${selectedPerson.talla_calzado || "___"}&nbsp;&nbsp;</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 
+                          CAMISA / POLO: <span style="text-decoration: underline; font-weight: bold;">&nbsp;&nbsp;${selectedPerson.talla_polo || "___"}&nbsp;&nbsp;</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 
+                          PANTALÓN: <span style="text-decoration: underline; font-weight: bold;">&nbsp;&nbsp;${selectedPerson.talla_pantalon || "___"}&nbsp;&nbsp;</span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <!-- Elementos Entregados Table -->
+                <table style="width: 100%; border-collapse: collapse; border: 1px solid black; font-family: Arial, sans-serif; margin-bottom: 15px;">
+                  <thead>
+                    <tr style="background-color: #cbd5e1; font-size: 8px; font-weight: bold; text-transform: uppercase; height: 24px; text-align: center;">
+                      <th style="border: 1px solid black; width: 6%;">ITEM</th>
+                      <th style="border: 1px solid black; width: 44%;">DESCRIPCIÓN DEL EQUIPO DE PROTECCIÓN PERSONAL / UNIFORME</th>
+                      <th style="border: 1px solid black; width: 8%;">CANT.</th>
+                      <th style="border: 1px solid black; width: 14%;">FECHA DE ENTREGA</th>
+                      <th style="border: 1px solid black; width: 14%;">FECHA DE RENOVACIÓN</th>
+                      <th style="border: 1px solid black; width: 14%;">FIRMA DEL COLABORADOR</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${tableRowsHtml}
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Responsable del Registro Block -->
+              <div style="border: 1px solid black; font-family: Arial, sans-serif; font-size: 9px; color: black; margin-top: auto;">
+                <div style="background-color: #cbd5e1; font-weight: bold; padding: 3px 6px; border-bottom: 1px solid black; text-transform: uppercase; font-size: 9px; text-align: left;">
+                  RESPONSABLE DEL REGISTRO
+                </div>
+                <table style="width: 100%; border-collapse: collapse;">
+                  <tbody>
+                    <tr style="height: 32px;">
+                      <td style="width: 50%; padding: 4px 6px; border-bottom: 1px solid black; border-right: 1px solid black; vertical-align: bottom; text-align: left;">
+                        <strong>NOMBRE:</strong> ____________________________________________________
+                      </td>
+                      <td style="width: 25%; padding: 4px 6px; border-bottom: 1px solid black; border-right: 1px solid black; vertical-align: bottom; text-align: left;">
+                        <strong>FECHA:</strong> ____ / ____ / ________
+                      </td>
+                      <td style="width: 25%; padding: 4px 6px; border-bottom: 1px solid black; vertical-align: bottom; text-align: left;" rowspan="2">
+                        <strong>FIRMA:</strong> <br/><br/>
+                      </td>
+                    </tr>
+                    <tr style="height: 32px;">
+                      <td style="width: 50%; padding: 4px 6px; border-right: 1px solid black; vertical-align: bottom; text-align: left;">
+                        <strong>CARGO:</strong> _____________________________________________________
+                      </td>
+                      <td style="width: 25%; padding: 4px 6px; border-right: 1px solid black; vertical-align: bottom; text-align: left;">
+                        <strong>DNI:</strong> ___________________
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <script>
+            function imprimirConformidad() {
+              window.print();
+            }
+
+            function descargarPDF() {
+              const element = document.getElementById('print-kardex-conformidad');
+              const opt = {
+                margin: 0,
+                filename: '${docName}.pdf',
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true },
+                jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+              };
+              html2pdf().set(opt).from(element).save();
+            }
+          </script>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.open();
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+
+    setGeneratingPdf(false);
   };
 
   return (
@@ -349,55 +641,6 @@ export function KardexEntregas() {
 
             </div>
           )}
-
-          {/* Printable Conformity Sheet */}
-          <div className="hidden print:block bg-white p-8 border border-slate-300 rounded-lg text-xs space-y-6 max-w-2xl mx-auto">
-            <div className="text-center border-b pb-4">
-              <h1 className="text-lg font-bold">CARGO DE CONFORMIDAD DE ENTREGA DE EPP Y UNIFORMES</h1>
-              <p className="text-slate-500 font-mono mt-1">Grupo Bax Logística / Operaciones de Almacén</p>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div><strong>Colaborador:</strong> {selectedPerson.apellidos}, {selectedPerson.nombres}</div>
-              <div><strong>Nro. Documento:</strong> {selectedPerson.numero_documento}</div>
-              <div><strong>Cargo / Sede:</strong> {activeVinculo?.cargos?.nombre} ({activeVinculo?.sedes?.nombre})</div>
-              <div><strong>Fecha de Emisión:</strong> {new Date().toLocaleDateString("es-PE")}</div>
-            </div>
-
-            <div className="border-t pt-4">
-              <p className="mb-4">El suscrito declara haber recibido a conformidad y bajo responsabilidad las siguientes dotaciones de prendas de vestir, equipos de protección y materiales para el desempeño de sus labores:</p>
-              
-              <table className="w-full border-collapse border border-slate-300">
-                <thead>
-                  <tr className="bg-slate-50 text-[10px]">
-                    <th className="border border-slate-300 p-2 text-left">Código Req.</th>
-                    <th className="border border-slate-300 p-2 text-left">Descripción / Producto</th>
-                    <th className="border border-slate-300 p-2 text-center">Cant.</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {entregas.map((e) => (
-                    <tr key={e.id}>
-                      <td className="border border-slate-300 p-2 font-mono">{e.requerimientos?.codigo}</td>
-                      <td className="border border-slate-300 p-2">{e.productos?.nombre} (Talla: {e.producto_tallas?.tallas?.valor || "Única"})</td>
-                      <td className="border border-slate-300 p-2 text-center">{e.cantidad_entregada}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="pt-24 grid grid-cols-2 gap-10 text-center">
-              <div className="border-t border-slate-400 pt-2">
-                Firma del Colaborador
-                <div className="text-[10px] text-slate-400 font-mono mt-1">DNI: _______________________</div>
-              </div>
-              <div className="border-t border-slate-400 pt-2">
-                Firma Responsable Almacén
-                <div className="text-[10px] text-slate-400 font-mono mt-1">Entregado por</div>
-              </div>
-            </div>
-          </div>
           
         </div>
       )}

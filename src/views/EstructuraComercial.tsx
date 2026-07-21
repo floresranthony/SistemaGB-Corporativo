@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "../utils/supabase";
+import { useAuth } from "../utils/authContext";
 import { 
   Building, 
   Users, 
@@ -23,6 +24,10 @@ import * as XLSX from "xlsx";
 type StructureTab = "empresas" | "clientes" | "sedes";
 
 export function EstructuraComercial() {
+  const { role } = useAuth();
+  const currentRole = role || "admin";
+  const showBudget = currentRole !== "supervisor" && currentRole !== "rrhh";
+
   const [activeTab, setActiveTab] = useState<StructureTab>("empresas");
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -42,6 +47,15 @@ export function EstructuraComercial() {
   const [editingId, setEditingId] = useState<any | null>(null);
   const [formValues, setFormValues] = useState<Record<string, any>>({});
   const [seeding, setSeeding] = useState(false);
+  const [selectedLogoFile, setSelectedLogoFile] = useState<File | null>(null);
+
+  const handleLogoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    setSelectedLogoFile(file);
+    if (file) {
+      setFormValues(prev => ({ ...prev, logo_url: `/uploads/logos/${file.name}` }));
+    }
+  };
 
   // Excel Import state
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -567,6 +581,7 @@ export function EstructuraComercial() {
   // Open Add Dialog
   const handleOpenAdd = () => {
     setEditingId(null);
+    setSelectedLogoFile(null);
     const defaults: Record<string, any> = { activo: true };
     if (activeTab === "clientes" && empresas.length > 0) {
       defaults.empresa_interna_id = empresas[0].id;
@@ -582,6 +597,7 @@ export function EstructuraComercial() {
   // Open Edit Dialog
   const handleOpenEdit = (item: any) => {
     setEditingId(item.id);
+    setSelectedLogoFile(null);
     setFormValues({ ...item });
     setIsModalOpen(true);
   };
@@ -592,13 +608,38 @@ export function EstructuraComercial() {
     setLoading(true);
     setError(null);
     
-    // Clean up relations from values
-    const payload = { ...formValues };
-    delete payload.empresas_internas;
-    delete payload.clientes;
-    delete payload.usuario_sedes;
-
     try {
+      let logoUrl = formValues.logo_url;
+
+      if (activeTab === "empresas" && selectedLogoFile) {
+        const arrayBuffer = await selectedLogoFile.arrayBuffer();
+        const response = await fetch("/api/upload-logo", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/octet-stream",
+            "x-file-name": encodeURIComponent(selectedLogoFile.name)
+          },
+          body: arrayBuffer
+        });
+
+        if (!response.ok) {
+          const resErr = await response.json();
+          throw new Error(resErr.error || "Error al subir el logo al servidor local.");
+        }
+        const resData = await response.json();
+        logoUrl = resData.path;
+      }
+
+      // Clean up relations from values
+      const payload = { ...formValues };
+      delete payload.empresas_internas;
+      delete payload.clientes;
+      delete payload.usuario_sedes;
+
+      if (activeTab === "empresas") {
+        payload.logo_url = logoUrl || null;
+      }
+
       const table = activeTab === "empresas" 
         ? "empresas_internas" 
         : activeTab === "clientes" 
@@ -967,6 +1008,7 @@ export function EstructuraComercial() {
                   {/* Conditionally render fields */}
                   {activeTab === "empresas" && (
                     <>
+                      <th className="px-6 py-4 text-center">Logo</th>
                       <th className="px-6 py-4">Representante</th>
                       <th className="px-6 py-4">Dirección Fiscal</th>
                     </>
@@ -979,7 +1021,7 @@ export function EstructuraComercial() {
                       <th className="px-6 py-4">Cliente / Proyecto</th>
                       <th className="px-6 py-4">Supervisores</th>
                       <th className="px-6 py-4">Contacto</th>
-                      <th className="px-6 py-4">Presupuesto</th>
+                      {showBudget && <th className="px-6 py-4">Presupuesto</th>}
                       <th className="px-6 py-4">Ubicación</th>
                     </>
                   )}
@@ -1006,6 +1048,13 @@ export function EstructuraComercial() {
                     {/* Columns for EMPRESAS */}
                     {activeTab === "empresas" && (
                       <>
+                        <td className="px-6 py-4 text-center">
+                          {item.logo_url ? (
+                            <img src={item.logo_url} alt="Logo" style={{ maxHeight: "28px", maxWidth: "64px", objectFit: "contain", display: "inline-block" }} />
+                          ) : (
+                            <span className="text-[10px] text-slate-400 italic">Sin Logo</span>
+                          )}
+                        </td>
                         <td className="px-6 py-4 text-sm text-slate-600">{item.representante_legal}</td>
                         <td className="px-6 py-4 text-xs text-slate-500 font-mono truncate max-w-xs">{item.direccion_fiscal}</td>
                       </>
@@ -1061,12 +1110,14 @@ export function EstructuraComercial() {
                             </div>
                           )}
                         </td>
-                        <td className="px-6 py-4">
-                          <span className="inline-flex items-center gap-0.5 text-sm text-indigo-700 font-black">
-                            <span className="text-xs font-bold mr-0.5">S/</span>
-                            {parseFloat(item.presupuesto).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
-                          </span>
-                        </td>
+                        {showBudget && (
+                          <td className="px-6 py-4">
+                            <span className="inline-flex items-center gap-0.5 text-sm text-indigo-700 font-black">
+                              <span className="text-xs font-bold mr-0.5">S/</span>
+                              {parseFloat(item.presupuesto).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
+                            </span>
+                          </td>
+                        )}
                         <td className="px-6 py-4">
                           <div className="text-sm text-slate-700">{item.distrito}</div>
                           <div className="text-[10px] text-slate-400 truncate max-w-[120px]" title={item.direccion}>{item.direccion}</div>
@@ -1180,6 +1231,31 @@ export function EstructuraComercial() {
                         placeholder="Av., Calle, Jr. Nro..."
                       />
                     </div>
+                    <div>
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Logo de la Empresa (Opcional)</label>
+                      <div className="relative border border-dashed border-slate-200 hover:border-blue-400 hover:bg-slate-50/50 rounded-xl p-4 text-center transition-all cursor-pointer">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleLogoFileChange}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        />
+                        <div className="flex flex-col items-center justify-center space-y-1.5">
+                          <Upload className="w-5 h-5 text-slate-400" />
+                          {selectedLogoFile ? (
+                            <p className="text-xs font-bold text-slate-800 truncate max-w-[250px]">{selectedLogoFile.name}</p>
+                          ) : (
+                            <p className="text-[11px] text-slate-500 font-semibold">Haz clic para subir o arrastrar imagen</p>
+                          )}
+                        </div>
+                      </div>
+                      {formValues.logo_url && !selectedLogoFile && (
+                        <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-lg border border-slate-100 mt-2">
+                          <img src={formValues.logo_url} alt="Logo actual" style={{ maxHeight: "32px", maxWidth: "80px", objectFit: "contain" }} />
+                          <span className="text-[10px] text-slate-400 truncate max-w-[200px]">{formValues.logo_url}</span>
+                        </div>
+                      )}
+                    </div>
                   </>
                 )}
 
@@ -1253,20 +1329,22 @@ export function EstructuraComercial() {
                         placeholder="Ej. Sede Mina Apurímac"
                       />
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Presupuesto Asignado (S/.)</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          required
-                          value={formValues.presupuesto ?? 0.00}
-                          onChange={(e) => setFormValues({ ...formValues, presupuesto: parseFloat(e.target.value) || 0 })}
-                          className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all font-semibold text-indigo-700"
-                        />
-                      </div>
-                      <div>
+                    <div className={showBudget ? "grid grid-cols-2 gap-4" : "block"}>
+                      {showBudget && (
+                        <div>
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Presupuesto Asignado (S/.)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            required
+                            value={formValues.presupuesto ?? 0.00}
+                            onChange={(e) => setFormValues({ ...formValues, presupuesto: parseFloat(e.target.value) || 0 })}
+                            className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all font-semibold text-indigo-700"
+                          />
+                        </div>
+                      )}
+                      <div className={showBudget ? "" : "mt-0"}>
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Distrito</label>
                         <input
                           type="text"

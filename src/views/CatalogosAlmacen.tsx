@@ -41,6 +41,15 @@ export function CatalogosAlmacen() {
   const [formValues, setFormValues] = useState<Record<string, any>>({});
   const [selectedTallas, setSelectedTallas] = useState<number[]>([]); // Tallas IDs selected for uniforms
 
+  // Pagination States
+  const [pageSize, setPageSize] = useState<number>(20);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, filterCategory, filterUniforme, pageSize]);
+
   // Excel Import/Export States
   const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
   const [excelFile, setExcelFile] = useState<File | null>(null);
@@ -294,22 +303,55 @@ export function CatalogosAlmacen() {
       // Load DB reference maps for strict validation
       const [catRes, uniRes, provRes, talRes] = await Promise.all([
         supabase.from("categorias_producto").select("id, nombre"),
-        supabase.from("unidades_medida").select("id, codigo"),
+        supabase.from("unidades_medida").select("id, codigo, nombre"),
         supabase.from("proveedores").select("id, razon_social"),
         supabase.from("tallas").select("id, valor")
       ]);
 
+      const normalizeStr = (str: string) => 
+        str.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
       const catMap = new Map<string, number>();
-      catRes.data?.forEach(c => catMap.set(c.nombre.trim().toLowerCase(), c.id));
+      catRes.data?.forEach(c => {
+        catMap.set(c.nombre.trim().toLowerCase(), c.id);
+        catMap.set(normalizeStr(c.nombre), c.id);
+      });
 
       const uniMap = new Map<string, number>();
-      uniRes.data?.forEach(u => uniMap.set(u.codigo.trim().toLowerCase(), u.id));
+      uniRes.data?.forEach(u => {
+        uniMap.set(u.codigo.trim().toLowerCase(), u.id);
+        uniMap.set(normalizeStr(u.codigo), u.id);
+        if (u.nombre) {
+          uniMap.set(u.nombre.trim().toLowerCase(), u.id);
+          uniMap.set(normalizeStr(u.nombre), u.id);
+        }
+      });
 
       const provMap = new Map<string, number>();
-      provRes.data?.forEach(p => provMap.set(p.razon_social.trim().toLowerCase(), p.id));
+      provRes.data?.forEach(p => {
+        provMap.set(p.razon_social.trim().toLowerCase(), p.id);
+        provMap.set(normalizeStr(p.razon_social), p.id);
+      });
+
+      let dbTallas = talRes.data || [];
+      const hasEstandar = dbTallas.some(t => t.valor.trim().toLowerCase() === "estándar" || t.valor.trim().toLowerCase() === "estandar");
+      if (!hasEstandar) {
+        // Insert "Estándar" dynamically to DB if missing
+        const { data: newTal, error: insError } = await supabase
+          .from("tallas")
+          .insert([{ valor: "Estándar", activo: true }])
+          .select("id, valor")
+          .single();
+        if (!insError && newTal) {
+          dbTallas.push(newTal);
+        }
+      }
 
       const tallaMap = new Map<string, number>();
-      talRes.data?.forEach(t => tallaMap.set(t.valor.trim().toLowerCase(), t.id));
+      dbTallas.forEach(t => {
+        tallaMap.set(t.valor.trim().toLowerCase(), t.id);
+        tallaMap.set(normalizeStr(t.valor), t.id);
+      });
 
       const errors: string[] = [];
       const validRows: any[] = [];
@@ -377,25 +419,26 @@ export function CatalogosAlmacen() {
         seenCombinations.add(comboKey);
 
         // Validation against database lists
-        const categoria_id = catMap.get(catName.toLowerCase());
+        const categoria_id = catMap.get(catName.toLowerCase()) || catMap.get(normalizeStr(catName));
         if (!categoria_id) {
           errors.push(`Fila ${fileRowNumber}: La Categoría '${catName}' no existe en el sistema. Consulta la pestaña 'Catálogos de Referencia'.`);
         }
 
-        const unidad_medida_id = uniMap.get(uniCode.toLowerCase());
+        const unidad_medida_id = uniMap.get(uniCode.toLowerCase()) || uniMap.get(normalizeStr(uniCode));
         if (!unidad_medida_id) {
           errors.push(`Fila ${fileRowNumber}: La Unidad de Medida '${uniCode}' no existe en el sistema. Consulta la pestaña 'Catálogos de Referencia'.`);
         }
 
         let proveedor_id = null;
         if (provName) {
-          proveedor_id = provMap.get(provName.toLowerCase()) || null;
+          proveedor_id = provMap.get(provName.toLowerCase()) || provMap.get(normalizeStr(provName)) || null;
           if (!proveedor_id) {
             errors.push(`Fila ${fileRowNumber}: El Proveedor '${provName}' no existe en el sistema. Consulta la pestaña 'Catálogos de Referencia'.`);
           }
         }
 
-        const tallaId = tallaMap.get(tallaVal.toLowerCase());
+        const tallaKey = tallaVal.trim().toLowerCase();
+        const tallaId = tallaMap.get(tallaKey) || tallaMap.get(normalizeStr(tallaVal));
         if (!tallaId) {
           errors.push(`Fila ${fileRowNumber}: La Talla '${tallaVal}' no existe en el sistema. Consulta la pestaña 'Catálogos de Referencia'.`);
         }
@@ -408,11 +451,13 @@ export function CatalogosAlmacen() {
           errors.push(`Fila ${fileRowNumber}: El Stock Actual '${rawStock}' debe ser un número entero mayor o igual a 0.`);
         }
 
+        const isEstandarTalla = tallaKey === "estándar" || tallaKey === "estandar";
+
         // Logical validation for uniform clothing vs standard materials
-        if (esUniforme && tallaVal.toLowerCase() === "estándar") {
+        if (esUniforme && isEstandarTalla) {
           errors.push(`Fila ${fileRowNumber}: El producto es Vestimenta/Uniforme, por lo tanto no debe tener la talla 'Estándar'. Elija una talla válida (S, M, L, 38, etc.).`);
         }
-        if (!esUniforme && tallaVal.toLowerCase() !== "estándar") {
+        if (!esUniforme && !isEstandarTalla) {
           errors.push(`Fila ${fileRowNumber}: El producto no es Vestimenta/Uniforme, por lo tanto debe tener la talla 'Estándar'.`);
         }
 
@@ -427,7 +472,7 @@ export function CatalogosAlmacen() {
             precio_unitario: precio,
             es_uniforme: esUniforme,
             activo,
-            tallaVal,
+            tallaVal: isEstandarTalla ? "Estándar" : tallaVal,
             tallaId,
             stockActual,
             fileRowNumber
@@ -1002,6 +1047,19 @@ export function CatalogosAlmacen() {
     return { total, uniformes, insumos, activos };
   }, [data]);
 
+  // Paginated Data
+  const totalItems = filteredData.length;
+  const totalPages = Math.ceil(totalItems / pageSize) || 1;
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(1);
+    }
+  }, [totalPages, currentPage]);
+
+  const startIndex = (currentPage - 1) * pageSize;
+  const paginatedData = filteredData.slice(startIndex, startIndex + pageSize);
+
   return (
     <div className="flex flex-col h-full space-y-6">
       {/* Header */}
@@ -1139,7 +1197,7 @@ export function CatalogosAlmacen() {
         </div>
 
         {/* Table list */}
-        <div className="flex-1 overflow-x-auto">
+        <div className="flex-1 overflow-auto max-h-[60vh] relative">
           {loading && filteredData.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-slate-400 space-y-3">
               <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
@@ -1157,19 +1215,19 @@ export function CatalogosAlmacen() {
             <table className="w-full text-left border-collapse min-w-[900px]">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/20 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                  <th className="px-6 py-4">SKU / Código</th>
-                  <th className="px-6 py-4">Nombre del Producto</th>
-                  <th className="px-6 py-4">Categoría</th>
-                  <th className="px-6 py-4">Unidad</th>
-                  <th className="px-6 py-4">Proveedor Principal</th>
-                  <th className="px-6 py-4">Precio Unitario</th>
-                  <th className="px-6 py-4 text-center">Es Uniforme</th>
-                  <th className="px-6 py-4 text-center">Estado</th>
-                  <th className="px-6 py-4 text-right">Acciones</th>
+                  <th className="px-6 py-4 sticky top-0 bg-slate-100 z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.05)]">SKU / Código</th>
+                  <th className="px-6 py-4 sticky top-0 bg-slate-100 z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.05)]">Nombre del Producto</th>
+                  <th className="px-6 py-4 sticky top-0 bg-slate-100 z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.05)]">Categoría</th>
+                  <th className="px-6 py-4 sticky top-0 bg-slate-100 z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.05)]">Unidad</th>
+                  <th className="px-6 py-4 sticky top-0 bg-slate-100 z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.05)]">Proveedor Principal</th>
+                  <th className="px-6 py-4 sticky top-0 bg-slate-100 z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.05)]">Precio Unitario</th>
+                  <th className="px-6 py-4 sticky top-0 bg-slate-100 z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.05)] text-center">Es Uniforme</th>
+                  <th className="px-6 py-4 sticky top-0 bg-slate-100 z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.05)] text-center">Estado</th>
+                  <th className="px-6 py-4 sticky top-0 bg-slate-100 z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.05)] text-right">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredData.map((p) => (
+                {paginatedData.map((p) => (
                   <tr key={p.id} className="hover:bg-slate-50/40 transition-colors">
                     <td className="px-6 py-4 font-mono text-xs text-slate-600 font-semibold">
                       {p.sku}
@@ -1231,8 +1289,79 @@ export function CatalogosAlmacen() {
             </table>
           )}
         </div>
-        <div className="p-4 border-t border-slate-100 bg-slate-50/20 text-xs text-slate-500 font-medium shrink-0">
-          <span>Mostrando {filteredData.length} productos</span>
+        <div className="p-4 border-t border-slate-100 bg-slate-50/50 text-xs text-slate-500 font-medium shrink-0 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <span>Total: <strong>{totalItems}</strong> productos registrados</span>
+            <span className="text-slate-300">|</span>
+            <div className="flex items-center gap-1">
+              <span>Mostrar</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="mx-1 px-1.5 py-0.5 border border-slate-200 rounded bg-white text-slate-700 font-bold focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+              >
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+                <option value={200}>200</option>
+              </select>
+              <span>por pág.</span>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            <span className="text-[11px] text-slate-400">
+              Mostrando <strong>{totalItems > 0 ? startIndex + 1 : 0} - {Math.min(startIndex + pageSize, totalItems)}</strong>
+            </span>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className="px-2.5 py-1 border border-slate-200 rounded-md bg-white hover:bg-slate-50 text-slate-600 font-semibold disabled:opacity-50 disabled:hover:bg-white active:scale-95 transition-all text-xs"
+              >
+                Ant.
+              </button>
+              
+              {/* Render dynamic page numbers */}
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(page => {
+                  // Show first, last, current, and pages close to current
+                  return page === 1 || page === totalPages || Math.abs(page - currentPage) <= 1;
+                })
+                .map((page, index, array) => {
+                  const showEllipsis = index > 0 && page - array[index - 1] > 1;
+                  return (
+                    <React.Fragment key={page}>
+                      {showEllipsis && <span className="px-1 text-slate-400">...</span>}
+                      <button
+                        type="button"
+                        onClick={() => setCurrentPage(page)}
+                        className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all ${
+                          currentPage === page
+                            ? "bg-blue-600 text-white shadow-sm"
+                            : "border border-slate-200 bg-white hover:bg-slate-50 text-slate-600"
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    </React.Fragment>
+                  );
+                })}
+
+              <button
+                type="button"
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className="px-2.5 py-1 border border-slate-200 rounded-md bg-white hover:bg-slate-50 text-slate-600 font-semibold disabled:opacity-50 disabled:hover:bg-white active:scale-95 transition-all text-xs"
+              >
+                Sig.
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 

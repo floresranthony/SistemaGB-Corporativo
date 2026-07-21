@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { supabase } from "../utils/supabase";
 import { motion } from "motion/react";
 import { Mail, Lock, Eye, EyeOff, AlertCircle, ArrowRight, KeyRound } from "lucide-react";
@@ -9,9 +9,50 @@ export function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lockoutTimeLeft, setLockoutTimeLeft] = useState<number>(0);
+
+  useEffect(() => {
+    const checkLockout = () => {
+      const lockoutUntilStr = localStorage.getItem("bax_lockout_until");
+      if (lockoutUntilStr) {
+        const lockoutUntil = parseInt(lockoutUntilStr, 10);
+        const now = Date.now();
+        if (lockoutUntil > now) {
+          const secondsLeft = Math.ceil((lockoutUntil - now) / 1000);
+          setLockoutTimeLeft(secondsLeft);
+          const minutes = Math.floor(secondsLeft / 60);
+          const seconds = secondsLeft % 60;
+          setError(
+            `Demasiados intentos fallidos. Por favor, espera ${minutes}:${seconds < 10 ? "0" : ""}${seconds} minutos antes de volver a intentar.`
+          );
+        } else {
+          localStorage.removeItem("bax_lockout_until");
+          localStorage.removeItem("bax_failed_attempts");
+          setLockoutTimeLeft(0);
+          setError(null);
+        }
+      } else {
+        setLockoutTimeLeft(0);
+      }
+    };
+
+    checkLockout();
+    const interval = setInterval(checkLockout, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const lockoutUntilStr = localStorage.getItem("bax_lockout_until");
+    if (lockoutUntilStr) {
+      const lockoutUntil = parseInt(lockoutUntilStr, 10);
+      if (lockoutUntil > Date.now()) {
+        setError("Inicio de sesión bloqueado temporalmente.");
+        return;
+      }
+    }
+
     if (!email || !password) {
       setError("Por favor, introduce tu correo y contraseña.");
       return;
@@ -27,11 +68,26 @@ export function Login() {
       });
 
       if (signInError) {
-        if (signInError.message === "Invalid login credentials") {
-          setError("Credenciales incorrectas. Verifica tu correo y contraseña.");
+        const currentAttempts = parseInt(localStorage.getItem("bax_failed_attempts") || "0", 10) + 1;
+        
+        if (currentAttempts >= 5) {
+          const lockoutUntil = Date.now() + 30 * 60 * 1000;
+          localStorage.setItem("bax_failed_attempts", currentAttempts.toString());
+          localStorage.setItem("bax_lockout_until", lockoutUntil.toString());
+          setLockoutTimeLeft(30 * 60);
+          setError("Demasiados intentos fallidos. Has sido bloqueado por 30 minutos.");
         } else {
-          setError(signInError.message);
+          localStorage.setItem("bax_failed_attempts", currentAttempts.toString());
+          const remaining = 5 - currentAttempts;
+          if (signInError.message === "Invalid login credentials") {
+            setError(`Credenciales incorrectas. Te quedan ${remaining} intento${remaining === 1 ? "" : "s"}.`);
+          } else {
+            setError(`${signInError.message} (Te quedan ${remaining} intento${remaining === 1 ? "" : "s"})`);
+          }
         }
+      } else {
+        localStorage.removeItem("bax_failed_attempts");
+        localStorage.removeItem("bax_lockout_until");
       }
     } catch (err: any) {
       console.error("Login error:", err);
@@ -116,10 +172,11 @@ export function Login() {
                   id="email"
                   type="email"
                   required
+                  disabled={lockoutTimeLeft > 0}
                   placeholder="ejemplo@grupobax.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full pl-10 pr-4 py-2.5 bg-slate-950/80 border border-slate-800 rounded-lg text-white text-sm placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/80 transition-all font-sans"
+                  className="block w-full pl-10 pr-4 py-2.5 bg-slate-950/80 border border-slate-800 rounded-lg text-white text-sm placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/80 transition-all font-sans disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
             </div>
@@ -139,10 +196,11 @@ export function Login() {
                   id="password"
                   type={showPassword ? "text" : "password"}
                   required
+                  disabled={lockoutTimeLeft > 0}
                   placeholder="••••••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full pl-10 pr-10 py-2.5 bg-slate-950/80 border border-slate-800 rounded-lg text-white text-sm placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/80 transition-all font-sans"
+                  className="block w-full pl-10 pr-10 py-2.5 bg-slate-950/80 border border-slate-800 rounded-lg text-white text-sm placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/80 transition-all font-sans disabled:opacity-50 disabled:cursor-not-allowed"
                 />
                 <button
                   type="button"
@@ -157,8 +215,8 @@ export function Login() {
             {/* Action Button */}
             <button
               type="submit"
-              disabled={isLoading}
-              className="w-full bg-blue-600 hover:bg-blue-500 active:scale-[0.98] disabled:opacity-50 text-white py-3 px-4 rounded-lg font-bold text-sm tracking-wide shadow-lg shadow-blue-500/20 transition-all flex items-center justify-center gap-2 mt-2"
+              disabled={isLoading || lockoutTimeLeft > 0}
+              className="w-full bg-blue-600 hover:bg-blue-500 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none text-white py-3 px-4 rounded-lg font-bold text-sm tracking-wide shadow-lg shadow-blue-500/20 transition-all flex items-center justify-center gap-2 mt-2"
             >
               {isLoading ? (
                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />

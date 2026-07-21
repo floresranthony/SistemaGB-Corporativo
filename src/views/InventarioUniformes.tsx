@@ -62,6 +62,7 @@ export function InventarioUniformes() {
           )
         `)
         .eq("activo", true)
+        .eq("es_uniforme", true)
         .order("nombre", { ascending: true });
 
       if (dbError) throw dbError;
