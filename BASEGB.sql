@@ -174,6 +174,7 @@ CREATE TABLE vinculos_laborales (
     regimen_laboral_id INT NOT NULL,
     asignacion_familiar BOOLEAN DEFAULT FALSE,
     sueldo_basico DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    bono DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
     
     -- Control de Estado Independiente
     estado ENUM('Activo', 'Inactivo') DEFAULT 'Activo',

@@ -267,6 +267,7 @@ export function PizarraDigital() {
       persona_id: "",
       empresa_interna_id: targetEmpresaId || "", // dynamic from the request
       sueldo_basico: 1025.00,
+      bono: 0.00,
       regimen_laboral_id: regimenes[0]?.id || "",
       fecha_inicio: new Date().toISOString().split("T")[0],
       fecha_fin: ""
@@ -321,6 +322,7 @@ export function PizarraDigital() {
           tipo_trabajador_id: firstType.id,
           regimen_laboral_id: ingresoForm.regimen_laboral_id,
           sueldo_basico: ingresoForm.sueldo_basico,
+          bono: parseFloat(ingresoForm.bono) || 0.00,
           estado: "Activo",
           solicitud_id: selectedRequest.id
         }]);
@@ -1384,7 +1386,7 @@ export function PizarraDigital() {
                   <span className="text-[10px] text-slate-400 block mt-1">Busca y selecciona al postulante de su Ficha Maestra o usa el formulario rápido.</span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Sueldo Básico (S/.)</label>
                     <input
@@ -1394,7 +1396,18 @@ export function PizarraDigital() {
                       required
                       value={ingresoForm.sueldo_basico || ""}
                       onChange={(e) => setIngresoForm({ ...ingresoForm, sueldo_basico: parseFloat(e.target.value) || 0 })}
-                      className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none font-semibold text-indigo-700"
+                      className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none font-semibold text-indigo-750"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Bono (S/.)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min={0}
+                      value={ingresoForm.bono ?? 0.00}
+                      onChange={(e) => setIngresoForm({ ...ingresoForm, bono: parseFloat(e.target.value) || 0 })}
+                      className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none font-semibold text-indigo-750"
                     />
                   </div>
                   <div>

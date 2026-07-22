@@ -9,11 +9,11 @@ fetch(url, {
 })
 .then(res => res.json())
 .then(schema => {
-  const definition = schema.definitions && schema.definitions.personas;
+  const definition = schema.definitions && schema.definitions.vinculos_laborales;
   if (definition) {
-    console.log("Columns in personas table definition:", Object.keys(definition.properties));
+    console.log("Columns in vinculos_laborales table definition:", Object.keys(definition.properties));
   } else {
-    console.log("personas table definition not found. Available definitions:", Object.keys(schema.definitions || {}));
+    console.log("vinculos_laborales table definition not found. Available definitions:", Object.keys(schema.definitions || {}));
   }
 })
 .catch(err => console.error("Error fetching schema:", err));
