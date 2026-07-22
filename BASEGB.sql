@@ -175,6 +175,7 @@ CREATE TABLE vinculos_laborales (
     asignacion_familiar BOOLEAN DEFAULT FALSE,
     sueldo_basico DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
     bono DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    vencimiento_asignacion_familiar DATE DEFAULT NULL,
     
     -- Control de Estado Independiente
     estado ENUM('Activo', 'Inactivo') DEFAULT 'Activo',
@@ -419,3 +420,16 @@ ALTER TABLE vinculos_laborales ADD CONSTRAINT fk_vinculo_solicitud FOREIGN KEY (
 CREATE UNIQUE INDEX unique_active_vinculo_per_empresa 
 ON vinculos_laborales (persona_id, empresa_interna_id) 
 WHERE (estado = 'Activo');
+
+-- 9. Parametros y Configuración del Sistema
+CREATE TABLE parametros_sistema (
+    clave VARCHAR(100) PRIMARY KEY,
+    valor TEXT NOT NULL,
+    descripcion VARCHAR(255) DEFAULT NULL,
+    creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Insertar clave de aprobación por defecto
+INSERT INTO parametros_sistema (clave, valor, descripcion) 
+VALUES ('clave_aprobacion_rrhh', '123456', 'Clave requerida para autorizar eliminación de personal y otras acciones críticas.');

@@ -92,6 +92,11 @@ export function AccesosRoles() {
   const [sedesSaving, setSedesSaving] = useState(false);
   const [sedesError, setSedesError] = useState<string | null>(null);
 
+  // Global system parameters
+  const [claveAprobacion, setClaveAprobacion] = useState("");
+  const [savingClave, setSavingClave] = useState(false);
+  const [showClave, setShowClave] = useState(false);
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -117,11 +122,47 @@ export function AccesosRoles() {
 
       if (usuariosError) throw usuariosError;
       setUsuarios(usuariosData || []);
+
+      // 3. Fetch Clave de Aprobación
+      try {
+        const { data: paramData } = await supabase
+          .from("parametros_sistema")
+          .select("valor")
+          .eq("clave", "clave_aprobacion_rrhh")
+          .single();
+        if (paramData) {
+          setClaveAprobacion(paramData.valor);
+        }
+      } catch (paramErr) {
+        console.warn("Could not load clave_aprobacion_rrhh. Table might not exist yet.", paramErr);
+      }
     } catch (err: any) {
       console.error("Error loading access management data:", err);
       setError("Error al cargar la lista de usuarios y roles.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSaveClaveAprobacion = async () => {
+    if (!claveAprobacion.trim()) {
+      alert("La clave de aprobación no puede estar vacía.");
+      return;
+    }
+    setSavingClave(true);
+    try {
+      const { error: saveError } = await supabase
+        .from("parametros_sistema")
+        .upsert({ clave: "clave_aprobacion_rrhh", valor: claveAprobacion.trim(), descripcion: "Clave requerida para autorizar eliminación de personal y otras acciones críticas." });
+      
+      if (saveError) throw saveError;
+      setSuccess("Clave de aprobación actualizada correctamente.");
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err: any) {
+      console.error("Error saving approval key:", err);
+      alert("Error al guardar la clave de aprobación: " + err.message);
+    } finally {
+      setSavingClave(false);
     }
   };
 
@@ -430,6 +471,51 @@ export function AccesosRoles() {
             <span className="text-2xl font-bold text-slate-900">{roles.length}</span>
             <span className="text-[10px] text-slate-400">Categorías de permisos</span>
           </div>
+        </div>
+      </div>
+
+      {/* Seguridad y Aprobaciones del Sistema */}
+      <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-1 max-w-xl">
+          <div className="flex items-center gap-2 text-red-650 font-bold text-xs uppercase tracking-wider">
+            <Lock className="w-4 h-4" />
+            <span>Seguridad y Aprobaciones</span>
+          </div>
+          <h2 className="text-sm font-bold text-slate-800">Clave de Aprobación para Acciones Críticas</h2>
+          <p className="text-xs text-slate-500 leading-relaxed">
+            Esta contraseña es requerida para validar la eliminación de fichas de personal y otras operaciones sensibles. 
+            Cualquier colaborador que conozca este código podrá autorizar la acción.
+          </p>
+        </div>
+        
+        <div className="flex items-center gap-2 self-start md:self-auto min-w-[280px]">
+          <div className="relative flex-1">
+            <input
+              type={showClave ? "text" : "password"}
+              placeholder="Cargando clave..."
+              value={claveAprobacion}
+              onChange={(e) => setClaveAprobacion(e.target.value)}
+              className="w-full pl-3 pr-10 py-2 border border-slate-200 rounded-lg text-xs font-mono tracking-widest focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            <button
+              type="button"
+              onClick={() => setShowClave(!showClave)}
+              className="absolute inset-y-0 right-0 px-3 flex items-center text-slate-400 hover:text-slate-650"
+            >
+              {showClave ? (
+                <span className="text-[10px] font-bold text-slate-500 select-none">Ocultar</span>
+              ) : (
+                <span className="text-[10px] font-bold text-slate-500 select-none">Mostrar</span>
+              )}
+            </button>
+          </div>
+          <button
+            onClick={handleSaveClaveAprobacion}
+            disabled={savingClave}
+            className="bg-slate-800 hover:bg-slate-900 active:scale-95 text-white px-4 py-2 rounded-lg text-xs font-semibold shadow-sm transition-all disabled:opacity-50 shrink-0"
+          >
+            {savingClave ? "Guardando..." : "Guardar Clave"}
+          </button>
         </div>
       </div>
 

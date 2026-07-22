@@ -75,6 +75,8 @@ export function FichasPersonal() {
   const [showCreationSedeDropdown, setShowCreationSedeDropdown] = useState(false);
   const [creationCargoSearchText, setCreationCargoSearchText] = useState("");
   const [showCreationCargoDropdown, setShowCreationCargoDropdown] = useState(false);
+  const [creationClienteSearchText, setCreationClienteSearchText] = useState("");
+  const [showCreationClienteDropdown, setShowCreationClienteDropdown] = useState(false);
 
   // Helper to obtain clients for an internal company
   const getClientesForEmpresa = (empresaId: any) => {
@@ -139,6 +141,8 @@ export function FichasPersonal() {
   const [showSedeDropdown, setShowSedeDropdown] = useState(false);
   const [cargoSearchText, setCargoSearchText] = useState("");
   const [showCargoDropdown, setShowCargoDropdown] = useState(false);
+  const [modalClienteSearchText, setModalClienteSearchText] = useState("");
+  const [showModalClienteDropdown, setShowModalClienteDropdown] = useState(false);
   
   // Cese Modal states
   const [isCeseModalOpen, setIsCeseModalOpen] = useState(false);
@@ -160,6 +164,7 @@ export function FichasPersonal() {
   // Confirm Delete Modal State
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [deleteConfirmName, setDeleteConfirmName] = useState<string>("");
+  const [deleteConfirmKeyInput, setDeleteConfirmKeyInput] = useState<string>("");
 
   // Excel Import loading overlay states
   const [importSuccess, setImportSuccess] = useState(false);
@@ -299,6 +304,7 @@ export function FichasPersonal() {
             sueldo_basico,
             bono,
             asignacion_familiar,
+            vencimiento_asignacion_familiar,
             tipo_trabajador_id,
             lugar_especifico_trabajo,
             regimenes_laborales (id, nombre, dias_vacaciones),
@@ -380,19 +386,20 @@ export function FichasPersonal() {
       
       // Defaults for position/contract
       empresa_interna_id: firstEmp?.id || "",
-      cliente_id: firstCli?.id || "",
-      sede_id: firstSede?.id || "",
+      cliente_id: "",
+      sede_id: "",
       cargo_id: cargos[0]?.id || "",
       tipo_trabajador_id: tiposTrab[0]?.id || "",
       regimen_laboral_id: regimenes[0]?.id || "",
-      sueldo_basico: 1025.00,
+      sueldo_basico: 1130.00,
       lugar_especifico_trabajo: "",
       asignacion_familiar: false,
       contrato_modalidad_id: modalidades[0]?.id || "",
-      contrato_fecha_inicio: new Date().toISOString().split("T")[0],
+      contrato_fecha_inicio: "",
       contrato_fecha_fin: ""
     });
-    setCreationSedeSearchText(firstSede ? firstSede.nombre : "");
+    setCreationClienteSearchText("");
+    setCreationSedeSearchText("");
     setCreationCargoSearchText(cargos[0] ? cargos[0].nombre : "");
     setUbigeoSearch("");
     setUbigeoResults([]);
@@ -441,6 +448,7 @@ export function FichasPersonal() {
       "bono",
       "lugar_especifico_trabajo",
       "asignacion_familiar",
+      "vencimiento_asignacion_familiar",
       "contrato_modalidad_id",
       "contrato_fecha_inicio",
       "contrato_fecha_fin"
@@ -473,10 +481,11 @@ export function FichasPersonal() {
             cargo_id: parseInt(personaForm.cargo_id),
             tipo_trabajador_id: parseInt(personaForm.tipo_trabajador_id),
             regimen_laboral_id: parseInt(personaForm.regimen_laboral_id),
-            sueldo_basico: parseFloat(personaForm.sueldo_basico) || 1025.00,
+            sueldo_basico: parseFloat(personaForm.sueldo_basico) || 1130.00,
             bono: parseFloat(personaForm.bono) || 0.00,
             lugar_especifico_trabajo: personaForm.lugar_especifico_trabajo || "",
             asignacion_familiar: !!personaForm.asignacion_familiar,
+            vencimiento_asignacion_familiar: personaForm.asignacion_familiar ? (personaForm.vencimiento_asignacion_familiar || null) : null,
             estado: "Activo"
           };
 
@@ -518,14 +527,34 @@ export function FichasPersonal() {
   const handleOpenDeleteConfirm = (persona: any) => {
     setDeleteConfirmId(persona.id);
     setDeleteConfirmName(`${persona.nombres} ${persona.apellidos}`);
+    setDeleteConfirmKeyInput("");
   };
 
   const handleConfirmDelete = async () => {
     if (!deleteConfirmId) return;
     setLoading(true);
     const targetId = deleteConfirmId;
-    setDeleteConfirmId(null);
     try {
+      // 1. Fetch approval key from system parameters
+      const { data: paramData, error: paramError } = await supabase
+        .from("parametros_sistema")
+        .select("valor")
+        .eq("clave", "clave_aprobacion_rrhh")
+        .single();
+      
+      if (paramError || !paramData) {
+        throw new Error("No se pudo cargar la clave de aprobación del sistema. Verifica que la tabla parametros_sistema exista.");
+      }
+
+      // 2. Validate key
+      if (deleteConfirmKeyInput.trim() !== paramData.valor.trim()) {
+        throw new Error("Código de autorización incorrecto. Acción denegada.");
+      }
+
+      // 3. Proceed to delete
+      setDeleteConfirmId(null);
+      setDeleteConfirmKeyInput("");
+
       const { error: dbError } = await supabase.from("personas").delete().eq("id", targetId);
       if (dbError) throw dbError;
       loadPersonas();
@@ -595,7 +624,7 @@ export function FichasPersonal() {
       "fecha_ultimo_emo", "talla_polo", "talla_pantalon", "talla_calzado",
       "fecha_ingreso", "fecha_primer_contrato",
       "empresa_interna_ruc", "cliente_nombre", "sede_nombre", "cargo_nombre", "tipo_trabajador_nombre",
-      "lugar_especifico_trabajo", "regimen_laboral_nombre", "asignacion_familiar", "sueldo_basico", "bono",
+      "lugar_especifico_trabajo", "regimen_laboral_nombre", "asignacion_familiar", "vencimiento_asignacion_familiar", "sueldo_basico", "bono",
       "modalidad_contrato_nombre", "contrato_fecha_inicio", "contrato_fecha_fin"
     ];
 
@@ -606,7 +635,7 @@ export function FichasPersonal() {
       "15-02-2026", "M", "32", "41",
       "01-06-2026", "30-05-2026",
       "20601234567", "BCP", "Sede Central San Isidro", "Operario", "Obrero",
-      "Almacén Central", "Régimen General", "SI", "1200.00", "150.00",
+      "Almacén Central", "Régimen General", "SI", "18-12-2035", "1200.00", "150.00",
       "Plazo Fijo", "01-06-2026", "30-11-2026"
     ];
 
@@ -617,7 +646,7 @@ export function FichasPersonal() {
       "", "", "S", "",
       "", "",
       "20609876543", "Minera Las Bambas", "Sede Mina Apurímac", "Supervisor", "Empleado",
-      "Operaciones Apurímac", "Régimen General", "NO", "2500.00", "0.00",
+      "Operaciones Apurímac", "Régimen General", "NO", "", "2500.00", "0.00",
       "Plazo Fijo", "15-06-2026", ""
     ];
 
@@ -882,6 +911,12 @@ export function FichasPersonal() {
           const asigFamStr = String(rowData.asignacion_familiar || "").trim().toUpperCase();
           const asigFam = asigFamStr === "SI" || asigFamStr === "SÍ" || asigFamStr === "TRUE" || asigFamStr === "YES";
 
+          const rawVencimientoAsigFam = rowData.vencimiento_asignacion_familiar;
+          const parsedVencimientoAsigFam = parseExcelDate(rawVencimientoAsigFam);
+          if (asigFam && rawVencimientoAsigFam && !parsedVencimientoAsigFam) {
+            errors.push(`Fecha vencimiento de asignación familiar '${rawVencimientoAsigFam || ""}' es inválida. Usar formato DD-MM-YYYY`);
+          }
+
           const rawFechaUltimoEmo = rowData.fecha_ultimo_emo;
           const parsedFechaUltimoEmo = parseExcelDate(rawFechaUltimoEmo);
           if (rawFechaUltimoEmo && !parsedFechaUltimoEmo) {
@@ -966,6 +1001,7 @@ export function FichasPersonal() {
             if (rowData.sueldo_basico) vinculoPayload.sueldo_basico = sueldoNum;
             if (rowData.bono !== undefined && rowData.bono !== null) vinculoPayload.bono = bonoNum;
             if (rowData.asignacion_familiar) vinculoPayload.asignacion_familiar = asigFam;
+            vinculoPayload.vencimiento_asignacion_familiar = asigFam ? (parsedVencimientoAsigFam || null) : null;
           }
 
           const contratoPayload: any = isUpdateOnly ? null : {
@@ -1321,20 +1357,22 @@ export function FichasPersonal() {
     setVinculoForm({
       persona_id: activePersona.id,
       empresa_interna_id: firstEmpId,
-      cliente_id: firstCli?.id || "",
-      sede_id: defaultSede?.id || "",
+      cliente_id: "",
+      sede_id: "",
       cargo_id: defaultCargo?.id || "",
       tipo_trabajador_id: tiposTrab[0]?.id || "",
       regimen_laboral_id: regimenes[0]?.id || "",
-      sueldo_basico: 1025.00,
+      sueldo_basico: 1130.00,
       bono: 0.00,
       asignacion_familiar: false,
+      vencimiento_asignacion_familiar: "",
       estado: "Activo",
       contrato_modalidad_id: modalidades[0]?.id || "",
-      contrato_fecha_inicio: new Date().toISOString().split("T")[0],
+      contrato_fecha_inicio: "",
       contrato_fecha_fin: ""
     });
-    setSedeSearchText(defaultSede ? defaultSede.nombre : "");
+    setModalClienteSearchText("");
+    setSedeSearchText("");
     setCargoSearchText(defaultCargo ? defaultCargo.nombre : "");
     setShowSedeDropdown(false);
     setShowCargoDropdown(false);
@@ -1355,10 +1393,12 @@ export function FichasPersonal() {
       bono: v.bono || 0.00,
       lugar_especifico_trabajo: v.lugar_especifico_trabajo || "",
       asignacion_familiar: v.asignacion_familiar || false,
+      vencimiento_asignacion_familiar: v.vencimiento_asignacion_familiar || "",
       estado: v.estado
     });
     setSedeSearchText(v.sedes?.nombre || "");
     setCargoSearchText(v.cargos?.nombre || "");
+    setModalClienteSearchText(v.sedes?.clientes?.razon_social || "");
     setShowSedeDropdown(false);
     setShowCargoDropdown(false);
     setIsVinculoModalOpen(true);
@@ -1391,6 +1431,7 @@ export function FichasPersonal() {
       delete vinculoPayload.contrato_fecha_fin;
       delete vinculoPayload.cliente_id;
       vinculoPayload.bono = parseFloat(vinculoPayload.bono) || 0.00;
+      vinculoPayload.vencimiento_asignacion_familiar = vinculoPayload.asignacion_familiar ? (vinculoPayload.vencimiento_asignacion_familiar || null) : null;
 
       if (editingVinculoId) {
         const { error: dbError } = await supabase
@@ -1880,7 +1921,7 @@ export function FichasPersonal() {
     const headers = [
       "Tipo Documento", "Número Documento", "Apellidos", "Nombres", "Sexo", 
       "Empresa Planilla", "Cliente", "Sede Operativa", "Cargo", "Régimen Laboral",
-      "Sueldo Básico", "Bono", "Asignación Familiar", "F. Ingreso", 
+      "Sueldo Básico", "Bono", "Asignación Familiar", "Venc. Asig. Familiar", "F. Ingreso", 
       "Inicio Contrato", "Fin Contrato", "Estado Contrato", 
       "Régimen Pensionario", "CUSSP", "Banco Sueldo", "Cuenta Sueldo",
       "Banco CTS", "Cuenta CTS",
@@ -1927,6 +1968,7 @@ export function FichasPersonal() {
         v ? (v.sueldo_basico !== undefined && v.sueldo_basico !== null ? parseFloat(v.sueldo_basico) : 0) : "-",
         v ? (v.bono !== undefined && v.bono !== null ? parseFloat(v.bono) : 0) : "-",
         v ? (v.asignacion_familiar ? "Sí" : "No") : "-",
+        v ? (v.vencimiento_asignacion_familiar ? v.vencimiento_asignacion_familiar.split("-").reverse().join("-") : "-") : "-",
         fIng ? fIng.split("-").reverse().join("-") : "-",
         activeContract?.fecha_inicio ? activeContract.fecha_inicio.split("-").reverse().join("-") : "-",
         activeContract?.fecha_fin ? activeContract.fecha_fin.split("-").reverse().join("-") : "-",
@@ -1969,6 +2011,16 @@ export function FichasPersonal() {
 
   const filteredCargosForCreation = cargos
     .filter(c => c.nombre.toLowerCase().includes(creationCargoSearchText.toLowerCase()));
+
+  const filteredClientesForCreation = React.useMemo(() => {
+    const allClients = getClientesForEmpresa(personaForm.empresa_interna_id);
+    return allClients.filter(c => c.name.toLowerCase().includes(creationClienteSearchText.toLowerCase()));
+  }, [personaForm.empresa_interna_id, creationClienteSearchText, sedes]);
+
+  const filteredClientesForModal = React.useMemo(() => {
+    const allClients = getClientesForEmpresa(vinculoForm.empresa_interna_id);
+    return allClients.filter(c => c.name.toLowerCase().includes(modalClienteSearchText.toLowerCase()));
+  }, [vinculoForm.empresa_interna_id, modalClienteSearchText, sedes]);
 
   const handleSedeBlur = () => {
     setTimeout(() => {
@@ -2014,6 +2066,32 @@ export function FichasPersonal() {
         setCreationCargoSearchText(selectedCargo.nombre);
       } else {
         setCreationCargoSearchText("");
+      }
+    }, 200);
+  };
+
+  const handleCreationClienteBlur = () => {
+    setTimeout(() => {
+      setShowCreationClienteDropdown(false);
+      const allClients = getClientesForEmpresa(personaForm.empresa_interna_id);
+      const selectedCli = allClients.find(c => c.id === personaForm.cliente_id);
+      if (selectedCli) {
+        setCreationClienteSearchText(selectedCli.name);
+      } else {
+        setCreationClienteSearchText("");
+      }
+    }, 200);
+  };
+
+  const handleModalClienteBlur = () => {
+    setTimeout(() => {
+      setShowModalClienteDropdown(false);
+      const allClients = getClientesForEmpresa(vinculoForm.empresa_interna_id);
+      const selectedCli = allClients.find(c => c.id === vinculoForm.cliente_id);
+      if (selectedCli) {
+        setModalClienteSearchText(selectedCli.name);
+      } else {
+        setModalClienteSearchText("");
       }
     }, 200);
   };
@@ -2584,6 +2662,45 @@ export function FichasPersonal() {
                         );
                       };
 
+                      const getAsigFamBadge = () => {
+                        if (!v || !v.asignacion_familiar) return null;
+                        if (!v.vencimiento_asignacion_familiar) {
+                          return (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-100 px-1.5 py-0.5 rounded">
+                              👶 Asig. Familiar
+                            </span>
+                          );
+                        }
+                        
+                        const today = new Date();
+                        today.setHours(0,0,0,0);
+                        const expDate = new Date(v.vencimiento_asignacion_familiar);
+                        expDate.setHours(0,0,0,0);
+                        const diff = expDate.getTime() - today.getTime();
+                        const diffDays = Math.ceil(diff / (1000 * 60 * 60 * 24));
+                        const formattedDate = v.vencimiento_asignacion_familiar.split("-").reverse().join("/");
+                        
+                        if (diffDays < 0) {
+                          return (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-red-50 text-red-800 border border-red-200 px-1.5 py-0.5 rounded">
+                              ⚠️ Asig. Fam. Vencida ({formattedDate})
+                            </span>
+                          );
+                        } else if (diffDays <= 30) {
+                          return (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded animate-pulse">
+                              ⏳ Asig. Fam. por Vencer ({formattedDate})
+                            </span>
+                          );
+                        } else {
+                          return (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-100 px-1.5 py-0.5 rounded">
+                              👶 Asig. Fam. (Vence: {formattedDate})
+                            </span>
+                          );
+                        }
+                      };
+
                       const badge = getStatusBadge(activeContract, !!v);
                       
                       return (
@@ -2611,6 +2728,7 @@ export function FichasPersonal() {
                                   🏦 Por Afiliar
                                 </span>
                               )}
+                              {getAsigFamBadge()}
                             </div>
                             {getVacationsBadge()}
                           </td>
@@ -3190,17 +3308,6 @@ export function FichasPersonal() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Nombres</label>
-                  <input
-                    type="text"
-                    required
-                    value={personaForm.nombres || ""}
-                    onChange={(e) => setPersonaForm({ ...personaForm, nombres: e.target.value })}
-                    className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none"
-                    placeholder="Nombres completos"
-                  />
-                </div>
-                <div>
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Apellidos</label>
                   <input
                     type="text"
@@ -3209,6 +3316,17 @@ export function FichasPersonal() {
                     onChange={(e) => setPersonaForm({ ...personaForm, apellidos: e.target.value })}
                     className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none"
                     placeholder="Apellidos completos"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Nombres</label>
+                  <input
+                    type="text"
+                    required
+                    value={personaForm.nombres || ""}
+                    onChange={(e) => setPersonaForm({ ...personaForm, nombres: e.target.value })}
+                    className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none"
+                    placeholder="Nombres completos"
                   />
                 </div>
                 <div>
@@ -3491,17 +3609,14 @@ export function FichasPersonal() {
                       value={personaForm.empresa_interna_id || ""}
                       onChange={(e) => {
                         const empId = parseInt(e.target.value);
-                        const availableClients = getClientesForEmpresa(empId);
-                        const firstCli = availableClients[0];
-                        const clientSedes = firstCli ? sedes.filter(s => s.cliente_id === firstCli.id) : [];
-                        const firstSede = clientSedes[0];
                         setPersonaForm({
                           ...personaForm,
                           empresa_interna_id: empId,
-                          cliente_id: firstCli ? firstCli.id : "",
-                          sede_id: firstSede?.id || ""
+                          cliente_id: "",
+                          sede_id: ""
                         });
-                        setCreationSedeSearchText(firstSede ? firstSede.nombre : "");
+                        setCreationClienteSearchText("");
+                        setCreationSedeSearchText("");
                       }}
                       className="w-full p-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none"
                     >
@@ -3511,28 +3626,47 @@ export function FichasPersonal() {
                     </select>
                   </div>
 
-                  <div>
+                  <div className="relative">
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Cliente (Servicio)</label>
-                    <select
-                      value={personaForm.cliente_id || ""}
+                    <input
+                      type="text"
+                      value={creationClienteSearchText}
                       onChange={(e) => {
-                        const cliId = parseInt(e.target.value);
-                        const clientSedes = sedes.filter(s => s.cliente_id === cliId);
-                        const firstSede = clientSedes[0];
-                        setPersonaForm({
-                          ...personaForm,
-                          cliente_id: cliId,
-                          sede_id: firstSede?.id || ""
-                        });
-                        setCreationSedeSearchText(firstSede ? firstSede.nombre : "");
+                        setCreationClienteSearchText(e.target.value);
+                        setShowCreationClienteDropdown(true);
                       }}
-                      className="w-full p-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none"
-                    >
-                      <option value="" disabled>Seleccione un cliente</option>
-                      {getClientesForEmpresa(personaForm.empresa_interna_id).map((c) => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                    </select>
+                      onFocus={() => setShowCreationClienteDropdown(true)}
+                      onBlur={handleCreationClienteBlur}
+                      className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none"
+                      placeholder="Buscar cliente..."
+                    />
+                    {showCreationClienteDropdown && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-30 max-h-48 overflow-y-auto divide-y divide-slate-100">
+                        {filteredClientesForCreation.length === 0 ? (
+                          <div className="px-3 py-2 text-xs text-slate-400">No se encontraron clientes</div>
+                        ) : (
+                          filteredClientesForCreation.map((c) => (
+                            <button
+                              key={c.id}
+                              type="button"
+                              onMouseDown={() => {
+                                setPersonaForm({ 
+                                  ...personaForm, 
+                                  cliente_id: c.id,
+                                  sede_id: ""
+                                });
+                                setCreationClienteSearchText(c.name);
+                                setCreationSedeSearchText("");
+                                setShowCreationClienteDropdown(false);
+                              }}
+                              className="w-full text-left px-3 py-2 hover:bg-slate-50 text-xs font-medium border-none cursor-pointer bg-white"
+                            >
+                              {c.name}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="relative">
@@ -3642,7 +3776,7 @@ export function FichasPersonal() {
                     <input
                       type="number"
                       step="0.01"
-                      value={personaForm.sueldo_basico === undefined ? 1025 : personaForm.sueldo_basico}
+                      value={personaForm.sueldo_basico === undefined ? 1130 : personaForm.sueldo_basico}
                       onChange={(e) => setPersonaForm({ ...personaForm, sueldo_basico: parseFloat(e.target.value) })}
                       className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none"
                     />
@@ -3653,8 +3787,11 @@ export function FichasPersonal() {
                     <input
                       type="number"
                       step="0.01"
-                      value={personaForm.bono === undefined ? 0 : personaForm.bono}
-                      onChange={(e) => setPersonaForm({ ...personaForm, bono: parseFloat(e.target.value) || 0 })}
+                      value={personaForm.bono || ""}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setPersonaForm({ ...personaForm, bono: val === "" ? "" : parseFloat(val) || 0 });
+                      }}
                       className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none font-semibold text-indigo-700"
                     />
                   </div>
@@ -3671,17 +3808,38 @@ export function FichasPersonal() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="creation_asignacion_familiar"
-                    checked={!!personaForm.asignacion_familiar}
-                    onChange={(e) => setPersonaForm({ ...personaForm, asignacion_familiar: e.target.checked })}
-                    className="rounded text-blue-600 focus:ring-blue-500 h-4.5 w-4.5 cursor-pointer accent-blue-600"
-                  />
-                  <label htmlFor="creation_asignacion_familiar" className="text-xs font-bold text-slate-500 uppercase tracking-wider cursor-pointer select-none">
-                    Aplica Asignación Familiar
-                  </label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                  <div className="flex items-center gap-2 py-3">
+                    <input
+                      type="checkbox"
+                      id="creation_asignacion_familiar"
+                      checked={!!personaForm.asignacion_familiar}
+                      onChange={(e) => {
+                        const isChecked = e.target.checked;
+                        setPersonaForm({
+                          ...personaForm,
+                          asignacion_familiar: isChecked,
+                          vencimiento_asignacion_familiar: isChecked ? (personaForm.vencimiento_asignacion_familiar || "") : ""
+                        });
+                      }}
+                      className="rounded text-blue-600 focus:ring-blue-500 h-4.5 w-4.5 cursor-pointer accent-blue-600"
+                    />
+                    <label htmlFor="creation_asignacion_familiar" className="text-xs font-bold text-slate-500 uppercase tracking-wider cursor-pointer select-none">
+                      Aplica Asignación Familiar
+                    </label>
+                  </div>
+
+                  {!!personaForm.asignacion_familiar && (
+                    <div className="animate-fadeIn">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">F. Vencimiento Asig. Familiar (Opcional)</label>
+                      <input
+                        type="date"
+                        value={personaForm.vencimiento_asignacion_familiar || ""}
+                        onChange={(e) => setPersonaForm({ ...personaForm, vencimiento_asignacion_familiar: e.target.value })}
+                        className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div className="border-t border-slate-100 pt-4">
@@ -3898,9 +4056,42 @@ export function FichasPersonal() {
                               </div>
                             )}
                           </div>
-                          {v.asignacion_familiar && (
-                            <span className="text-[9px] bg-emerald-50 text-emerald-700 font-bold px-1 py-0.5 rounded mt-1 inline-block">Asig. Fam.</span>
-                          )}
+                          {v.asignacion_familiar && (() => {
+                            if (!v.vencimiento_asignacion_familiar) {
+                              return (
+                                <span className="text-[9px] bg-emerald-50 text-emerald-700 font-bold px-1 py-0.5 rounded mt-1 inline-block">
+                                  Asig. Fam.
+                                </span>
+                              );
+                            }
+                            const today = new Date();
+                            today.setHours(0,0,0,0);
+                            const expDate = new Date(v.vencimiento_asignacion_familiar);
+                            expDate.setHours(0,0,0,0);
+                            const diff = expDate.getTime() - today.getTime();
+                            const diffDays = Math.ceil(diff / (1000 * 60 * 60 * 24));
+                            const formattedDate = v.vencimiento_asignacion_familiar.split("-").reverse().join("/");
+                            
+                            if (diffDays < 0) {
+                              return (
+                                <span className="text-[9px] bg-red-50 text-red-700 border border-red-100 font-bold px-1 py-0.5 rounded mt-1 inline-block">
+                                  Asig. Fam. Venció ({formattedDate})
+                                </span>
+                              );
+                            } else if (diffDays <= 30) {
+                              return (
+                                <span className="text-[9px] bg-amber-50 text-amber-700 border border-amber-250 font-bold px-1 py-0.5 rounded mt-1 inline-block animate-pulse">
+                                  Asig. Fam. Vence ({formattedDate})
+                                </span>
+                              );
+                            } else {
+                              return (
+                                <span className="text-[9px] bg-emerald-50 text-emerald-700 font-bold px-1 py-0.5 rounded mt-1 inline-block">
+                                  Asig. Fam. (Vence: {formattedDate})
+                                </span>
+                              );
+                            }
+                          })()}
                         </td>
                         <td className="px-6 py-4 text-center">
                           <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
@@ -4006,17 +4197,14 @@ export function FichasPersonal() {
                     value={vinculoForm.empresa_interna_id || ""}
                     onChange={(e) => {
                       const empId = parseInt(e.target.value);
-                      const availableClients = getClientesForEmpresa(empId);
-                      const firstCli = availableClients[0];
-                      const validSedes = firstCli ? sedes.filter(s => s.cliente_id === firstCli.id) : [];
-                      const defaultSede = validSedes[0];
                       setVinculoForm({ 
                         ...vinculoForm, 
                         empresa_interna_id: empId, 
-                        cliente_id: firstCli ? firstCli.id : "",
-                        sede_id: defaultSede?.id || "" 
+                        cliente_id: "",
+                        sede_id: "" 
                       });
-                      setSedeSearchText(defaultSede ? defaultSede.nombre : "");
+                      setModalClienteSearchText("");
+                      setSedeSearchText("");
                     }}
                     className="w-full p-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none"
                   >
@@ -4026,29 +4214,48 @@ export function FichasPersonal() {
                   </select>
                 </div>
 
-                <div>
+                <div className="relative">
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Cliente (Servicio)</label>
-                  <select
+                  <input
+                    type="text"
                     required
-                    value={vinculoForm.cliente_id || ""}
+                    value={modalClienteSearchText}
                     onChange={(e) => {
-                      const cliId = parseInt(e.target.value);
-                      const clientSedes = sedes.filter(s => s.cliente_id === cliId);
-                      const firstSede = clientSedes[0];
-                      setVinculoForm({
-                        ...vinculoForm,
-                        cliente_id: cliId,
-                        sede_id: firstSede?.id || ""
-                      });
-                      setSedeSearchText(firstSede ? firstSede.nombre : "");
+                      setModalClienteSearchText(e.target.value);
+                      setShowModalClienteDropdown(true);
                     }}
+                    onFocus={() => setShowModalClienteDropdown(true)}
+                    onBlur={handleModalClienteBlur}
                     className="w-full p-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none"
-                  >
-                    <option value="" disabled>Seleccione un cliente</option>
-                    {getClientesForEmpresa(vinculoForm.empresa_interna_id).map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
+                    placeholder="Buscar cliente..."
+                  />
+                  {showModalClienteDropdown && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-30 max-h-48 overflow-y-auto divide-y divide-slate-100">
+                      {filteredClientesForModal.length === 0 ? (
+                        <div className="px-3 py-2 text-xs text-slate-400">No se encontraron clientes</div>
+                      ) : (
+                        filteredClientesForModal.map((c) => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onMouseDown={() => {
+                              setVinculoForm({ 
+                                ...vinculoForm, 
+                                cliente_id: c.id,
+                                sede_id: ""
+                              });
+                              setModalClienteSearchText(c.name);
+                              setSedeSearchText("");
+                              setShowModalClienteDropdown(false);
+                            }}
+                            className="w-full text-left px-3 py-2 hover:bg-slate-50 text-xs font-medium border-none cursor-pointer bg-white"
+                          >
+                            {c.name}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -4172,7 +4379,7 @@ export function FichasPersonal() {
                       step="0.01"
                       min={0}
                       required
-                      value={vinculoForm.sueldo_basico ?? 1025.00}
+                      value={vinculoForm.sueldo_basico ?? 1130.00}
                       onChange={(e) => setVinculoForm({ ...vinculoForm, sueldo_basico: parseFloat(e.target.value) || 0 })}
                       className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none font-semibold text-indigo-750"
                     />
@@ -4183,8 +4390,11 @@ export function FichasPersonal() {
                       type="number"
                       step="0.01"
                       min={0}
-                      value={vinculoForm.bono ?? 0.00}
-                      onChange={(e) => setVinculoForm({ ...vinculoForm, bono: parseFloat(e.target.value) || 0 })}
+                      value={vinculoForm.bono || ""}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setVinculoForm({ ...vinculoForm, bono: val === "" ? "" : parseFloat(val) || 0 });
+                      }}
                       className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none font-semibold text-indigo-750"
                     />
                   </div>
@@ -4200,17 +4410,38 @@ export function FichasPersonal() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 pt-2">
-                  <input
-                    type="checkbox"
-                    id="asigFam"
-                    checked={vinculoForm.asignacion_familiar || false}
-                    onChange={(e) => setVinculoForm({ ...vinculoForm, asignacion_familiar: e.target.checked })}
-                    className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
-                  />
-                  <label htmlFor="asigFam" className="text-sm font-semibold text-slate-700 select-none">
-                    Aplica Asignación Familiar
-                  </label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                  <div className="flex items-center gap-2 py-3">
+                    <input
+                      type="checkbox"
+                      id="asigFam"
+                      checked={vinculoForm.asignacion_familiar || false}
+                      onChange={(e) => {
+                        const isChecked = e.target.checked;
+                        setVinculoForm({
+                          ...vinculoForm,
+                          asignacion_familiar: isChecked,
+                          vencimiento_asignacion_familiar: isChecked ? (vinculoForm.vencimiento_asignacion_familiar || "") : ""
+                        });
+                      }}
+                      className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500 cursor-pointer"
+                    />
+                    <label htmlFor="asigFam" className="text-sm font-semibold text-slate-700 select-none cursor-pointer">
+                      Aplica Asignación Familiar
+                    </label>
+                  </div>
+
+                  {!!vinculoForm.asignacion_familiar && (
+                    <div className="animate-fadeIn">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">F. Vencimiento Asig. Familiar (Opcional)</label>
+                      <input
+                        type="date"
+                        value={vinculoForm.vencimiento_asignacion_familiar || ""}
+                        onChange={(e) => setVinculoForm({ ...vinculoForm, vencimiento_asignacion_familiar: e.target.value })}
+                        className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* Campos de Contrato Inicial */}
@@ -4691,6 +4922,19 @@ export function FichasPersonal() {
               <p className="text-xs text-slate-500 leading-relaxed">
                 Estás a punto de eliminar permanentemente la ficha de <strong>{deleteConfirmName}</strong>. Esta acción borrará todo su historial laboral y no se puede deshacer.
               </p>
+            </div>
+
+            <div className="w-full text-left space-y-1">
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                Código de Autorización
+              </label>
+              <input
+                type="password"
+                placeholder="Ingresa la clave de aprobación"
+                value={deleteConfirmKeyInput}
+                onChange={(e) => setDeleteConfirmKeyInput(e.target.value)}
+                className="w-full p-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-red-100 focus:outline-none text-center font-mono tracking-widest"
+              />
             </div>
 
             <div className="flex gap-2.5 w-full pt-2">

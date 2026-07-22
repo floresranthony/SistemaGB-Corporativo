@@ -266,7 +266,7 @@ export function PizarraDigital() {
     setIngresoForm({
       persona_id: "",
       empresa_interna_id: targetEmpresaId || "", // dynamic from the request
-      sueldo_basico: 1025.00,
+      sueldo_basico: 1130.00,
       bono: 0.00,
       regimen_laboral_id: regimenes[0]?.id || "",
       fecha_inicio: new Date().toISOString().split("T")[0],
