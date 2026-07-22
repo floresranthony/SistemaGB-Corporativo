@@ -66,9 +66,28 @@ export function FichasPersonal() {
 
   // Form states (Persona)
   const [personaForm, setPersonaForm] = useState<Record<string, any>>({});
-  const [activeFormTab, setActiveFormTab] = useState<"personales" | "financieros" | "tallas">("personales");
+  const [activeFormTab, setActiveFormTab] = useState<"personales" | "financieros" | "tallas" | "puesto">("personales");
   const [ubigeoSearch, setUbigeoSearch] = useState("");
   const [ubigeoResults, setUbigeoResults] = useState<any[]>([]);
+
+  // Autocomplete states for creation form
+  const [creationSedeSearchText, setCreationSedeSearchText] = useState("");
+  const [showCreationSedeDropdown, setShowCreationSedeDropdown] = useState(false);
+  const [creationCargoSearchText, setCreationCargoSearchText] = useState("");
+  const [showCreationCargoDropdown, setShowCreationCargoDropdown] = useState(false);
+
+  // Helper to obtain clients for an internal company
+  const getClientesForEmpresa = (empresaId: any) => {
+    if (!empresaId) return [];
+    const empIdNum = parseInt(empresaId);
+    const map = new Map<number, string>();
+    sedes.forEach(s => {
+      if (s.clientes && s.clientes.empresa_interna_id === empIdNum) {
+        map.set(s.clientes.id, s.clientes.razon_social);
+      }
+    });
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  };
 
   const handleUbigeoSearch = async (query: string) => {
     setUbigeoSearch(query);
@@ -92,6 +111,30 @@ export function FichasPersonal() {
   const [isVinculoModalOpen, setIsVinculoModalOpen] = useState(false);
   const [vinculoForm, setVinculoForm] = useState<Record<string, any>>({});
   const [editingVinculoId, setEditingVinculoId] = useState<number | null>(null);
+
+  const [systemAlert, setSystemAlert] = useState<{
+    show: boolean;
+    title: string;
+    message: string;
+    isConfirm: boolean;
+    onAccept?: () => void;
+    onCancel?: () => void;
+  }>({
+    show: false,
+    title: "",
+    message: "",
+    isConfirm: false
+  });
+
+  const alert = (message: string, title: string = "Mensaje del Sistema") => {
+    setSystemAlert({
+      show: true,
+      title,
+      message,
+      isConfirm: false
+    });
+  };
+
   const [sedeSearchText, setSedeSearchText] = useState("");
   const [showSedeDropdown, setShowSedeDropdown] = useState(false);
   const [cargoSearchText, setCargoSearchText] = useState("");
@@ -125,6 +168,7 @@ export function FichasPersonal() {
   // Custom states for view modes & contract alerts
   const [filterEstadoContrato, setFilterEstadoContrato] = useState("");
   const [filterFechaVencimiento, setFilterFechaVencimiento] = useState("");
+  const [filterCuentaSueldo, setFilterCuentaSueldo] = useState("");
   const [isQuickContratoModalOpen, setIsQuickContratoModalOpen] = useState(false);
   const [quickContratoForm, setQuickContratoForm] = useState<Record<string, any>>({
     vinculo_laboral_id: "",
@@ -145,7 +189,7 @@ export function FichasPersonal() {
   // Reset page when search filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, filterSede, filterEmpresa, filterFechaDesde, filterFechaHasta, filterEstadoContrato, filterFechaVencimiento, filterTab, filterCliente, filterVacacionesAlerta, filterInconsistencia]);
+  }, [searchQuery, filterSede, filterEmpresa, filterFechaDesde, filterFechaHasta, filterEstadoContrato, filterFechaVencimiento, filterTab, filterCliente, filterVacacionesAlerta, filterInconsistencia, filterCuentaSueldo]);
 
   // Contract history modal per collaborator
   const [isContractHistoryModalOpen, setIsContractHistoryModalOpen] = useState(false);
@@ -316,13 +360,35 @@ export function FichasPersonal() {
   };
 
   const handleOpenAdd = () => {
+    const firstEmp = empresas[0];
+    const availableClients = firstEmp ? getClientesForEmpresa(firstEmp.id) : [];
+    const firstCli = availableClients[0];
+    const clientSedes = firstCli ? sedes.filter(s => s.cliente_id === firstCli.id) : [];
+    const firstSede = clientSedes[0];
+
     setPersonaForm({
       sexo: "Masculino",
       tipo_documento_id: tiposDoc[0]?.id || "",
       sistema_pension_id: pensiones[0]?.id || "",
       fecha_ingreso: "",
-      fecha_primer_contrato: ""
+      fecha_primer_contrato: "",
+      
+      // Defaults for position/contract
+      empresa_interna_id: firstEmp?.id || "",
+      cliente_id: firstCli?.id || "",
+      sede_id: firstSede?.id || "",
+      cargo_id: cargos[0]?.id || "",
+      tipo_trabajador_id: tiposTrab[0]?.id || "",
+      regimen_laboral_id: regimenes[0]?.id || "",
+      sueldo_basico: 1025.00,
+      lugar_especifico_trabajo: "",
+      asignacion_familiar: false,
+      contrato_modalidad_id: modalidades[0]?.id || "",
+      contrato_fecha_inicio: new Date().toISOString().split("T")[0],
+      contrato_fecha_fin: ""
     });
+    setCreationSedeSearchText(firstSede ? firstSede.nombre : "");
+    setCreationCargoSearchText(cargos[0] ? cargos[0].nombre : "");
     setUbigeoSearch("");
     setUbigeoResults([]);
     setEditingId(null);
@@ -351,12 +417,29 @@ export function FichasPersonal() {
     setLoading(true);
     setError(null);
 
-    // Clean up relation objects
+    // Clean up relation objects and temporary job fields
     const payload = { ...personaForm };
     delete payload.tipos_documento;
     delete payload.sistemas_pension;
     delete payload.ubigeo_distritos;
     delete payload.vinculos_laborales;
+
+    // Delete job/contract fields from persona payload so Supabase doesn't complain
+    const jobFields = [
+      "empresa_interna_id",
+      "cliente_id",
+      "sede_id",
+      "cargo_id",
+      "tipo_trabajador_id",
+      "regimen_laboral_id",
+      "sueldo_basico",
+      "lugar_especifico_trabajo",
+      "asignacion_familiar",
+      "contrato_modalidad_id",
+      "contrato_fecha_inicio",
+      "contrato_fecha_fin"
+    ];
+    jobFields.forEach(f => delete payload[f]);
 
     try {
       if (editingId) {
@@ -365,11 +448,55 @@ export function FichasPersonal() {
           .update(payload)
           .eq("id", editingId);
         if (dbError) throw dbError;
+        alert("Colaborador actualizado correctamente.");
       } else {
-        const { error: dbError } = await supabase
+        // Insert and select new ID
+        const { data: newPers, error: pErr } = await supabase
           .from("personas")
-          .insert([payload]);
-        if (dbError) throw dbError;
+          .insert([payload])
+          .select("id")
+          .single();
+        if (pErr) throw pErr;
+
+        // If job fields are filled in, insert vinculo
+        if (newPers && personaForm.empresa_interna_id && personaForm.sede_id) {
+          const vPayload = {
+            persona_id: newPers.id,
+            empresa_interna_id: parseInt(personaForm.empresa_interna_id),
+            sede_id: parseInt(personaForm.sede_id),
+            cargo_id: parseInt(personaForm.cargo_id),
+            tipo_trabajador_id: parseInt(personaForm.tipo_trabajador_id),
+            regimen_laboral_id: parseInt(personaForm.regimen_laboral_id),
+            sueldo_basico: parseFloat(personaForm.sueldo_basico) || 1025.00,
+            lugar_especifico_trabajo: personaForm.lugar_especifico_trabajo || "",
+            asignacion_familiar: !!personaForm.asignacion_familiar,
+            estado: "Activo"
+          };
+
+          const { data: newVinc, error: vErr } = await supabase
+            .from("vinculos_laborales")
+            .insert([vPayload])
+            .select("id")
+            .single();
+          if (vErr) throw vErr;
+
+          // Insert contract if filled
+          if (newVinc && personaForm.contrato_modalidad_id && personaForm.contrato_fecha_inicio) {
+            const cPayload = {
+              vinculo_laboral_id: newVinc.id,
+              modalidad_contrato_id: parseInt(personaForm.contrato_modalidad_id),
+              fecha_inicio: personaForm.contrato_fecha_inicio,
+              fecha_fin: personaForm.contrato_fecha_fin || null,
+              estado: "Vigente"
+            };
+
+            const { error: cErr } = await supabase
+              .from("contratos")
+              .insert([cPayload]);
+            if (cErr) throw cErr;
+          }
+        }
+        alert("Colaborador registrado correctamente.");
       }
       setViewMode("list");
       loadPersonas();
@@ -1172,12 +1299,15 @@ export function FichasPersonal() {
   const handleOpenAddVinculo = () => {
     setEditingVinculoId(null);
     const firstEmpId = empresas[0]?.id || "";
-    const validSedes = sedes.filter(s => s.clientes?.empresa_interna_id === firstEmpId);
+    const availableClients = getClientesForEmpresa(firstEmpId);
+    const firstCli = availableClients[0];
+    const validSedes = firstCli ? sedes.filter(s => s.cliente_id === firstCli.id) : [];
     const defaultSede = validSedes[0];
     const defaultCargo = cargos[0];
     setVinculoForm({
       persona_id: activePersona.id,
       empresa_interna_id: firstEmpId,
+      cliente_id: firstCli?.id || "",
       sede_id: defaultSede?.id || "",
       cargo_id: defaultCargo?.id || "",
       tipo_trabajador_id: tiposTrab[0]?.id || "",
@@ -1201,6 +1331,7 @@ export function FichasPersonal() {
     setVinculoForm({
       persona_id: v.persona_id,
       empresa_interna_id: v.empresa_interna_id,
+      cliente_id: v.sedes?.clientes?.id || v.sedes?.cliente_id || "",
       sede_id: v.sede_id,
       cargo_id: v.cargo_id,
       tipo_trabajador_id: v.tipo_trabajador_id,
@@ -1242,6 +1373,7 @@ export function FichasPersonal() {
       delete vinculoPayload.contrato_modalidad_id;
       delete vinculoPayload.contrato_fecha_inicio;
       delete vinculoPayload.contrato_fecha_fin;
+      delete vinculoPayload.cliente_id;
 
       if (editingVinculoId) {
         const { error: dbError } = await supabase
@@ -1701,6 +1833,21 @@ export function FichasPersonal() {
       if (!v || belongsToCompany) return false;
     }
 
+    // 8. Cuenta Sueldo filter
+    if (filterCuentaSueldo) {
+      if (filterCuentaSueldo === "tiene_nro") {
+        if (!p.cuenta_sueldo || p.cuenta_sueldo === "TIENE_CUENTA" || p.cuenta_sueldo === "POR_AFILIAR") return false;
+      } else if (filterCuentaSueldo === "tiene_cuenta") {
+        if (p.cuenta_sueldo !== "TIENE_CUENTA") return false;
+      } else if (filterCuentaSueldo === "por_afiliar") {
+        if (p.cuenta_sueldo !== "POR_AFILIAR") return false;
+      } else if (filterCuentaSueldo === "sin_cuenta") {
+        if (p.cuenta_sueldo && p.cuenta_sueldo.trim() !== "") return false;
+      } else if (filterCuentaSueldo === "subsanar") {
+        if (p.cuenta_sueldo !== "TIENE_CUENTA" && p.cuenta_sueldo !== "POR_AFILIAR") return false;
+      }
+    }
+
     return true;
   });
 
@@ -1715,8 +1862,11 @@ export function FichasPersonal() {
   const exportPersonasToExcel = () => {
     const headers = [
       "Tipo Documento", "Número Documento", "Apellidos", "Nombres", "Sexo", 
-      "Empresa Planilla", "Sede Operativa", "Cargo", "F. Ingreso", 
+      "Empresa Planilla", "Cliente", "Sede Operativa", "Cargo", "Régimen Laboral",
+      "Sueldo Básico", "Asignación Familiar", "F. Ingreso", 
       "Inicio Contrato", "Fin Contrato", "Estado Contrato", 
+      "Régimen Pensionario", "CUSSP", "Banco Sueldo", "Cuenta Sueldo",
+      "Banco CTS", "Cuenta CTS",
       "Último EMO", "Teléfono", "Correo", "Talla Polo", "Talla Pantalón", "Talla Calzado"
     ];
 
@@ -1742,6 +1892,10 @@ export function FichasPersonal() {
         cEstado = "Cesado";
       }
 
+      // Bank lookups
+      const bancoSueldoNombre = bancos.find(b => b.id === p.banco_sueldo_id)?.nombre || "-";
+      const bancoCtsNombre = bancos.find(b => b.id === p.banco_cts_id)?.nombre || "-";
+
       return [
         p.tipos_documento?.codigo || "DNI",
         p.numero_documento,
@@ -1749,12 +1903,26 @@ export function FichasPersonal() {
         p.nombres,
         p.sexo,
         v?.empresas_internas?.razon_social || "Sin Puesto Activo",
+        v?.sedes?.clientes?.razon_social || "-",
         v?.sedes?.nombre || "-",
         v?.cargos?.nombre || "-",
+        v?.regimenes_laborales?.nombre || "-",
+        v ? (v.sueldo_basico !== undefined && v.sueldo_basico !== null ? parseFloat(v.sueldo_basico) : 0) : "-",
+        v ? (v.asignacion_familiar ? "Sí" : "No") : "-",
         fIng ? fIng.split("-").reverse().join("-") : "-",
         activeContract?.fecha_inicio ? activeContract.fecha_inicio.split("-").reverse().join("-") : "-",
         activeContract?.fecha_fin ? activeContract.fecha_fin.split("-").reverse().join("-") : "-",
         cEstado,
+        p.sistemas_pension?.nombre || "-",
+        p.codigo_cuss_afp || "-",
+        bancoSueldoNombre,
+        p.cuenta_sueldo === "TIENE_CUENTA"
+          ? "Tiene Cuenta (Pendiente)"
+          : p.cuenta_sueldo === "POR_AFILIAR"
+          ? "Por Afiliar"
+          : p.cuenta_sueldo || "-",
+        bancoCtsNombre,
+        p.cuenta_cts || "-",
         p.fecha_ultimo_emo ? p.fecha_ultimo_emo.split("-").reverse().join("-") : "-",
         p.telefono || "",
         p.correo || "",
@@ -1771,11 +1939,18 @@ export function FichasPersonal() {
   };
 
   const filteredSedesForVinculo = sedes
-    .filter(s => s.clientes?.empresa_interna_id === vinculoForm.empresa_interna_id)
+    .filter(s => s.cliente_id === vinculoForm.cliente_id)
     .filter(s => s.nombre.toLowerCase().includes(sedeSearchText.toLowerCase()));
 
   const filteredCargosForVinculo = cargos
     .filter(c => c.nombre.toLowerCase().includes(cargoSearchText.toLowerCase()));
+
+  const filteredSedesForCreation = sedes
+    .filter(s => s.cliente_id === personaForm.cliente_id)
+    .filter(s => s.nombre.toLowerCase().includes(creationSedeSearchText.toLowerCase()));
+
+  const filteredCargosForCreation = cargos
+    .filter(c => c.nombre.toLowerCase().includes(creationCargoSearchText.toLowerCase()));
 
   const handleSedeBlur = () => {
     setTimeout(() => {
@@ -1797,6 +1972,30 @@ export function FichasPersonal() {
         setCargoSearchText(selectedCargo.nombre);
       } else {
         setCargoSearchText("");
+      }
+    }, 200);
+  };
+
+  const handleCreationSedeBlur = () => {
+    setTimeout(() => {
+      setShowCreationSedeDropdown(false);
+      const selectedSede = sedes.find(s => s.id === personaForm.sede_id);
+      if (selectedSede) {
+        setCreationSedeSearchText(selectedSede.nombre);
+      } else {
+        setCreationSedeSearchText("");
+      }
+    }, 200);
+  };
+
+  const handleCreationCargoBlur = () => {
+    setTimeout(() => {
+      setShowCreationCargoDropdown(false);
+      const selectedCargo = cargos.find(c => c.id === personaForm.cargo_id);
+      if (selectedCargo) {
+        setCreationCargoSearchText(selectedCargo.nombre);
+      } else {
+        setCreationCargoSearchText("");
       }
     }, 200);
   };
@@ -2054,7 +2253,7 @@ export function FichasPersonal() {
                     <FileDown className="w-4 h-4" />
                     Exportar Excel
                   </button>
-                  {(filterSede || filterEmpresa || filterFechaDesde || filterFechaHasta || filterEstadoContrato || filterFechaVencimiento || filterCliente || filterVacacionesAlerta || filterInconsistencia) && (
+                  {(filterSede || filterEmpresa || filterFechaDesde || filterFechaHasta || filterEstadoContrato || filterFechaVencimiento || filterCliente || filterVacacionesAlerta || filterInconsistencia || filterCuentaSueldo) && (
                     <button
                       onClick={() => {
                         setFilterSede("");
@@ -2066,6 +2265,7 @@ export function FichasPersonal() {
                         setFilterCliente("");
                         setFilterVacacionesAlerta("");
                         setFilterInconsistencia(false);
+                        setFilterCuentaSueldo("");
                       }}
                       className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-700 text-xs font-medium px-2 py-1 hover:bg-slate-100 rounded-md transition-colors cursor-pointer"
                     >
@@ -2075,7 +2275,7 @@ export function FichasPersonal() {
                 </div>
               </div>
               
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3">
                 {/* Empresa Select */}
                 <div>
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Filtrar por Empresa</label>
@@ -2182,6 +2382,23 @@ export function FichasPersonal() {
                     <option value="">Todas las Vacaciones</option>
                     <option value="si">Con Alertas (&gt;= 2 periodos o cerca)</option>
                     <option value="no">Sin Alertas</option>
+                  </select>
+                </div>
+
+                {/* Cuenta Sueldo Select */}
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Cuenta Sueldo</label>
+                  <select
+                    value={filterCuentaSueldo}
+                    onChange={(e) => setFilterCuentaSueldo(e.target.value)}
+                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none text-slate-600 cursor-pointer"
+                  >
+                    <option value="">Todas las Cuentas</option>
+                    <option value="tiene_nro">Con Nro. Cuenta</option>
+                    <option value="tiene_cuenta">Tiene Cuenta (Pendiente Nro.)</option>
+                    <option value="por_afiliar">Por Afiliar</option>
+                    <option value="sin_cuenta">Sin Cuenta / Vacío</option>
+                    <option value="subsanar">Pendiente Subsanación</option>
                   </select>
                 </div>
               </div>
@@ -2364,6 +2581,18 @@ export function FichasPersonal() {
                           <td className="px-6 py-4">
                             <div className="text-sm font-semibold text-slate-800">
                               {p.apellidos}, {p.nombres}
+                            </div>
+                            <div className="flex flex-col gap-1 items-start mt-1">
+                              {p.cuenta_sueldo === "TIENE_CUENTA" && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-amber-50 text-amber-850 border border-amber-100 px-1.5 py-0.5 rounded">
+                                  💳 Tiene Cuenta (Nro Pendiente)
+                                </span>
+                              )}
+                              {p.cuenta_sueldo === "POR_AFILIAR" && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-100 px-1.5 py-0.5 rounded">
+                                  🏦 Por Afiliar
+                                </span>
+                              )}
                             </div>
                             {getVacationsBadge()}
                           </td>
@@ -2875,29 +3104,43 @@ export function FichasPersonal() {
           {/* Form Tabs */}
           <div className="flex border-b border-slate-100 mb-6 gap-2">
             <button
+              type="button"
               onClick={() => setActiveFormTab("personales")}
-              className={`pb-2 px-4 text-sm font-semibold border-b-2 transition-all ${
+              className={`pb-2 px-4 text-sm font-semibold border-b-2 transition-all bg-transparent border-none cursor-pointer ${
                 activeFormTab === "personales" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-700"
               }`}
             >
               Datos Personales
             </button>
             <button
+              type="button"
               onClick={() => setActiveFormTab("financieros")}
-              className={`pb-2 px-4 text-sm font-semibold border-b-2 transition-all ${
+              className={`pb-2 px-4 text-sm font-semibold border-b-2 transition-all bg-transparent border-none cursor-pointer ${
                 activeFormTab === "financieros" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-700"
               }`}
             >
               Cuentas y Pensiones
             </button>
             <button
+              type="button"
               onClick={() => setActiveFormTab("tallas")}
-              className={`pb-2 px-4 text-sm font-semibold border-b-2 transition-all ${
+              className={`pb-2 px-4 text-sm font-semibold border-b-2 transition-all bg-transparent border-none cursor-pointer ${
                 activeFormTab === "tallas" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-700"
               }`}
             >
               Tallas y Médico
             </button>
+            {!editingId && (
+              <button
+                type="button"
+                onClick={() => setActiveFormTab("puesto")}
+                className={`pb-2 px-4 text-sm font-semibold border-b-2 transition-all bg-transparent border-none cursor-pointer ${
+                  activeFormTab === "puesto" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                Puesto y Contrato
+              </button>
+            )}
           </div>
 
           <form onSubmit={handleSavePersona} className="space-y-6">
@@ -3077,11 +3320,54 @@ export function FichasPersonal() {
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Cuenta Sueldo</label>
                   <input
                     type="text"
-                    value={personaForm.cuenta_sueldo || ""}
+                    disabled={personaForm.cuenta_sueldo === "TIENE_CUENTA" || personaForm.cuenta_sueldo === "POR_AFILIAR"}
+                    value={
+                      (personaForm.cuenta_sueldo === "TIENE_CUENTA" || personaForm.cuenta_sueldo === "POR_AFILIAR")
+                        ? ""
+                        : personaForm.cuenta_sueldo || ""
+                    }
                     onChange={(e) => setPersonaForm({ ...personaForm, cuenta_sueldo: e.target.value })}
-                    className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none font-mono"
-                    placeholder="Nro. Cuenta"
+                    className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none font-mono disabled:bg-slate-50 disabled:text-slate-400"
+                    placeholder={
+                      personaForm.cuenta_sueldo === "TIENE_CUENTA"
+                        ? "[Tiene Cuenta - Nro Pendiente]"
+                        : personaForm.cuenta_sueldo === "POR_AFILIAR"
+                        ? "[Por Afiliar - Apertura Pendiente]"
+                        : "Nro. Cuenta"
+                    }
                   />
+                  <div className="flex items-center gap-4 mt-2">
+                    <label className="flex items-center gap-1.5 text-xs text-slate-600 font-semibold cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={personaForm.cuenta_sueldo === "TIENE_CUENTA"}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setPersonaForm({ ...personaForm, cuenta_sueldo: "TIENE_CUENTA" });
+                          } else {
+                            setPersonaForm({ ...personaForm, cuenta_sueldo: "" });
+                          }
+                        }}
+                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      Tiene Cuenta (Sin Nro.)
+                    </label>
+                    <label className="flex items-center gap-1.5 text-xs text-slate-600 font-semibold cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={personaForm.cuenta_sueldo === "POR_AFILIAR"}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setPersonaForm({ ...personaForm, cuenta_sueldo: "POR_AFILIAR" });
+                          } else {
+                            setPersonaForm({ ...personaForm, cuenta_sueldo: "" });
+                          }
+                        }}
+                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      Por Afiliar
+                    </label>
+                  </div>
                 </div>
                 <div>
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Banco CTS</label>
@@ -3173,6 +3459,238 @@ export function FichasPersonal() {
                     onChange={(e) => setPersonaForm({ ...personaForm, fecha_ultimo_emo: e.target.value })}
                     className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none font-mono"
                   />
+                </div>
+              </div>
+            )}
+
+            {/* TABS 4: PUESTO Y CONTRATO */}
+            {activeFormTab === "puesto" && !editingId && (
+              <div className="space-y-6 animate-fadeIn">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Empresa Interna (Planilla)</label>
+                    <select
+                      value={personaForm.empresa_interna_id || ""}
+                      onChange={(e) => {
+                        const empId = parseInt(e.target.value);
+                        const availableClients = getClientesForEmpresa(empId);
+                        const firstCli = availableClients[0];
+                        const clientSedes = firstCli ? sedes.filter(s => s.cliente_id === firstCli.id) : [];
+                        const firstSede = clientSedes[0];
+                        setPersonaForm({
+                          ...personaForm,
+                          empresa_interna_id: empId,
+                          cliente_id: firstCli ? firstCli.id : "",
+                          sede_id: firstSede?.id || ""
+                        });
+                        setCreationSedeSearchText(firstSede ? firstSede.nombre : "");
+                      }}
+                      className="w-full p-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none"
+                    >
+                      {empresas.map((e) => (
+                        <option key={e.id} value={e.id}>{e.razon_social}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Cliente (Servicio)</label>
+                    <select
+                      value={personaForm.cliente_id || ""}
+                      onChange={(e) => {
+                        const cliId = parseInt(e.target.value);
+                        const clientSedes = sedes.filter(s => s.cliente_id === cliId);
+                        const firstSede = clientSedes[0];
+                        setPersonaForm({
+                          ...personaForm,
+                          cliente_id: cliId,
+                          sede_id: firstSede?.id || ""
+                        });
+                        setCreationSedeSearchText(firstSede ? firstSede.nombre : "");
+                      }}
+                      className="w-full p-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none"
+                    >
+                      <option value="" disabled>Seleccione un cliente</option>
+                      {getClientesForEmpresa(personaForm.empresa_interna_id).map((c) => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="relative">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Sede / Obra Asignada</label>
+                    <input
+                      type="text"
+                      value={creationSedeSearchText}
+                      onChange={(e) => {
+                        setCreationSedeSearchText(e.target.value);
+                        setShowCreationSedeDropdown(true);
+                      }}
+                      onFocus={() => setShowCreationSedeDropdown(true)}
+                      onBlur={handleCreationSedeBlur}
+                      className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none"
+                      placeholder="Buscar sede..."
+                    />
+                    {showCreationSedeDropdown && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-30 max-h-48 overflow-y-auto divide-y divide-slate-100">
+                        {filteredSedesForCreation.length === 0 ? (
+                          <div className="px-3 py-2 text-xs text-slate-400">No se encontraron sedes</div>
+                        ) : (
+                          filteredSedesForCreation.map((s) => (
+                            <button
+                              key={s.id}
+                              type="button"
+                              onMouseDown={() => {
+                                setPersonaForm({ ...personaForm, sede_id: s.id });
+                                setCreationSedeSearchText(s.nombre);
+                                setShowCreationSedeDropdown(false);
+                              }}
+                              className="w-full text-left px-3 py-2 hover:bg-slate-50 text-xs font-medium border-none cursor-pointer"
+                            >
+                              {s.nombre}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="relative">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Cargo a Desempeñar</label>
+                    <input
+                      type="text"
+                      value={creationCargoSearchText}
+                      onChange={(e) => {
+                        setCreationCargoSearchText(e.target.value);
+                        setShowCreationCargoDropdown(true);
+                      }}
+                      onFocus={() => setShowCreationCargoDropdown(true)}
+                      onBlur={handleCreationCargoBlur}
+                      className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none"
+                      placeholder="Buscar cargo..."
+                    />
+                    {showCreationCargoDropdown && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-30 max-h-48 overflow-y-auto divide-y divide-slate-100">
+                        {filteredCargosForCreation.length === 0 ? (
+                          <div className="px-3 py-2 text-xs text-slate-400">No se encontraron cargos</div>
+                        ) : (
+                          filteredCargosForCreation.map((c) => (
+                            <button
+                              key={c.id}
+                              type="button"
+                              onMouseDown={() => {
+                                setPersonaForm({ ...personaForm, cargo_id: c.id });
+                                setCreationCargoSearchText(c.nombre);
+                                setShowCreationCargoDropdown(false);
+                              }}
+                              className="w-full text-left px-3 py-2 hover:bg-slate-50 text-xs font-medium border-none cursor-pointer"
+                            >
+                              {c.nombre}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Tipo de Trabajador</label>
+                    <select
+                      value={personaForm.tipo_trabajador_id || ""}
+                      onChange={(e) => setPersonaForm({ ...personaForm, tipo_trabajador_id: parseInt(e.target.value) })}
+                      className="w-full p-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none"
+                    >
+                      {tiposTrab.map((t) => (
+                        <option key={t.id} value={t.id}>{t.nombre}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Régimen Laboral</label>
+                    <select
+                      value={personaForm.regimen_laboral_id || ""}
+                      onChange={(e) => setPersonaForm({ ...personaForm, regimen_laboral_id: parseInt(e.target.value) })}
+                      className="w-full p-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none"
+                    >
+                      {regimenes.map((r) => (
+                        <option key={r.id} value={r.id}>{r.nombre}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Sueldo Básico (S/.)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={personaForm.sueldo_basico === undefined ? 1025 : personaForm.sueldo_basico}
+                      onChange={(e) => setPersonaForm({ ...personaForm, sueldo_basico: parseFloat(e.target.value) })}
+                      className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Especificación Lugar Trabajo</label>
+                    <input
+                      type="text"
+                      value={personaForm.lugar_especifico_trabajo || ""}
+                      onChange={(e) => setPersonaForm({ ...personaForm, lugar_especifico_trabajo: e.target.value })}
+                      className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none"
+                      placeholder="Ej. Garita de Control, Almacén"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="creation_asignacion_familiar"
+                    checked={!!personaForm.asignacion_familiar}
+                    onChange={(e) => setPersonaForm({ ...personaForm, asignacion_familiar: e.target.checked })}
+                    className="rounded text-blue-600 focus:ring-blue-500 h-4.5 w-4.5 cursor-pointer accent-blue-600"
+                  />
+                  <label htmlFor="creation_asignacion_familiar" className="text-xs font-bold text-slate-500 uppercase tracking-wider cursor-pointer select-none">
+                    Aplica Asignación Familiar
+                  </label>
+                </div>
+
+                <div className="border-t border-slate-100 pt-4">
+                  <h3 className="text-sm font-bold text-slate-700 mb-3">Detalle del Contrato Inicial</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Modalidad de Contrato</label>
+                      <select
+                        value={personaForm.contrato_modalidad_id || ""}
+                        onChange={(e) => setPersonaForm({ ...personaForm, contrato_modalidad_id: parseInt(e.target.value) })}
+                        className="w-full p-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none"
+                      >
+                        {modalidades.map((m) => (
+                          <option key={m.id} value={m.id}>{m.nombre}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">F. Inicio Contrato</label>
+                      <input
+                        type="date"
+                        value={personaForm.contrato_fecha_inicio || ""}
+                        onChange={(e) => setPersonaForm({ ...personaForm, contrato_fecha_inicio: e.target.value })}
+                        className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">F. Fin (Opcional)</label>
+                      <input
+                        type="date"
+                        value={personaForm.contrato_fecha_fin || ""}
+                        onChange={(e) => setPersonaForm({ ...personaForm, contrato_fecha_fin: e.target.value })}
+                        className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none font-mono"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
@@ -3451,11 +3969,14 @@ export function FichasPersonal() {
                     value={vinculoForm.empresa_interna_id || ""}
                     onChange={(e) => {
                       const empId = parseInt(e.target.value);
-                      const validSedes = sedes.filter(s => s.clientes?.empresa_interna_id === empId);
+                      const availableClients = getClientesForEmpresa(empId);
+                      const firstCli = availableClients[0];
+                      const validSedes = firstCli ? sedes.filter(s => s.cliente_id === firstCli.id) : [];
                       const defaultSede = validSedes[0];
                       setVinculoForm({ 
                         ...vinculoForm, 
                         empresa_interna_id: empId, 
+                        cliente_id: firstCli ? firstCli.id : "",
                         sede_id: defaultSede?.id || "" 
                       });
                       setSedeSearchText(defaultSede ? defaultSede.nombre : "");
@@ -3464,6 +3985,31 @@ export function FichasPersonal() {
                   >
                     {empresas.map((e) => (
                       <option key={e.id} value={e.id}>{e.razon_social}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Cliente (Servicio)</label>
+                  <select
+                    required
+                    value={vinculoForm.cliente_id || ""}
+                    onChange={(e) => {
+                      const cliId = parseInt(e.target.value);
+                      const clientSedes = sedes.filter(s => s.cliente_id === cliId);
+                      const firstSede = clientSedes[0];
+                      setVinculoForm({
+                        ...vinculoForm,
+                        cliente_id: cliId,
+                        sede_id: firstSede?.id || ""
+                      });
+                      setSedeSearchText(firstSede ? firstSede.nombre : "");
+                    }}
+                    className="w-full p-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none"
+                  >
+                    <option value="" disabled>Seleccione un cliente</option>
+                    {getClientesForEmpresa(vinculoForm.empresa_interna_id).map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
                     ))}
                   </select>
                 </div>
@@ -4231,6 +4777,56 @@ export function FichasPersonal() {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* System alert / confirm Modal */}
+      {systemAlert.show && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm animate-fade-in p-4">
+          <div className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-md w-full overflow-hidden animate-scale-in">
+            <div className="p-6 space-y-4">
+              <div className="flex items-center gap-3">
+                {systemAlert.isConfirm ? (
+                  <div className="p-2 bg-amber-50 rounded-lg text-amber-600 animate-pulse">
+                    <AlertCircle className="w-6 h-6" />
+                  </div>
+                ) : (
+                  <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
+                    <Info className="w-6 h-6" />
+                  </div>
+                )}
+                <h3 className="text-base font-extrabold text-slate-900">{systemAlert.title}</h3>
+              </div>
+              <p className="text-xs text-slate-600 leading-relaxed font-semibold">
+                {systemAlert.message}
+              </p>
+            </div>
+            <div className="bg-slate-50 px-6 py-4 flex items-center justify-end gap-2 border-t border-slate-100">
+              {systemAlert.isConfirm ? (
+                <>
+                  <button
+                    onClick={systemAlert.onCancel}
+                    className="px-4 py-2 border border-slate-250 hover:bg-slate-100 text-slate-700 font-bold rounded-lg text-xs transition-colors cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={systemAlert.onAccept}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs transition-colors cursor-pointer"
+                  >
+                    Aceptar
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => setSystemAlert(prev => ({ ...prev, show: false }))}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs transition-colors cursor-pointer"
+                >
+                  Aceptar
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}

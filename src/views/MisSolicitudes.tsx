@@ -25,6 +25,13 @@ import {
   Filter
 } from "lucide-react";
 
+const padString = (str: string, length: number): string => {
+  if (str.length >= length) {
+    return str.substring(0, length - 3) + "...";
+  }
+  return str + "\u00A0".repeat(length - str.length);
+};
+
 interface CartItem {
   id: string; // local temporary UI ID
   producto: any; // full product details
@@ -421,7 +428,8 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
             stock_actual,
             tallas (id, valor)
           ),
-          categorias_producto (nombre)
+          categorias_producto (nombre),
+          unidades_medida (id, codigo, nombre)
         `)
         .eq("activo", true)
         .order("nombre");
@@ -1356,20 +1364,21 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
 
     // Resolve dynamic company logo
     const internalCompany = selectedReq.sedes?.clientes?.empresas_internas;
-    let companyLogo = "/logo.png"; // Fallback to current global logo.png
+    let companyLogo = "logo.png"; // Fallback to current global logo.png
     
     if (internalCompany) {
       if (internalCompany.logo_url) {
-        companyLogo = internalCompany.logo_url;
+        const rawLogo = internalCompany.logo_url;
+        companyLogo = rawLogo.startsWith("/") ? rawLogo.substring(1) : rawLogo;
       } else {
         // Fallback checks based on RUC or name if logo_url is empty in DB
         const rucClean = String(internalCompany.ruc || "").trim();
         const socialClean = String(internalCompany.razon_social || "").toLowerCase();
         
         if (rucClean === "20601234567" || socialClean.includes("bax")) {
-          companyLogo = "/logo_bax.jpg";
+          companyLogo = "logo_bax.jpg";
         } else if (rucClean === "20609876543" || socialClean.includes("office") || socialClean.includes("mac")) {
-          companyLogo = "/logo_office.jpg";
+          companyLogo = "logo_office.jpg";
         }
       }
     }
@@ -2187,7 +2196,12 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
                           <tr key={det.id} className="hover:bg-slate-50/50">
                             <td className="px-4 py-3">
                               <span className="font-bold text-slate-800 block">{productName}</span>
-                              <span className="text-[10px] text-slate-400 font-mono">{sku}</span>
+                              <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                                <span className="text-[10px] text-slate-400 font-mono bg-slate-100/80 px-1 rounded">SKU: {sku}</span>
+                                <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.2 rounded uppercase border border-indigo-100">
+                                  U.M.: {det.productos?.unidades_medida?.nombre || "Unidad"}
+                                </span>
+                              </div>
                             </td>
                             <td className="px-4 py-3 font-medium">
                               {workerName ? (
@@ -2468,16 +2482,21 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
                       required
                       value={selectedProductId}
                       onChange={(e) => handleProductChange(Number(e.target.value))}
-                      className="w-full p-2.5 border border-slate-250 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 font-medium"
+                      className="w-full p-2.5 border border-slate-250 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 font-mono font-bold"
                     >
                       <option value="">Seleccione un producto...</option>
                       {productos
                         .filter(p => (activeTab === "Uniformes_Almacen" ? p.es_uniforme : true))
-                        .map(p => (
-                          <option key={p.id} value={p.id}>
-                            {p.nombre} {p.es_uniforme ? "(Prenda/Tallas)" : "(Insumo/EPP)"}
-                          </option>
-                        ))}
+                        .map(p => {
+                          const paddedName = padString(p.nombre, 45);
+                          const unit = p.unidades_medida?.nombre ? ` | U.M.: ${p.unidades_medida.nombre.toUpperCase()}` : " | U.M.: -";
+                          const typeLabel = p.es_uniforme ? " | PRENDA" : " | INSUMO";
+                          return (
+                            <option key={p.id} value={p.id}>
+                              {paddedName}{unit}{typeLabel}
+                            </option>
+                          );
+                        })}
                     </select>
                   </div>
 
@@ -2585,14 +2604,18 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
                       required
                       value={bulkProductId}
                       onChange={(e) => setBulkProductId(e.target.value ? Number(e.target.value) : "")}
-                      className="w-full p-2.5 border border-slate-250 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 font-medium"
+                      className="w-full p-2.5 border border-slate-250 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 font-mono font-bold"
                     >
                       <option value="">Seleccione una prenda...</option>
-                      {productos.filter(p => p.es_uniforme).map(p => (
-                        <option key={p.id} value={p.id}>
-                          {p.nombre}
-                        </option>
-                      ))}
+                      {productos.filter(p => p.es_uniforme).map(p => {
+                        const paddedName = padString(p.nombre, 45);
+                        const unit = p.unidades_medida?.nombre ? ` | U.M.: ${p.unidades_medida.nombre.toUpperCase()}` : " | U.M.: -";
+                        return (
+                          <option key={p.id} value={p.id}>
+                            {paddedName}{unit}
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
 

@@ -6,6 +6,7 @@ import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
   return {
+    base: './',
     plugins: [
       react(), 
       tailwindcss(),
@@ -77,7 +78,7 @@ export default defineConfig(() => {
 
                   res.statusCode = 200;
                   res.setHeader('Content-Type', 'application/json');
-                  res.end(JSON.stringify({ success: true, path: `/uploads/logos/${decodedFileName}` }));
+                  res.end(JSON.stringify({ success: true, path: `uploads/logos/${decodedFileName}` }));
                 } catch (err: any) {
                   console.error('Error saving logo file:', err);
                   res.statusCode = 500;

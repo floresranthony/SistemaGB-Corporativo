@@ -91,6 +91,7 @@ export function BandejaAprobaciones() {
             nombre,
             sku,
             es_uniforme,
+            unidades_medida (nombre, codigo),
             producto_tallas (
               id,
               talla_id,
@@ -503,7 +504,12 @@ export function BandejaAprobaciones() {
                       <tr key={det.id} className={`hover:bg-slate-50/20 ${isAltered ? "bg-amber-50/20" : ""}`}>
                         <td className="px-3 py-3">
                           <span className="font-bold text-slate-800 block">{det.productos?.nombre}</span>
-                          <span className="text-[10px] text-slate-400 font-mono block">{det.productos?.sku}</span>
+                          <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                            <span className="text-[10px] text-slate-400 font-mono bg-slate-100/80 px-1 rounded font-normal">SKU: {det.productos?.sku}</span>
+                            <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.2 rounded uppercase border border-indigo-100">
+                              U.M.: {det.productos?.unidades_medida?.nombre || "Unidad"}
+                            </span>
+                          </div>
                         </td>
                         <td className="px-3 py-3">
                           {det.vinculos_laborales?.personas ? (

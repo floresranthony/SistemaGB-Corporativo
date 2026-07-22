@@ -386,7 +386,7 @@ export function DespachosEntregas() {
                   {/* Document Header */}
                   <div className="flex justify-between items-start border-b-2 border-slate-800 pb-4">
                     <div className="flex items-center gap-3">
-                      <img src="/logo.png" alt="Grupo Bax Logo" className="w-14 h-14 object-contain rounded" onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }} />
+                      <img src="logo.png" alt="Grupo Bax Logo" className="w-14 h-14 object-contain rounded" onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }} />
                       <div>
                         <h2 className="font-heading text-lg font-black tracking-tight text-slate-900 leading-none">GRUPO BAX S.A.C.</h2>
                         <span className="text-[9px] text-slate-400 uppercase tracking-widest font-bold mt-1 block">Logística e Inventarios</span>

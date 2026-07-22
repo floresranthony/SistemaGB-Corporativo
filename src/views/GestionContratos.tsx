@@ -211,7 +211,8 @@ export function GestionContratos() {
           fileName = selectedFile.name;
         }
 
-        const response = await fetch("/api/upload-contrato", {
+        const uploadUrl = (import.meta as any).env?.DEV ? "/api/upload-contrato" : "api/upload-contrato.php";
+        const response = await fetch(uploadUrl, {
           method: "POST",
           headers: {
             "Content-Type": "application/octet-stream",
@@ -469,7 +470,7 @@ export function GestionContratos() {
                           <td className="px-4 py-3.5 text-center">
                             {c.archivo_pdf ? (
                               <a
-                                href={`/uploads/contratos/${encodeURIComponent(c.archivo_pdf)}`}
+                                href={`uploads/contratos/${encodeURIComponent(c.archivo_pdf)}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center gap-0.5 text-blue-600 hover:text-blue-700 font-bold hover:underline"

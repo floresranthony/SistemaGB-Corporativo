@@ -21,6 +21,14 @@ import {
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
+const cleanUrl = (url: string | null | undefined): string => {
+  if (!url) return "";
+  if (url.startsWith("/")) {
+    return url.substring(1);
+  }
+  return url;
+};
+
 type StructureTab = "empresas" | "clientes" | "sedes";
 
 export function EstructuraComercial() {
@@ -53,7 +61,7 @@ export function EstructuraComercial() {
     const file = e.target.files?.[0] || null;
     setSelectedLogoFile(file);
     if (file) {
-      setFormValues(prev => ({ ...prev, logo_url: `/uploads/logos/${file.name}` }));
+      setFormValues(prev => ({ ...prev, logo_url: `uploads/logos/${file.name}` }));
     }
   };
 
@@ -613,7 +621,8 @@ export function EstructuraComercial() {
 
       if (activeTab === "empresas" && selectedLogoFile) {
         const arrayBuffer = await selectedLogoFile.arrayBuffer();
-        const response = await fetch("/api/upload-logo", {
+        const uploadUrl = (import.meta as any).env?.DEV ? "/api/upload-logo" : "api/upload-logo.php";
+        const response = await fetch(uploadUrl, {
           method: "POST",
           headers: {
             "Content-Type": "application/octet-stream",
@@ -1050,7 +1059,7 @@ export function EstructuraComercial() {
                       <>
                         <td className="px-6 py-4 text-center">
                           {item.logo_url ? (
-                            <img src={item.logo_url} alt="Logo" style={{ maxHeight: "28px", maxWidth: "64px", objectFit: "contain", display: "inline-block" }} />
+                            <img src={cleanUrl(item.logo_url)} alt="Logo" style={{ maxHeight: "28px", maxWidth: "64px", objectFit: "contain", display: "inline-block" }} />
                           ) : (
                             <span className="text-[10px] text-slate-400 italic">Sin Logo</span>
                           )}
@@ -1251,7 +1260,7 @@ export function EstructuraComercial() {
                       </div>
                       {formValues.logo_url && !selectedLogoFile && (
                         <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-lg border border-slate-100 mt-2">
-                          <img src={formValues.logo_url} alt="Logo actual" style={{ maxHeight: "32px", maxWidth: "80px", objectFit: "contain" }} />
+                           <img src={cleanUrl(formValues.logo_url)} alt="Logo actual" style={{ maxHeight: "32px", maxWidth: "80px", objectFit: "contain" }} />
                           <span className="text-[10px] text-slate-400 truncate max-w-[200px]">{formValues.logo_url}</span>
                         </div>
                       )}

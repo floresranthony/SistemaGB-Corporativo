@@ -110,7 +110,7 @@ export function Sidebar({
       >
         <div className="flex items-center gap-3">
           <img
-            src="/logo.png"
+            src="logo.png"
             alt="Grupo Bax Logo"
             className="w-8 h-8 rounded-lg object-contain bg-slate-50 border border-slate-200"
           />

@@ -108,9 +108,22 @@ export function Login() {
         {/* Left Side: Brand & Presentation */}
         <div className="lg:col-span-6 space-y-6 text-center lg:text-left text-white px-4">
           <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.6 }}
+            className="flex justify-center lg:justify-start"
+          >
+            <img
+              src="logo.png"
+              alt="Grupo Bax Logo"
+              className="w-20 h-20 rounded-2xl object-contain bg-slate-50 border border-slate-250 p-2 shadow-xl shadow-blue-500/10 mb-2"
+            />
+          </motion.div>
+
+          <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
+            transition={{ duration: 0.6, delay: 0.1 }}
             className="inline-flex items-center gap-2.5 bg-blue-500/10 border border-blue-500/30 px-3 py-1.5 rounded-full text-blue-400 text-xs font-bold tracking-wide uppercase"
           >
             <KeyRound className="w-3.5 h-3.5" />
@@ -120,7 +133,7 @@ export function Login() {
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.1 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
             className="space-y-3"
           >
             <h1 className="font-heading text-4xl sm:text-5xl font-extrabold tracking-tight leading-tight">
@@ -142,9 +155,16 @@ export function Login() {
           transition={{ duration: 0.6, type: "spring", stiffness: 100 }}
           className="lg:col-span-6 bg-slate-900/40 border border-slate-800 rounded-2xl p-6 sm:p-10 shadow-2xl backdrop-blur-xl relative overflow-hidden"
         >
-          <div className="space-y-2 mb-8">
-            <h2 className="font-heading text-2xl font-bold text-white tracking-tight">Iniciar Sesión</h2>
-            <p className="text-xs text-slate-400 font-medium">Ingresa tus credenciales corporativas para continuar</p>
+          <div className="flex items-center gap-4 mb-8 border-b border-slate-800 pb-5">
+            <img
+              src="logo.png"
+              alt="Grupo Bax Logo"
+              className="w-12 h-12 rounded-xl object-contain bg-slate-50 border border-slate-200 p-1.5 shrink-0"
+            />
+            <div>
+              <h2 className="font-heading text-2xl font-bold text-white tracking-tight">Iniciar Sesión</h2>
+              <p className="text-xs text-slate-400 font-medium">Ingresa tus credenciales corporativas</p>
+            </div>
           </div>
 
           {error && (

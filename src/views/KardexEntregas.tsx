@@ -172,17 +172,18 @@ export function KardexEntregas() {
 
     // Resolve company logo
     const internalCompany = activeVinculo.empresas_internas;
-    let companyLogo = "/logo.png";
+    let companyLogo = "logo.png";
     if (internalCompany) {
       if (internalCompany.logo_url) {
-        companyLogo = internalCompany.logo_url;
+        const rawLogo = internalCompany.logo_url;
+        companyLogo = rawLogo.startsWith("/") ? rawLogo.substring(1) : rawLogo;
       } else {
         const rucClean = String(internalCompany.ruc || "").trim();
         const socialClean = String(internalCompany.razon_social || "").toLowerCase();
         if (rucClean === "20601234567" || socialClean.includes("bax")) {
-          companyLogo = "/logo_bax.jpg";
+          companyLogo = "logo_bax.jpg";
         } else if (rucClean === "20609876543" || socialClean.includes("office") || socialClean.includes("mac")) {
-          companyLogo = "/logo_office.jpg";
+          companyLogo = "logo_office.jpg";
         }
       }
     }
