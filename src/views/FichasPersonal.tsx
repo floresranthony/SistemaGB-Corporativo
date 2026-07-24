@@ -297,6 +297,8 @@ export function FichasPersonal() {
           vinculos_laborales (
             id,
             estado,
+            fecha_ingreso,
+            fecha_primer_contrato,
             empresa_interna_id,
             sede_id,
             cargo_id,
@@ -435,6 +437,8 @@ export function FichasPersonal() {
     delete payload.sistemas_pension;
     delete payload.ubigeo_distritos;
     delete payload.vinculos_laborales;
+    delete payload.fecha_ingreso;
+    delete payload.fecha_primer_contrato;
 
     // Delete job/contract fields from persona payload so Supabase doesn't complain
     const jobFields = [
@@ -474,6 +478,7 @@ export function FichasPersonal() {
 
         // If job fields are filled in, insert vinculo
         if (newPers && personaForm.empresa_interna_id && personaForm.sede_id) {
+          const defaultDate = personaForm.contrato_fecha_inicio || new Date().toISOString().split("T")[0];
           const vPayload = {
             persona_id: newPers.id,
             empresa_interna_id: parseInt(personaForm.empresa_interna_id),
@@ -486,6 +491,8 @@ export function FichasPersonal() {
             lugar_especifico_trabajo: personaForm.lugar_especifico_trabajo || "",
             asignacion_familiar: !!personaForm.asignacion_familiar,
             vencimiento_asignacion_familiar: personaForm.asignacion_familiar ? (personaForm.vencimiento_asignacion_familiar || null) : null,
+            fecha_ingreso: personaForm.fecha_ingreso || defaultDate,
+            fecha_primer_contrato: personaForm.fecha_primer_contrato || defaultDate,
             estado: "Activo"
           };
 
@@ -976,17 +983,8 @@ export function FichasPersonal() {
             talla_calzado: rowData.talla_calzado ? String(rowData.talla_calzado).trim() : null
           };
 
-          if (parsedFechaIngreso) {
-            personaPayload.fecha_ingreso = parsedFechaIngreso;
-          } else if (!alreadyExists && parsedFechaInicio) {
-            personaPayload.fecha_ingreso = parsedFechaInicio;
-          }
-
-          if (parsedFechaPrimerContrato) {
-            personaPayload.fecha_primer_contrato = parsedFechaPrimerContrato;
-          } else if (!alreadyExists && parsedFechaInicio) {
-            personaPayload.fecha_primer_contrato = parsedFechaInicio;
-          }
+          const importFechaIngreso = parsedFechaIngreso || parsedFechaInicio || null;
+          const importFechaPrimerContrato = parsedFechaPrimerContrato || parsedFechaInicio || null;
 
           const vinculoPayload: any = isUpdateOnly ? null : {
             estado: "Activo"
@@ -1002,6 +1000,8 @@ export function FichasPersonal() {
             if (rowData.bono !== undefined && rowData.bono !== null) vinculoPayload.bono = bonoNum;
             if (rowData.asignacion_familiar) vinculoPayload.asignacion_familiar = asigFam;
             vinculoPayload.vencimiento_asignacion_familiar = asigFam ? (parsedVencimientoAsigFam || null) : null;
+            vinculoPayload.fecha_ingreso = importFechaIngreso;
+            vinculoPayload.fecha_primer_contrato = importFechaPrimerContrato;
           }
 
           const contratoPayload: any = isUpdateOnly ? null : {
@@ -1366,6 +1366,8 @@ export function FichasPersonal() {
       bono: 0.00,
       asignacion_familiar: false,
       vencimiento_asignacion_familiar: "",
+      fecha_ingreso: "",
+      fecha_primer_contrato: "",
       estado: "Activo",
       contrato_modalidad_id: modalidades[0]?.id || "",
       contrato_fecha_inicio: "",
@@ -1392,6 +1394,8 @@ export function FichasPersonal() {
       sueldo_basico: v.sueldo_basico,
       bono: v.bono || 0.00,
       lugar_especifico_trabajo: v.lugar_especifico_trabajo || "",
+      fecha_ingreso: v.fecha_ingreso || "",
+      fecha_primer_contrato: v.fecha_primer_contrato || "",
       asignacion_familiar: v.asignacion_familiar || false,
       vencimiento_asignacion_familiar: v.vencimiento_asignacion_familiar || "",
       estado: v.estado
@@ -1595,8 +1599,14 @@ export function FichasPersonal() {
   // Filter list
   // Helper to get labor entry date
   const getFechaIngreso = (p: any): string | null => {
-    if (p.fecha_ingreso) return p.fecha_ingreso;
     if (!p.vinculos_laborales) return null;
+    const active = p.vinculos_laborales.find((v: any) => v.estado === "Activo");
+    if (active && active.fecha_ingreso) return active.fecha_ingreso;
+    
+    const sorted = [...p.vinculos_laborales].sort((a: any, b: any) => b.id - a.id);
+    const mostRecent = sorted[0];
+    if (mostRecent && mostRecent.fecha_ingreso) return mostRecent.fecha_ingreso;
+
     const dates = p.vinculos_laborales
       .flatMap((v: any) => v.contratos || [])
       .map((c: any) => c.fecha_inicio)
@@ -1604,6 +1614,25 @@ export function FichasPersonal() {
     if (dates.length === 0) return null;
     dates.sort();
     return dates[0];
+  };
+
+  const getFechaPrimerContrato = (p: any): string | null => {
+    if (!p.vinculos_laborales) return null;
+    const dates = p.vinculos_laborales
+      .map((v: any) => v.fecha_primer_contrato)
+      .filter(Boolean);
+    if (dates.length > 0) {
+      dates.sort();
+      return dates[0];
+    }
+    
+    const contractDates = p.vinculos_laborales
+      .flatMap((v: any) => v.contratos || [])
+      .map((c: any) => c.fecha_inicio)
+      .filter(Boolean);
+    if (contractDates.length === 0) return null;
+    contractDates.sort();
+    return contractDates[0];
   };
 
   // Safe formatting helper to prevent timezone shift issues
@@ -1737,7 +1766,7 @@ export function FichasPersonal() {
         let hasVacationAlert = false;
         activeVinculos.forEach((v: any) => {
           const diasAnuales = v.regimenes_laborales?.dias_vacaciones ?? 30;
-          const fIng = p.fecha_ingreso || getFechaIngreso(p);
+          const fIng = v.fecha_primer_contrato || v.fecha_ingreso || (v.contratos && v.contratos.map((c: any) => c.fecha_inicio).filter(Boolean).sort()[0]) || v.creado_en;
           if (fIng) {
             const ingDate = new Date(fIng);
             ingDate.setHours(0, 0, 0, 0);
@@ -1865,7 +1894,7 @@ export function FichasPersonal() {
       let hasAlert = false;
       if (v && v.estado === "Activo") {
         const diasAnuales = v.regimenes_laborales?.dias_vacaciones ?? 30;
-        const fIng = p.fecha_ingreso || getFechaIngreso(p);
+        const fIng = v.fecha_primer_contrato || v.fecha_ingreso || (v.contratos && v.contratos.map((c: any) => c.fecha_inicio).filter(Boolean).sort()[0]) || v.creado_en;
         if (fIng) {
           const today = new Date();
           today.setHours(0, 0, 0, 0);
@@ -2634,7 +2663,7 @@ export function FichasPersonal() {
                       const getVacationsBadge = () => {
                         if (!v) return null;
                         const diasAnuales = v.regimenes_laborales?.dias_vacaciones ?? 30;
-                        const fIng = p.fecha_ingreso || getFechaIngreso(p);
+                        const fIng = v.fecha_primer_contrato || v.fecha_ingreso || (v.contratos && v.contratos.map((c: any) => c.fecha_inicio).filter(Boolean).sort()[0]) || v.creado_en;
                         if (!fIng) return null;
                         
                         const today = new Date();
@@ -3413,26 +3442,7 @@ export function FichasPersonal() {
                     placeholder="colaborador@correo.com"
                   />
                 </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Fecha de Ingreso Laboral</label>
-                  <input
-                    type="date"
-                    required
-                    value={personaForm.fecha_ingreso || ""}
-                    onChange={(e) => setPersonaForm({ ...personaForm, fecha_ingreso: e.target.value || "" })}
-                    className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Fecha de 1° Contrato</label>
-                  <input
-                    type="date"
-                    required
-                    value={personaForm.fecha_primer_contrato || ""}
-                    onChange={(e) => setPersonaForm({ ...personaForm, fecha_primer_contrato: e.target.value || "" })}
-                    className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none font-mono"
-                  />
-                </div>
+
               </div>
             )}
 
@@ -3808,6 +3818,29 @@ export function FichasPersonal() {
                   </div>
                 </div>
 
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Fecha de Ingreso Laboral</label>
+                    <input
+                      type="date"
+                      required
+                      value={personaForm.fecha_ingreso || ""}
+                      onChange={(e) => setPersonaForm({ ...personaForm, fecha_ingreso: e.target.value })}
+                      className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Fecha de 1° Contrato</label>
+                    <input
+                      type="date"
+                      required
+                      value={personaForm.fecha_primer_contrato || ""}
+                      onChange={(e) => setPersonaForm({ ...personaForm, fecha_primer_contrato: e.target.value })}
+                      className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none font-mono"
+                    />
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
                   <div className="flex items-center gap-2 py-3">
                     <input
@@ -3969,7 +4002,7 @@ export function FichasPersonal() {
             </div>
             <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Fecha 1° Contrato</span>
-              <span className="text-sm font-semibold text-slate-800 font-mono">{formatDMY(activePersona.fecha_primer_contrato || getFechaIngreso(activePersona))}</span>
+              <span className="text-sm font-semibold text-slate-800 font-mono">{formatDMY(getFechaPrimerContrato(activePersona))}</span>
             </div>
             <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Último EMO</span>
@@ -4406,6 +4439,29 @@ export function FichasPersonal() {
                       onChange={(e) => setVinculoForm({ ...vinculoForm, lugar_especifico_trabajo: e.target.value })}
                       className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none"
                       placeholder="Ej. Garita de Control, Almacén A"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Fecha de Ingreso Laboral</label>
+                    <input
+                      type="date"
+                      required
+                      value={vinculoForm.fecha_ingreso || ""}
+                      onChange={(e) => setVinculoForm({ ...vinculoForm, fecha_ingreso: e.target.value })}
+                      className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Fecha de 1° Contrato</label>
+                    <input
+                      type="date"
+                      required
+                      value={vinculoForm.fecha_primer_contrato || ""}
+                      onChange={(e) => setVinculoForm({ ...vinculoForm, fecha_primer_contrato: e.target.value })}
+                      className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none font-mono"
                     />
                   </div>
                 </div>

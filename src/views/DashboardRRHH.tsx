@@ -130,13 +130,13 @@ export function DashboardRRHH() {
           apellidos,
           numero_documento,
           fecha_ultimo_emo,
-          fecha_ingreso,
-          fecha_primer_contrato,
           telefono,
           correo,
           vinculos_laborales (
             id,
             estado,
+            fecha_ingreso,
+            fecha_primer_contrato,
             empresa_interna_id,
             sede_id,
             cargo_id,
@@ -184,8 +184,14 @@ export function DashboardRRHH() {
   };
 
   const getFechaIngreso = (p: any): string | null => {
-    if (p.fecha_ingreso) return p.fecha_ingreso;
     if (!p.vinculos_laborales) return null;
+    const active = p.vinculos_laborales.find((v: any) => v.estado === "Activo");
+    if (active && active.fecha_ingreso) return active.fecha_ingreso;
+    
+    const sorted = [...p.vinculos_laborales].sort((a: any, b: any) => b.id - a.id);
+    const mostRecent = sorted[0];
+    if (mostRecent && mostRecent.fecha_ingreso) return mostRecent.fecha_ingreso;
+
     const dates = p.vinculos_laborales
       .flatMap((v: any) => v.contratos || [])
       .map((c: any) => c.fecha_inicio)
@@ -193,6 +199,25 @@ export function DashboardRRHH() {
     if (dates.length === 0) return null;
     dates.sort();
     return dates[0];
+  };
+
+  const getFechaPrimerContrato = (p: any): string | null => {
+    if (!p.vinculos_laborales) return null;
+    const dates = p.vinculos_laborales
+      .map((v: any) => v.fecha_primer_contrato)
+      .filter(Boolean);
+    if (dates.length > 0) {
+      dates.sort();
+      return dates[0];
+    }
+    
+    const contractDates = p.vinculos_laborales
+      .flatMap((v: any) => v.contratos || [])
+      .map((c: any) => c.fecha_inicio)
+      .filter(Boolean);
+    if (contractDates.length === 0) return null;
+    contractDates.sort();
+    return contractDates[0];
   };
 
   // Derivative values: KPI Calculations
@@ -429,7 +454,7 @@ export function DashboardRRHH() {
       p.vinculos_laborales?.forEach((v: any) => {
         if (v.estado === "Activo") {
           const diasAnuales = v.regimenes_laborales?.dias_vacaciones ?? 30;
-          const fIng = p.fecha_ingreso || getFechaIngreso(p);
+          const fIng = v.fecha_primer_contrato || v.fecha_ingreso || (v.contratos && v.contratos.map((c: any) => c.fecha_inicio).filter(Boolean).sort()[0]) || v.creado_en;
           if (fIng) {
             const today = new Date();
             const ing = new Date(fIng);

@@ -312,6 +312,7 @@ export function PizarraDigital() {
       }
 
       // 2. Create the Vínculo Laboral (Job Connection) for the person
+      const startJobDate = ingresoForm.fecha_inicio || new Date().toISOString().split("T")[0];
       const { error: jobErr } = await supabase
         .from("vinculos_laborales")
         .insert([{
@@ -323,6 +324,8 @@ export function PizarraDigital() {
           regimen_laboral_id: ingresoForm.regimen_laboral_id,
           sueldo_basico: ingresoForm.sueldo_basico,
           bono: parseFloat(ingresoForm.bono) || 0.00,
+          fecha_ingreso: startJobDate,
+          fecha_primer_contrato: startJobDate,
           estado: "Activo",
           solicitud_id: selectedRequest.id
         }]);
@@ -347,37 +350,12 @@ export function PizarraDigital() {
         .insert([{
           vinculo_laboral_id: newVinc.id,
           modalidad_contrato_id: firstModality.id,
-          fecha_inicio: ingresoForm.fecha_inicio || new Date().toISOString().split("T")[0],
+          fecha_inicio: startJobDate,
           fecha_fin: ingresoForm.fecha_fin || null,
           estado: "Vigente"
         }]);
       
       if (contractErr) throw contractErr;
-
-      // 5. Update persona dates if they are empty
-      const today = new Date().toISOString().split("T")[0];
-      const { data: currentPersona } = await supabase
-        .from("personas")
-        .select("fecha_ingreso, fecha_primer_contrato")
-        .eq("id", ingresoForm.persona_id)
-        .single();
-
-      if (currentPersona) {
-        const updatePayload: any = {};
-        if (!currentPersona.fecha_ingreso) {
-          updatePayload.fecha_ingreso = ingresoForm.fecha_inicio || today;
-        }
-        if (!currentPersona.fecha_primer_contrato) {
-          updatePayload.fecha_primer_contrato = ingresoForm.fecha_inicio || today;
-        }
-
-        if (Object.keys(updatePayload).length > 0) {
-          await supabase
-            .from("personas")
-            .update(updatePayload)
-            .eq("id", ingresoForm.persona_id);
-        }
-      }
 
       // 6. Increment plazas_cubiertas and update status
       const newCovered = selectedRequest.plazas_cubiertas + 1;

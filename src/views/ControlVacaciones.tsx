@@ -95,10 +95,11 @@ export function ControlVacaciones() {
           apellidos,
           numero_documento,
           correo,
-          fecha_ingreso,
           vinculos_laborales (
             id,
             estado,
+            fecha_ingreso,
+            fecha_primer_contrato,
             empresa_interna_id,
             sede_id,
             cargo_id,
@@ -143,7 +144,6 @@ export function ControlVacaciones() {
 
   // Helper: Get fallback entry date based on first contract
   const getFechaIngresoFallback = (vinculosList: any[], person: any): string | null => {
-    if (person?.fecha_ingreso) return person.fecha_ingreso;
     const dates = vinculosList
       .flatMap((v: any) => v.contratos || [])
       .map((c: any) => c.fecha_inicio)
@@ -165,16 +165,15 @@ export function ControlVacaciones() {
   const getVacationMetrics = (person: any, v: any) => {
     if (!person || !v) return { years: 0, earned: 0, taken: 0, balance: 0, periodos: 0, status: "normal", startDateStr: "", isFromContract: false, hasContract: false, daysPerYear: 30 };
 
-    // Para el cálculo continuo de vacaciones, se debe usar la fecha de ingreso inicial de la relación laboral
-    const startDateStr = person.fecha_ingreso || getFechaIngresoFallback(person.vinculos_laborales || [], person) || v.creado_en;
+    const startDateStr = v.fecha_primer_contrato || v.fecha_ingreso || (v.contratos && v.contratos.map((c: any) => c.fecha_inicio).filter(Boolean).sort()[0]) || v.creado_en;
     const isFromContract = false;
     const hasContract = !!(v.contratos && v.contratos.length > 0);
 
     const startDate = new Date(startDateStr);
-    const today = new Date();
+    const endDate = v.estado === "Inactivo" && v.fecha_cese ? new Date(v.fecha_cese) : new Date();
     
     // Years of service
-    const diffTime = today.getTime() - startDate.getTime();
+    const diffTime = Math.max(0, endDate.getTime() - startDate.getTime());
     const diffYears = diffTime / (1000 * 60 * 60 * 24 * 365.25);
     const years = Math.max(0, parseFloat(diffYears.toFixed(2)));
 
@@ -560,7 +559,7 @@ export function ControlVacaciones() {
 
           if (isValid && person) {
             const activeV = person.vinculos_laborales?.find((v: any) => v.estado === "Activo");
-            const startDateStr = person.fecha_ingreso || getFechaIngresoFallback(person.vinculos_laborales || [], person) || activeV.creado_en;
+            const startDateStr = activeV ? (activeV.fecha_primer_contrato || activeV.fecha_ingreso || (activeV.contratos && activeV.contratos.map((c: any) => c.fecha_inicio).filter(Boolean).sort()[0]) || activeV.creado_en) : (getFechaIngresoFallback(person.vinculos_laborales || [], person) || new Date().toISOString().split("T")[0]);
             const employeePeriods = calculatePeriods(startDateStr);
             const daysPerYear = activeV.regimenes_laborales?.dias_vacaciones || 30;
             const vacationHistory = activeV.vacaciones_historico || [];

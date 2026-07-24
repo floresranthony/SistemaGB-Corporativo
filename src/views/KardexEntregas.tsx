@@ -39,9 +39,7 @@ export function KardexEntregas() {
           talla_polo,
           talla_pantalon,
           talla_calzado,
-          fecha_ultimo_emo,
-          fecha_ingreso,
-          fecha_primer_contrato
+          fecha_ultimo_emo
         `)
         .order("apellidos", { ascending: true });
       if (err) throw err;
@@ -139,7 +137,13 @@ export function KardexEntregas() {
   });
 
   const getFechaIngresoFallback = (vinculosList: any[], person: any): string | null => {
-    if (person?.fecha_ingreso) return person.fecha_ingreso;
+    const active = vinculosList.find((v: any) => v.estado === "Activo");
+    if (active && active.fecha_ingreso) return active.fecha_ingreso;
+    
+    const sorted = [...vinculosList].sort((a: any, b: any) => b.id - a.id);
+    const mostRecent = sorted[0];
+    if (mostRecent && mostRecent.fecha_ingreso) return mostRecent.fecha_ingreso;
+
     const dates = vinculosList
       .flatMap((v: any) => v.contratos || [])
       .map((c: any) => c.fecha_inicio)
@@ -534,7 +538,7 @@ export function KardexEntregas() {
                     </span>
                   </div>
                   <div>
-                    Fecha Ingreso: <span className="font-mono text-indigo-600 font-bold mr-3">{formatDMY(selectedPerson.fecha_ingreso || getFechaIngresoFallback(vinculos, selectedPerson))}</span>
+                    Fecha Ingreso: <span className="font-mono text-indigo-600 font-bold mr-3">{formatDMY(getFechaIngresoFallback(vinculos, selectedPerson))}</span>
                   </div>
                 </div>
               </div>

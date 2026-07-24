@@ -86,10 +86,11 @@ export function GestionContratos() {
           apellidos,
           numero_documento,
           correo,
-          fecha_ingreso,
           vinculos_laborales (
             id,
             estado,
+            fecha_ingreso,
+            fecha_primer_contrato,
             empresa_interna_id,
             sede_id,
             cargo_id,
@@ -157,7 +158,13 @@ export function GestionContratos() {
   }, [personas, modalidades]);
 
   const getFechaIngresoFallback = (vinculosList: any[], person: any): string | null => {
-    if (person?.fecha_ingreso) return person.fecha_ingreso;
+    const active = vinculosList.find((v: any) => v.estado === "Activo");
+    if (active && active.fecha_ingreso) return active.fecha_ingreso;
+    
+    const sorted = [...vinculosList].sort((a: any, b: any) => b.id - a.id);
+    const mostRecent = sorted[0];
+    if (mostRecent && mostRecent.fecha_ingreso) return mostRecent.fecha_ingreso;
+
     const dates = vinculosList
       .flatMap((v: any) => v.contratos || [])
       .map((c: any) => c.fecha_inicio)
@@ -360,7 +367,7 @@ export function GestionContratos() {
               </>
             )}
             <span className="mx-2 text-slate-355">|</span>
-            F. Ingreso: <span className="text-slate-700 font-bold">{formatDMY(selectedPersona.fecha_ingreso || getFechaIngresoFallback(selectedPersona.vinculos_laborales || [], selectedPersona))}</span>
+            F. Ingreso: <span className="text-slate-700 font-bold">{formatDMY(getFechaIngresoFallback(selectedPersona.vinculos_laborales || [], selectedPersona))}</span>
           </p>
         </div>
 

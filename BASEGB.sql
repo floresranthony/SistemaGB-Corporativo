@@ -409,9 +409,10 @@ CREATE TABLE requerimiento_detalles (
     CONSTRAINT fk_detalle_vinculo FOREIGN KEY (vinculo_laboral_id) REFERENCES vinculos_laborales(id) ON DELETE RESTRICT
 );
 
-ALTER TABLE personas 
+ALTER TABLE vinculos_laborales 
 ADD COLUMN fecha_ingreso DATE,
 ADD COLUMN fecha_primer_contrato DATE;
+
 
 -- 1. Vincular los colaboradores con su solicitud original de la pizarra
 ALTER TABLE vinculos_laborales ADD COLUMN solicitud_id INT DEFAULT NULL;
