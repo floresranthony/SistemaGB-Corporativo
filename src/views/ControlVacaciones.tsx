@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "../utils/supabase";
+import * as XLSX from "xlsx";
 import { 
   Calendar, 
   Search, 
@@ -17,7 +18,11 @@ import {
   ArrowUpDown,
   Download,
   Info,
-  CalendarDays
+  CalendarDays,
+  FileSpreadsheet,
+  FileDown,
+  Upload,
+  AlertTriangle
 } from "lucide-react";
 
 export function ControlVacaciones() {
@@ -37,6 +42,7 @@ export function ControlVacaciones() {
   const [vacationForm, setVacationForm] = useState({
     fecha_inicio: "",
     fecha_fin: "",
+    periodo: "",
     notas: ""
   });
   
@@ -51,6 +57,18 @@ export function ControlVacaciones() {
   
   // Printing state
   const [printingRequest, setPrintingRequest] = useState(false);
+  const [printType, setPrintType] = useState<"solicitud" | "kardex">("solicitud");
+
+  // Bulk Import state
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importRows, setImportRows] = useState<any[]>([]);
+  const [importing, setImporting] = useState(false);
+  const [importStatus, setImportStatus] = useState({
+    processed: 0,
+    total: 0,
+    successCount: 0,
+    errors: [] as any[]
+  });
 
   // Load everything
   const loadData = async () => {
@@ -101,7 +119,9 @@ export function ControlVacaciones() {
               fecha_fin,
               dias_calendario,
               notas,
-              creado_en
+              creado_en,
+              periodo_inicio,
+              periodo_fin
             )
           )
         `)
@@ -143,11 +163,12 @@ export function ControlVacaciones() {
 
   // Helper: Calculate individual vacations metrics
   const getVacationMetrics = (person: any, v: any) => {
-    if (!person || !v) return { years: 0, earned: 0, taken: 0, balance: 0, periodos: 0, status: "normal", startDateStr: "", isFromContract: false, daysPerYear: 30 };
+    if (!person || !v) return { years: 0, earned: 0, taken: 0, balance: 0, periodos: 0, status: "normal", startDateStr: "", isFromContract: false, hasContract: false, daysPerYear: 30 };
 
     // Para el cálculo continuo de vacaciones, se debe usar la fecha de ingreso inicial de la relación laboral
     const startDateStr = person.fecha_ingreso || getFechaIngresoFallback(person.vinculos_laborales || [], person) || v.creado_en;
     const isFromContract = false;
+    const hasContract = !!(v.contratos && v.contratos.length > 0);
 
     const startDate = new Date(startDateStr);
     const today = new Date();
@@ -177,7 +198,543 @@ export function ControlVacaciones() {
       status = "proximo";
     }
 
-    return { years, earned, taken, balance, periodos, status, daysPerYear, startDateStr, isFromContract };
+    return { years, earned, taken, balance, periodos, status, daysPerYear, startDateStr, isFromContract, hasContract };
+  };
+
+  // Calculate metrics for selected person's active vinculo
+  const selectedMetrics = activeVinculo ? getVacationMetrics(selectedPersona, activeVinculo) : null;
+
+  // Helper: Calculate periods dynamically based on entry date
+  const calculatePeriods = (startDateStr: string | null) => {
+    if (!startDateStr) return [];
+    const periods = [];
+    const entryDate = new Date(startDateStr);
+    const today = new Date();
+    
+    // Safety check for extremely old dates or future dates
+    if (isNaN(entryDate.getTime())) return [];
+    
+    let currentStart = new Date(entryDate);
+    
+    while (currentStart < today) {
+      const currentEnd = new Date(currentStart);
+      currentEnd.setFullYear(currentEnd.getFullYear() + 1);
+      currentEnd.setDate(currentEnd.getDate() - 1);
+      
+      const startStr = currentStart.toISOString().split("T")[0];
+      const endStr = currentEnd.toISOString().split("T")[0];
+      
+      periods.push({
+        start: startStr,
+        end: endStr,
+        label: `${formatDMY(startStr)} al ${formatDMY(endStr)}`
+      });
+      
+      currentStart.setFullYear(currentStart.getFullYear() + 1);
+    }
+    
+    return periods.reverse();
+  };
+
+  const availablePeriods = React.useMemo(() => {
+    if (!selectedMetrics || !selectedMetrics.startDateStr) return [];
+    return calculatePeriods(selectedMetrics.startDateStr);
+  }, [selectedMetrics]);
+
+  useEffect(() => {
+    if (availablePeriods.length > 0 && !vacationForm.periodo) {
+      setVacationForm(prev => ({ ...prev, periodo: `${availablePeriods[0].start}|${availablePeriods[0].end}` }));
+    }
+  }, [availablePeriods, isModalOpen]);
+
+  const getVacationPeriodKey = (vac: any, periods: any[]) => {
+    if (vac.periodo_inicio && vac.periodo_fin) {
+      return `${vac.periodo_inicio}|${vac.periodo_fin}`;
+    }
+    if (!vac.fecha_inicio) return "";
+    const sortedPeriods = [...periods].sort((a, b) => b.start.localeCompare(a.start));
+    for (const p of sortedPeriods) {
+      if (vac.fecha_inicio >= p.start) {
+        return `${p.start}|${p.end}`;
+      }
+    }
+    return periods.length > 0 ? `${periods[periods.length - 1].start}|${periods[periods.length - 1].end}` : "";
+  };
+
+  const distributeVacationDays = (
+    startDateStr: string,
+    endDateStr: string,
+    vacacionesHistorico: any[],
+    periods: any[],
+    daysPerYear: number,
+    startPeriodKey?: string
+  ) => {
+    const start = new Date(startDateStr + "T12:00:00");
+    const end = new Date(endDateStr + "T12:00:00");
+    const diffTime = end.getTime() - start.getTime();
+    let totalDaysToDistribute = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+    if (totalDaysToDistribute <= 0) return [];
+
+    let sortedPeriods = [...periods].sort((a, b) => a.start.localeCompare(b.start));
+
+    // Si se especifica un periodo de inicio, ignoramos los anteriores
+    if (startPeriodKey && startPeriodKey !== "auto") {
+      const [startPKey] = startPeriodKey.split("|");
+      const startIndex = sortedPeriods.findIndex(p => p.start === startPKey);
+      if (startIndex !== -1) {
+        sortedPeriods = sortedPeriods.slice(startIndex);
+      }
+    }
+
+    const periodsWithBalance = sortedPeriods.map(p => {
+      const goces = vacacionesHistorico.filter((v: any) => {
+        const key = getVacationPeriodKey(v, periods);
+        return key === `${p.start}|${p.end}`;
+      });
+
+      const taken = goces.reduce((sum: number, v: any) => sum + (v.dias_calendario || 0), 0);
+      const balance = Math.max(0, daysPerYear - taken);
+      return {
+        ...p,
+        balance,
+        taken
+      };
+    });
+
+    const parts: any[] = [];
+    let currentStartDateStr = startDateStr;
+
+    for (const p of periodsWithBalance) {
+      if (totalDaysToDistribute <= 0) break;
+
+      if (p.balance > 0) {
+        const daysToConsume = Math.min(totalDaysToDistribute, p.balance);
+        const partEndDate = new Date(currentStartDateStr + "T12:00:00");
+        partEndDate.setDate(partEndDate.getDate() + daysToConsume - 1);
+        const partEndDateStr = partEndDate.toISOString().split("T")[0];
+
+        parts.push({
+          periodo_inicio: p.start,
+          periodo_fin: p.end,
+          fecha_inicio: currentStartDateStr,
+          fecha_fin: partEndDateStr,
+          dias_calendario: daysToConsume
+        });
+
+        totalDaysToDistribute -= daysToConsume;
+
+        const nextStartDate = new Date(partEndDateStr + "T12:00:00");
+        nextStartDate.setDate(nextStartDate.getDate() + 1);
+        currentStartDateStr = nextStartDate.toISOString().split("T")[0];
+      }
+    }
+
+    // Si aún quedan días y hay periodos, los asignamos al periodo más reciente (adelanto de vacaciones)
+    if (totalDaysToDistribute > 0 && periodsWithBalance.length > 0) {
+      const newestPeriod = periodsWithBalance[periodsWithBalance.length - 1];
+      const partEndDate = new Date(currentStartDateStr + "T12:00:00");
+      partEndDate.setDate(partEndDate.getDate() + totalDaysToDistribute - 1);
+      const partEndDateStr = partEndDate.toISOString().split("T")[0];
+
+      const lastPart = parts[parts.length - 1];
+      if (lastPart && lastPart.periodo_inicio === newestPeriod.start) {
+        lastPart.fecha_fin = partEndDateStr;
+        lastPart.dias_calendario += totalDaysToDistribute;
+      } else {
+        parts.push({
+          periodo_inicio: newestPeriod.start,
+          periodo_fin: newestPeriod.end,
+          fecha_inicio: currentStartDateStr,
+          fecha_fin: partEndDateStr,
+          dias_calendario: totalDaysToDistribute
+        });
+      }
+    }
+
+    return parts;
+  };
+
+  const periodSummary = React.useMemo(() => {
+    if (!selectedPersona || !activeVinculo || !availablePeriods.length) return [];
+    
+    return availablePeriods.map(p => {
+      const goces = activeVinculo.vacaciones_historico?.filter((v: any) => {
+        const key = getVacationPeriodKey(v, availablePeriods);
+        return key === `${p.start}|${p.end}`;
+      }) || [];
+      
+      const taken = goces.reduce((sum: number, v: any) => sum + (v.dias_calendario || 0), 0);
+      const earned = activeVinculo.regimenes_laborales?.dias_vacaciones || 30;
+      const balance = Math.max(0, earned - taken);
+      
+      return {
+        ...p,
+        earned,
+        taken,
+        balance,
+        goces
+      };
+    });
+  }, [selectedPersona, activeVinculo, availablePeriods]);
+
+  // Bulk Template and Importer logic
+  const downloadExcelTemplate = () => {
+    const headers = [
+      "DNI",
+      "Inicio Periodo Vacacional",
+      "Fin Periodo Vacacional",
+      "Fecha de Salida",
+      "Fecha de Retorno",
+      "Observacion"
+    ];
+    
+    const exampleRow1 = [
+      "45666182",
+      "01-11-2024",
+      "31-10-2025",
+      "17-03-2026",
+      "31-03-2026",
+      "Goce del primer periodo vacacional"
+    ];
+    const exampleRow2 = [
+      "71234567",
+      "15-05-2025",
+      "14-05-2026",
+      "20-05-2026",
+      "03-06-2026",
+      "Adelanto de vacaciones"
+    ];
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([headers, exampleRow1, exampleRow2]);
+    
+    ws["!cols"] = [
+      { wch: 12 },
+      { wch: 24 },
+      { wch: 24 },
+      { wch: 18 },
+      { wch: 18 },
+      { wch: 30 }
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, "Plantilla Importacion");
+    XLSX.writeFile(wb, "plantilla_importacion_vacaciones.xlsx");
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImporting(true);
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const data = new Uint8Array(event.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: "array", cellDates: true });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+
+        if (jsonData.length < 2) {
+          alert("El archivo Excel no tiene suficientes filas (debe incluir la cabecera y al menos una fila de datos).");
+          setImporting(false);
+          return;
+        }
+
+        const headers = jsonData[0].map((h: any) => String(h || "").trim().toLowerCase());
+        const dniIdx = headers.indexOf("dni");
+        const inicioPeriodoIdx = headers.findIndex(h => h.includes("inicio") && h.includes("periodo"));
+        const finPeriodoIdx = headers.findIndex(h => h.includes("fin") && h.includes("periodo"));
+        const salidaIdx = headers.findIndex(h => h.includes("salida"));
+        const retornoIdx = headers.findIndex(h => h.includes("retorno") || (h.includes("fin") && !h.includes("periodo")));
+        const obsIdx = headers.findIndex(h => h.includes("observacion") || h.includes("nota"));
+
+        if (dniIdx === -1 || salidaIdx === -1 || retornoIdx === -1 || inicioPeriodoIdx === -1 || finPeriodoIdx === -1) {
+          alert("No se encontraron las columnas requeridas: 'DNI', 'Inicio Periodo Vacacional', 'Fin Periodo Vacacional', 'Fecha de Salida', 'Fecha de Retorno'.");
+          setImporting(false);
+          return;
+        }
+
+        const parseDate = (val: any): string | null => {
+          if (!val) return null;
+          if (val instanceof Date) {
+            if (isNaN(val.getTime())) return null;
+            const yyyy = val.getFullYear();
+            const mm = String(val.getMonth() + 1).padStart(2, "0");
+            const dd = String(val.getDate()).padStart(2, "0");
+            return `${yyyy}-${mm}-${dd}`;
+          }
+          const num = Number(val);
+          if (!isNaN(num) && num > 10000 && num < 100000) {
+            const date = new Date((num - 25569) * 86400 * 1000);
+            const yyyy = date.getFullYear();
+            const mm = String(date.getMonth() + 1).padStart(2, "0");
+            const dd = String(date.getDate()).padStart(2, "0");
+            return `${yyyy}-${mm}-${dd}`;
+          }
+          const str = String(val).trim();
+          const dmy = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+          if (dmy) {
+            const date = new Date(parseInt(dmy[3]), parseInt(dmy[2]) - 1, parseInt(dmy[1]));
+            if (!isNaN(date.getTime())) {
+              return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+            }
+          }
+          const ymd = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+          if (ymd) {
+            const date = new Date(parseInt(ymd[1]), parseInt(ymd[2]) - 1, parseInt(ymd[3]));
+            if (!isNaN(date.getTime())) {
+              return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+            }
+          }
+          return null;
+        };
+
+        const parsedRows: any[] = [];
+        let errorsCount = 0;
+
+        for (let i = 1; i < jsonData.length; i++) {
+          const row = jsonData[i];
+          if (!row || row.length === 0 || row.every(cell => cell === null || cell === undefined || cell === "")) {
+            continue;
+          }
+
+          const rowNum = i + 1;
+          const rawDni = String(row[dniIdx] || "").trim();
+          const rawInicioPeriodo = row[inicioPeriodoIdx];
+          const rawFinPeriodo = row[finPeriodoIdx];
+          const rawSalida = row[salidaIdx];
+          const rawRetorno = row[retornoIdx];
+          const rawObs = obsIdx !== -1 ? String(row[obsIdx] || "").trim() : "";
+
+          const errors: string[] = [];
+
+          if (!rawDni) errors.push("DNI es obligatorio.");
+          const person = personas.find(p => String(p.numero_documento).trim() === rawDni);
+          
+          let activeVinculoId = null;
+          let colabName = "";
+
+          if (rawDni && !person) {
+            errors.push(`DNI '${rawDni}' no encontrado en el sistema.`);
+          } else if (person) {
+            colabName = `${person.apellidos}, ${person.nombres}`;
+            const activeV = person.vinculos_laborales?.find((v: any) => v.estado === "Activo");
+            if (!activeV) {
+              errors.push(`El colaborador no tiene un contrato ACTIVO.`);
+            } else {
+              activeVinculoId = activeV.id;
+            }
+          }
+
+          const parsedInicioPeriodo = parseDate(rawInicioPeriodo);
+          const parsedFinPeriodo = parseDate(rawFinPeriodo);
+          const parsedSalida = parseDate(rawSalida);
+          const parsedRetorno = parseDate(rawRetorno);
+
+          if (!rawInicioPeriodo) errors.push("Inicio del Periodo es obligatorio.");
+          else if (!parsedInicioPeriodo) errors.push(`Fecha de inicio de periodo '${rawInicioPeriodo}' inválida.`);
+
+          if (!rawFinPeriodo) errors.push("Fin del Periodo es obligatorio.");
+          else if (!parsedFinPeriodo) errors.push(`Fecha de fin de periodo '${rawFinPeriodo}' inválida.`);
+
+          if (!rawSalida) errors.push("Fecha de Salida es obligatoria.");
+          else if (!parsedSalida) errors.push(`Fecha de salida '${rawSalida}' inválida.`);
+
+          if (!rawRetorno) errors.push("Fecha de Retorno es obligatoria.");
+          else if (!parsedRetorno) errors.push(`Fecha de retorno '${rawRetorno}' inválida.`);
+
+          let dias = 0;
+          if (parsedSalida && parsedRetorno) {
+            const start = new Date(parsedSalida);
+            const end = new Date(parsedRetorno);
+            const diffTime = end.getTime() - start.getTime();
+            dias = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+            if (dias <= 0) {
+              errors.push("La fecha de salida debe ser anterior o igual a la de retorno.");
+            }
+          }
+
+          const isValid = errors.length === 0;
+
+          if (isValid && person) {
+            const activeV = person.vinculos_laborales?.find((v: any) => v.estado === "Activo");
+            const startDateStr = person.fecha_ingreso || getFechaIngresoFallback(person.vinculos_laborales || [], person) || activeV.creado_en;
+            const employeePeriods = calculatePeriods(startDateStr);
+            const daysPerYear = activeV.regimenes_laborales?.dias_vacaciones || 30;
+            const vacationHistory = activeV.vacaciones_historico || [];
+
+            // Distribuimos desde el periodo del Excel si coincide, o hacemos FIFO desde el inicio (auto)
+            const startPeriodKey = (parsedInicioPeriodo && parsedFinPeriodo) ? `${parsedInicioPeriodo}|${parsedFinPeriodo}` : "auto";
+
+            const distributedParts = distributeVacationDays(
+              parsedSalida!,
+              parsedRetorno!,
+              vacationHistory,
+              employeePeriods,
+              daysPerYear,
+              startPeriodKey
+            );
+
+            if (distributedParts.length > 0) {
+              distributedParts.forEach((part, idx) => {
+                const noteSuffix = distributedParts.length > 1 ? ` (Parte ${idx + 1} de ${distributedParts.length})` : "";
+                parsedRows.push({
+                  rowNumber: rowNum,
+                  dni: rawDni,
+                  colaborador: colabName || "Desconocido",
+                  periodo_inicio: part.periodo_inicio,
+                  periodo_fin: part.periodo_fin,
+                  fecha_inicio: part.fecha_inicio,
+                  fecha_fin: part.fecha_fin,
+                  dias_calendario: part.dias_calendario,
+                  notas: (rawObs || "Carga masiva Excel") + noteSuffix,
+                  isValid: true,
+                  errors: [],
+                  vinculo_laboral_id: activeVinculoId
+                });
+              });
+            } else {
+              errorsCount++;
+              parsedRows.push({
+                rowNumber: rowNum,
+                dni: rawDni,
+                colaborador: colabName || "Desconocido",
+                periodo_inicio: parsedInicioPeriodo,
+                periodo_fin: parsedFinPeriodo,
+                fecha_inicio: parsedSalida,
+                fecha_fin: parsedRetorno,
+                dias_calendario: dias,
+                notas: rawObs,
+                isValid: false,
+                errors: ["Error al distribuir los días de vacaciones por periodos."],
+                vinculo_laboral_id: activeVinculoId
+              });
+            }
+          } else {
+            errorsCount++;
+            parsedRows.push({
+              rowNumber: rowNum,
+              dni: rawDni,
+              colaborador: colabName || "Desconocido",
+              periodo_inicio: parsedInicioPeriodo,
+              periodo_fin: parsedFinPeriodo,
+              fecha_inicio: parsedSalida,
+              fecha_fin: parsedRetorno,
+              dias_calendario: dias,
+              notas: rawObs,
+              isValid: false,
+              errors,
+              vinculo_laboral_id: activeVinculoId
+            });
+          }
+        }
+
+        setImportRows(parsedRows);
+        setImportStatus({
+          processed: 0,
+          total: parsedRows.length,
+          successCount: parsedRows.length - errorsCount,
+          errors: parsedRows.filter(r => !r.isValid)
+        });
+
+      } catch (err: any) {
+        console.error("Error reading Excel:", err);
+        alert("Error al leer el archivo Excel: " + err.message);
+      } finally {
+        setImporting(false);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  const executeBulkImport = async () => {
+    const validRows = importRows.filter(r => r.isValid);
+    if (validRows.length === 0) {
+      alert("No hay registros válidos para importar.");
+      return;
+    }
+
+    setImporting(true);
+    let successCount = 0;
+    const batchSize = 50;
+
+    try {
+      for (let i = 0; i < validRows.length; i += batchSize) {
+        const batch = validRows.slice(i, i + batchSize);
+        const payloads = batch.map(r => ({
+          vinculo_laboral_id: r.vinculo_laboral_id,
+          fecha_inicio: r.fecha_inicio,
+          fecha_fin: r.fecha_fin,
+          dias_calendario: r.dias_calendario,
+          periodo_inicio: r.periodo_inicio,
+          periodo_fin: r.periodo_fin,
+          notas: r.notas || "Carga masiva Excel"
+        }));
+
+        const { error: insertError } = await supabase
+          .from("vacaciones_historico")
+          .insert(payloads);
+
+        if (insertError) throw insertError;
+        successCount += batch.length;
+        
+        setImportStatus(prev => ({
+          ...prev,
+          processed: successCount
+        }));
+      }
+
+      alert(`Se importaron ${successCount} registros de vacaciones con éxito.`);
+      setIsImportModalOpen(false);
+      setImportRows([]);
+      await loadData();
+      
+    } catch (err: any) {
+      console.error("Error importing:", err);
+      alert("Error al registrar vacaciones: " + err.message);
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const downloadErrorReport = () => {
+    const errorRows = importRows.filter(r => !r.isValid);
+    if (errorRows.length === 0) {
+      alert("No hay errores para exportar.");
+      return;
+    }
+
+    const headers = ["Fila Excel", "DNI", "Colaborador", "Detalle de Errores"];
+    const rows = errorRows.map(r => [
+      r.rowNumber,
+      r.dni,
+      r.colaborador,
+      r.errors.join(" | ")
+    ]);
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    
+    ws["!cols"] = [
+      { wch: 10 },
+      { wch: 12 },
+      { wch: 25 },
+      { wch: 50 }
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, "Errores de Importacion");
+    XLSX.writeFile(wb, "errores_importacion_vacaciones.xlsx");
+  };
+
+  const handlePrint = (type: "solicitud" | "kardex") => {
+    setPrintType(type);
+    setPrintingRequest(true);
+    setTimeout(() => {
+      setPrintingRequest(false);
+      window.print();
+    }, 1200);
   };
 
   const uniqueClientes = React.useMemo(() => {
@@ -285,6 +842,7 @@ export function ControlVacaciones() {
     setVacationForm({
       fecha_inicio: new Date().toISOString().split("T")[0],
       fecha_fin: "",
+      periodo: "auto",
       notas: ""
     });
     setIsModalOpen(true);
@@ -296,6 +854,17 @@ export function ControlVacaciones() {
     if (!vacationForm.fecha_inicio || !vacationForm.fecha_fin) {
       alert("Por favor completa las fechas de inicio y fin.");
       return;
+    }
+    
+    let startPeriodKey = "auto";
+    if (vacationForm.periodo !== "auto") {
+      const parts = vacationForm.periodo.split("|");
+      if (parts.length === 2) {
+        startPeriodKey = vacationForm.periodo;
+      } else {
+        alert("Por favor, seleccione el periodo vacacional correspondiente.");
+        return;
+      }
     }
 
     const start = new Date(vacationForm.fecha_inicio);
@@ -310,22 +879,43 @@ export function ControlVacaciones() {
 
     setLoading(true);
     try {
-      const payload = {
-        vinculo_laboral_id: activeVinculo.id,
-        fecha_inicio: vacationForm.fecha_inicio,
-        fecha_fin: vacationForm.fecha_fin,
-        dias_calendario: diffDays,
-        notas: vacationForm.notas
-      };
+      const daysPerYear = activeVinculo.regimenes_laborales?.dias_vacaciones || 30;
+      const distributedParts = distributeVacationDays(
+        vacationForm.fecha_inicio,
+        vacationForm.fecha_fin,
+        activeVinculo.vacaciones_historico || [],
+        availablePeriods,
+        daysPerYear,
+        startPeriodKey
+      );
+
+      if (distributedParts.length === 0) {
+        alert("No se pudieron distribuir los días de vacaciones.");
+        setLoading(false);
+        return;
+      }
+
+      const payloads = distributedParts.map((part, idx) => {
+        const noteSuffix = distributedParts.length > 1 ? ` (Parte ${idx + 1} de ${distributedParts.length})` : "";
+        return {
+          vinculo_laboral_id: activeVinculo.id,
+          fecha_inicio: part.fecha_inicio,
+          fecha_fin: part.fecha_fin,
+          dias_calendario: part.dias_calendario,
+          periodo_inicio: part.periodo_inicio,
+          periodo_fin: part.periodo_fin,
+          notas: (vacationForm.notas || "Registro de descanso físico") + noteSuffix
+        };
+      });
 
       const { error: insertError } = await supabase
         .from("vacaciones_historico")
-        .insert([payload]);
+        .insert(payloads);
 
       if (insertError) throw insertError;
 
       // Close modal or reload
-      alert("Descanso vacacional registrado con éxito.");
+      alert(`Descanso vacacional registrado con éxito (${distributedParts.length} periodo(s) afectado(s)).`);
       await loadData();
       
       // Update selected states to reflect changes in details panel
@@ -339,6 +929,7 @@ export function ControlVacaciones() {
       setVacationForm({
         fecha_inicio: new Date().toISOString().split("T")[0],
         fecha_fin: "",
+        periodo: "auto",
         notas: ""
       });
 
@@ -392,9 +983,6 @@ export function ControlVacaciones() {
     }, 1200);
   };
 
-  // Calculate metrics for selected person's active vinculo
-  const selectedMetrics = activeVinculo ? getVacationMetrics(selectedPersona, activeVinculo) : null;
-
   return (
     <div className="flex flex-col h-full space-y-6">
       
@@ -413,14 +1001,26 @@ export function ControlVacaciones() {
           </p>
         </div>
         
-        <button
-          onClick={loadData}
-          disabled={loading}
-          className="self-start md:self-auto inline-flex items-center gap-1.5 bg-slate-100 border border-slate-200 text-slate-700 px-3.5 py-2 rounded-lg text-xs font-semibold hover:bg-slate-200 active:scale-95 transition-all cursor-pointer"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
-          Recargar Datos
-        </button>
+        <div className="flex items-center gap-2 self-start md:self-auto">
+          {(localStorage.getItem("bax_role") || "admin") === "admin" && (
+            <button
+              onClick={() => setIsImportModalOpen(true)}
+              className="inline-flex items-center gap-1.5 bg-emerald-600 border border-emerald-700 text-white px-3.5 py-2 rounded-lg text-xs font-semibold hover:bg-emerald-700 active:scale-95 transition-all cursor-pointer shadow-md shadow-emerald-100"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              Carga Masiva
+            </button>
+          )}
+          
+          <button
+            onClick={loadData}
+            disabled={loading}
+            className="inline-flex items-center gap-1.5 bg-slate-100 border border-slate-200 text-slate-700 px-3.5 py-2 rounded-lg text-xs font-semibold hover:bg-slate-200 active:scale-95 transition-all cursor-pointer"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+            Recargar Datos
+          </button>
+        </div>
       </div>
 
       {/* KPIs Grid */}
@@ -813,7 +1413,7 @@ export function ControlVacaciones() {
                     </div>
                   )}
 
-                  {!selectedMetrics.isFromContract && (
+                  {!selectedMetrics.hasContract && (
                     <div className="bg-amber-50 border border-amber-200 text-amber-800 p-2.5 rounded-lg text-[10px] flex gap-1.5 items-start">
                       <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-500" />
                       <div>
@@ -860,13 +1460,22 @@ export function ControlVacaciones() {
                     </div>
                   </div>
 
-                  <button
-                    onClick={handlePrintRequest}
-                    className="w-full inline-flex items-center justify-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 py-2 rounded-lg text-xs font-bold border border-slate-200 transition-colors cursor-pointer"
-                  >
-                    <Printer className="w-3.5 h-3.5" />
-                    Imprimir Formato Solicitud
-                  </button>
+                  <div className="grid grid-cols-1 gap-2">
+                    <button
+                      onClick={() => handlePrint("solicitud")}
+                      className="w-full inline-flex items-center justify-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 py-2 rounded-lg text-xs font-bold border border-slate-200 transition-colors cursor-pointer"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                      Imprimir Solicitud
+                    </button>
+                    <button
+                      onClick={() => handlePrint("kardex")}
+                      className="w-full inline-flex items-center justify-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 py-2 rounded-lg text-xs font-bold border border-emerald-150 transition-colors cursor-pointer"
+                    >
+                      <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                      Imprimir Kardex SUNAFIL
+                    </button>
+                  </div>
                 </div>
 
                 {/* Registrar Vacaciones Form */}
@@ -897,13 +1506,31 @@ export function ControlVacaciones() {
                       />
                     </div>
                     <div>
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                        Periodo Correspondiente
+                      </label>
+                      <select
+                        required
+                        value={vacationForm.periodo}
+                        onChange={(e) => setVacationForm({ ...vacationForm, periodo: e.target.value })}
+                        className="w-full p-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-white font-semibold text-slate-700"
+                      >
+                        <option value="auto">Automático (Por antigüedad - FIFO)</option>
+                        {availablePeriods.map((p, idx) => (
+                          <option key={idx} value={`${p.start}|${p.end}`}>
+                            {p.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
                       <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Notas / Observaciones</label>
                       <textarea
                         rows={2}
-                        value={vacationForm.notes || vacationForm.notas}
+                        value={vacationForm.notas}
                         onChange={(e) => setVacationForm({ ...vacationForm, notas: e.target.value })}
                         className="w-full p-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 text-slate-700"
-                        placeholder="Ej. Goce correspondiente al periodo 2024-2025..."
+                        placeholder="Ej. Goce correspondiente al periodo..."
                       />
                     </div>
                     <button
@@ -935,8 +1562,13 @@ export function ControlVacaciones() {
                       activeVinculo.vacaciones_historico.map((vac: any) => (
                         <div key={vac.id} className="p-4 flex items-center justify-between hover:bg-slate-50/40 transition-colors">
                           <div className="space-y-1">
-                            <div className="text-xs font-bold text-slate-800">
-                              {new Date(vac.fecha_inicio).toLocaleDateString("es-PE")} ➔ {new Date(vac.fecha_fin).toLocaleDateString("es-PE")}
+                            <div className="text-xs font-bold text-slate-800 flex flex-wrap items-center gap-1.5">
+                              <span>{formatDMY(vac.fecha_inicio)} ➔ {formatDMY(vac.fecha_fin)}</span>
+                              {vac.periodo_inicio && vac.periodo_fin && (
+                                <span className="text-[9px] font-black text-amber-700 bg-amber-50 border border-amber-150 px-1.5 py-0.5 rounded">
+                                  Periodo: {formatDMY(vac.periodo_inicio)} al {formatDMY(vac.periodo_fin)}
+                                </span>
+                              )}
                             </div>
                             {vac.notas && (
                               <p className="text-[10px] text-slate-500 font-medium">{vac.notas}</p>
@@ -1014,6 +1646,302 @@ export function ControlVacaciones() {
           <div className="pt-10 border-t border-dashed border-slate-300 text-[9px] text-slate-400 flex justify-between">
             <span>Fecha de emisión: {new Date().toLocaleDateString("es-PE")} {new Date().toLocaleTimeString("es-PE", {hour: '2-digit', minute:'2-digit'})}</span>
             <span>Documento generado por Antigravity HR System</span>
+          </div>
+        </div>
+      )}
+
+      {/* Printable Kardex Sheet for SUNAFIL */}
+      {selectedPersona && activeVinculo && selectedMetrics && printType === "kardex" && (
+        <div className="hidden print:block bg-white p-8 border border-slate-300 rounded-lg text-xs space-y-6 max-w-4xl mx-auto font-sans">
+          <div className="text-center border-b pb-4 flex justify-between items-center">
+            <div className="text-left">
+              <h2 className="text-sm font-bold text-slate-800 uppercase">{activeVinculo.empresas_internas?.razon_social || "GRUPO BAX"}</h2>
+              <p className="text-[9px] text-slate-450 font-mono">RUC: {activeVinculo.empresas_internas?.ruc || "-"}</p>
+            </div>
+            <div className="text-right">
+              <h1 className="text-md font-bold text-slate-900">KARDEX VACACIONAL DE CONTROL INTERNO</h1>
+              <p className="text-[9px] text-slate-500 font-mono">Reporte de Cumplimiento Laboral (SUNAFIL)</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 border p-3 rounded-lg bg-slate-50/50">
+            <div>
+              <div className="text-[10px] text-slate-400 uppercase font-bold">Colaborador</div>
+              <div className="text-xs font-bold text-slate-800">{selectedPersona.apellidos}, {selectedPersona.nombres}</div>
+              <div className="text-[10px] mt-1 text-slate-400 uppercase font-bold">Documento (DNI/CE)</div>
+              <div className="text-xs font-semibold text-slate-800">{selectedPersona.numero_documento}</div>
+            </div>
+            <div>
+              <div className="text-[10px] text-slate-400 uppercase font-bold">Puesto / Sede</div>
+              <div className="text-xs font-semibold text-slate-800">{activeVinculo.cargos?.nombre} &bull; {activeVinculo.sedes?.nombre}</div>
+              <div className="text-[10px] mt-1 text-slate-400 uppercase font-bold">Fecha de Ingreso</div>
+              <div className="text-xs font-semibold text-slate-800">{formatDMY(selectedMetrics.startDateStr)} (Antigüedad: {selectedMetrics.years} años)</div>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <h3 className="font-bold uppercase text-[10px] tracking-wider text-slate-700">Resumen de Saldos por Periodo Vacacional:</h3>
+            <table className="w-full text-left border-collapse border border-slate-200">
+              <thead>
+                <tr className="bg-slate-100 text-[10px] font-bold text-slate-750">
+                  <th className="border p-2">Periodo Anual Acumulado</th>
+                  <th className="border p-2 text-center">Días Ganados</th>
+                  <th className="border p-2 text-center">Días Gozados</th>
+                  <th className="border p-2 text-center">Saldo Pendiente</th>
+                </tr>
+              </thead>
+              <tbody>
+                {periodSummary.map((p: any, idx: number) => (
+                  <tr key={idx} className="hover:bg-slate-50 text-[11px] text-slate-800">
+                    <td className="border p-2 font-semibold">Periodo: {p.label}</td>
+                    <td className="border p-2 text-center font-mono">{p.earned} días</td>
+                    <td className="border p-2 text-center font-mono text-blue-600 font-bold">{p.taken} días</td>
+                    <td className="border p-2 text-center font-mono font-bold text-emerald-700">{p.balance} días</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="space-y-2">
+            <h3 className="font-bold uppercase text-[10px] tracking-wider text-slate-700">Detalle Cronológico de Descansos Físicos Gozados:</h3>
+            <table className="w-full text-left border-collapse border border-slate-200">
+              <thead>
+                <tr className="bg-slate-100 text-[10px] font-bold text-slate-750">
+                  <th className="border p-2">Fecha Salida</th>
+                  <th className="border p-2">Fecha Retorno</th>
+                  <th className="border p-2 text-center">Días Gozados</th>
+                  <th className="border p-2">Periodo Asociado</th>
+                  <th className="border p-2">Observaciones / Notas</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(!activeVinculo.vacaciones_historico || activeVinculo.vacaciones_historico.length === 0) ? (
+                  <tr>
+                    <td colSpan={5} className="border p-4 text-center text-slate-400 font-medium">No se registran descansos vacacionales.</td>
+                  </tr>
+                ) : (
+                  [...activeVinculo.vacaciones_historico]
+                    .sort((a: any, b: any) => b.fecha_inicio.localeCompare(a.fecha_inicio))
+                    .map((vac: any, idx: number) => {
+                      const periodKey = getVacationPeriodKey(vac, availablePeriods);
+                      const periodLabel = periodKey 
+                        ? `${formatDMY(periodKey.split("|")[0])} - ${formatDMY(periodKey.split("|")[1])}`
+                        : "-";
+                      return (
+                        <tr key={idx} className="hover:bg-slate-50 text-[10px] text-slate-800">
+                          <td className="border p-2 font-mono">{formatDMY(vac.fecha_inicio)}</td>
+                          <td className="border p-2 font-mono">{formatDMY(vac.fecha_fin)}</td>
+                          <td className="border p-2 text-center font-mono font-bold text-blue-600">{vac.dias_calendario} d</td>
+                          <td className="border p-2 font-medium">{periodLabel}</td>
+                          <td className="border p-2 text-slate-500">{vac.notas || "-"}</td>
+                        </tr>
+                      );
+                    })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="pt-20 grid grid-cols-2 gap-12 text-center">
+            <div className="border-t border-slate-400 pt-2">
+              Firma del Colaborador
+              <div className="text-[9px] text-slate-400 font-mono mt-0.5">DNI: {selectedPersona.numero_documento}</div>
+            </div>
+            <div className="border-t border-slate-400 pt-2">
+              V°B° Recursos Humanos / Representante Legal
+              <div className="text-[9px] text-slate-400 font-mono mt-0.5">Grupo Bax S.A.C.</div>
+            </div>
+          </div>
+
+          <div className="pt-10 border-t border-dashed border-slate-300 text-[9px] text-slate-400 flex justify-between">
+            <span>Fecha de emisión: {new Date().toLocaleDateString("es-PE")} {new Date().toLocaleTimeString("es-PE", {hour: '2-digit', minute:'2-digit'})}</span>
+            <span>Documento generado para inspección SUNAFIL - Antigravity HR System</span>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE CARGA MASIVA DE EXCEL */}
+      {isImportModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in print:hidden">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden border border-slate-200">
+            {/* Modal Header */}
+            <div className="p-4 border-b border-slate-150 bg-slate-50/50 flex items-center justify-between flex-shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100">
+                  <FileSpreadsheet className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider block">Importar Vacaciones Masivamente</h3>
+                  <p className="text-[10px] text-slate-500 font-medium">Sube tu plantilla Excel para registrar descansos vacacionales y periodos anuales en un solo paso.</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setIsImportModalOpen(false);
+                  setImportRows([]);
+                }}
+                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              
+              {/* Pasos */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="p-4 bg-slate-50 rounded-xl border border-slate-150 flex flex-col justify-between space-y-3">
+                  <div>
+                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-200 text-slate-700 font-bold text-xs mb-2">1</span>
+                    <h4 className="text-xs font-bold text-slate-750">Descarga la Plantilla</h4>
+                    <p className="text-[11px] text-slate-500 mt-1">Obtén el archivo estructurado con solo 6 columnas: DNI, periodos y fechas de vacaciones.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={downloadExcelTemplate}
+                    className="w-full py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <FileDown className="w-4 h-4" />
+                    Descargar Plantilla
+                  </button>
+                </div>
+
+                <div className="p-4 bg-slate-50 rounded-xl border border-slate-150 flex flex-col justify-between space-y-3 text-center">
+                  <div>
+                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-200 text-slate-700 font-bold text-xs mb-2">2</span>
+                    <h4 className="text-xs font-bold text-slate-750">Llena la Información</h4>
+                    <p className="text-[11px] text-slate-500 mt-1">Completa los datos en Excel. Utiliza fechas con formato DD-MM-YYYY (ej. 20-08-1990) y digita DNI reales.</p>
+                  </div>
+                  <span className="text-[10px] text-slate-400 font-mono italic">Formatos de fecha: DD-MM-YYYY</span>
+                </div>
+
+                <div className="p-4 bg-slate-50 rounded-xl border border-slate-150 flex flex-col justify-between space-y-3">
+                  <div>
+                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-200 text-slate-700 font-bold text-xs mb-2">3</span>
+                    <h4 className="text-xs font-bold text-slate-750">Sube y Valida</h4>
+                    <p className="text-[11px] text-slate-500 mt-1">Arrastra o selecciona el archivo. El sistema verificará de inmediato la consistencia y contratos activos.</p>
+                  </div>
+                  <label className="w-full py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition-colors text-center">
+                    <Upload className="w-4 h-4" />
+                    Seleccionar Archivo
+                    <input
+                      type="file"
+                      accept=".xlsx, .xls"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                      disabled={importing}
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {/* Progress and Report */}
+              {importRows.length > 0 && (
+                <div className="space-y-4">
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                      <span className="text-xs font-bold text-slate-800 uppercase tracking-wider block">Resultado del Análisis de Datos</span>
+                      <div className="flex gap-4 text-xs font-medium text-slate-500 mt-1">
+                        <span>Filas Leídas: <strong className="text-slate-800 font-bold">{importStatus.total}</strong></span>
+                        <span className="text-emerald-600 font-semibold">Válidos: {importStatus.successCount}</span>
+                        <span className="text-red-500 font-semibold">Errores: {importStatus.errors.length}</span>
+                      </div>
+                    </div>
+                    {importStatus.errors.length > 0 && (
+                      <button
+                        onClick={downloadErrorReport}
+                        className="inline-flex items-center gap-1 bg-red-50 text-red-650 px-3 py-1.5 border border-red-200 rounded-lg text-xs font-bold hover:bg-red-100 transition-colors cursor-pointer"
+                      >
+                        <AlertTriangle className="w-3.5 h-3.5" />
+                        Descargar Reporte Errores
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Tabla de Preview */}
+                  <div className="border border-slate-150 rounded-xl overflow-hidden max-h-[300px] overflow-y-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50/80 text-[10px] font-bold text-slate-650 border-b border-slate-150 uppercase tracking-wider">
+                          <th className="p-2.5 text-center">Fila</th>
+                          <th className="p-2.5">DNI</th>
+                          <th className="p-2.5">Colaborador</th>
+                          <th className="p-2.5">Período Anual</th>
+                          <th className="p-2.5">Fechas Goce</th>
+                          <th className="p-2.5 text-center">Días</th>
+                          <th className="p-2.5">Estado / Error</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-[11px] font-medium text-slate-700 bg-white">
+                        {importRows.map((row, idx) => (
+                          <tr key={idx} className={row.isValid ? "hover:bg-slate-50/50" : "bg-red-50/20 hover:bg-red-50/30"}>
+                            <td className="p-2.5 text-center font-mono text-slate-400">{row.rowNumber}</td>
+                            <td className="p-2.5 font-mono text-slate-750 font-bold">{row.dni}</td>
+                            <td className="p-2.5 font-bold text-slate-800">{row.colaborador}</td>
+                            <td className="p-2.5 font-mono text-[10px]">
+                              {row.periodo_inicio ? `${formatDMY(row.periodo_inicio)} ➔ ${formatDMY(row.periodo_fin)}` : "-"}
+                            </td>
+                            <td className="p-2.5 font-mono text-[10px]">
+                              {row.fecha_inicio ? `${formatDMY(row.fecha_inicio)} ➔ ${formatDMY(row.fecha_fin)}` : "-"}
+                            </td>
+                            <td className="p-2.5 text-center font-mono font-bold text-blue-600">{row.dias_calendario} d</td>
+                            <td className="p-2.5">
+                              {row.isValid ? (
+                                <span className="inline-flex items-center gap-1 font-bold text-emerald-600 text-[10px] bg-emerald-50 px-1.5 py-0.5 rounded">
+                                  <Check className="w-3 h-3 stroke-[3]" /> Válido
+                                </span>
+                              ) : (
+                                <span className="inline-flex flex-col gap-0.5 text-red-650 text-[9px] bg-red-50 border border-red-100 p-1.5 rounded-lg max-w-[250px]">
+                                  {row.errors.map((errStr: string, eIdx: number) => (
+                                    <span key={eIdx} className="leading-tight">• {errStr}</span>
+                                  ))}
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-slate-150 bg-slate-50/30 flex items-center justify-end gap-2 flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsImportModalOpen(false);
+                  setImportRows([]);
+                }}
+                disabled={importing}
+                className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-semibold hover:bg-slate-100 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={executeBulkImport}
+                disabled={importing || importStatus.successCount === 0}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold active:scale-95 shadow-md shadow-emerald-100 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:shadow-none"
+              >
+                {importing ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    Procesando...
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-3.5 h-3.5 stroke-[3]" />
+                    Confirmar e Importar ({importStatus.successCount})
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
