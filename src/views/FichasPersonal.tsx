@@ -1,22 +1,22 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "../utils/supabase";
 import * as XLSX from "xlsx";
-import { 
-  UserSquare, 
-  Plus, 
-  Edit2, 
-  Trash2, 
-  Search, 
-  Eye, 
-  X, 
-  Check, 
-  Briefcase, 
-  Building, 
-  MapPin, 
-  Calendar, 
-  Activity, 
-  RefreshCw, 
-  PlusCircle, 
+import {
+  UserSquare,
+  Plus,
+  Edit2,
+  Trash2,
+  Search,
+  Eye,
+  X,
+  Check,
+  Briefcase,
+  Building,
+  MapPin,
+  Calendar,
+  Activity,
+  RefreshCw,
+  PlusCircle,
   Info,
   TrendingDown,
   FileSpreadsheet,
@@ -34,6 +34,9 @@ import {
 type FormViewMode = "list" | "form" | "view" | "import";
 
 export function FichasPersonal() {
+  const currentRole = localStorage.getItem("bax_role") || "admin";
+  const canWrite = currentRole === "admin" || currentRole === "rrhh";
+  const canDelete = currentRole === "admin" || currentRole === "rrhh";
   const [viewMode, setViewMode] = useState<FormViewMode>("list");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -143,7 +146,7 @@ export function FichasPersonal() {
   const [showCargoDropdown, setShowCargoDropdown] = useState(false);
   const [modalClienteSearchText, setModalClienteSearchText] = useState("");
   const [showModalClienteDropdown, setShowModalClienteDropdown] = useState(false);
-  
+
   // Cese Modal states
   const [isCeseModalOpen, setIsCeseModalOpen] = useState(false);
   const [ceseForm, setCeseForm] = useState({ vinculo_id: null, fecha_cese: "", motivo_cese: "" });
@@ -205,10 +208,10 @@ export function FichasPersonal() {
     try {
       const { error: dbError } = await supabase.from("contratos").delete().eq("id", contractId);
       if (dbError) throw dbError;
-      
+
       // Refresh local data
       loadPersonas();
-      
+
       // Update selected persona details in history modal
       if (selectedPersonaForHistory) {
         // We will fetch the updated persona locally after the refresh
@@ -241,7 +244,7 @@ export function FichasPersonal() {
       prevEndDate.setDate(prevEndDate.getDate() + 1);
       nextStartDate = prevEndDate.toISOString().split("T")[0];
     }
-    
+
     setQuickContratoForm({
       vinculo_laboral_id: c.vinculo_laboral_id,
       modalidad_contrato_id: c.modalidad_contrato_id,
@@ -385,7 +388,7 @@ export function FichasPersonal() {
       sistema_pension_id: pensiones[0]?.id || "",
       fecha_ingreso: "",
       fecha_primer_contrato: "",
-      
+
       // Defaults for position/contract
       empresa_interna_id: firstEmp?.id || "",
       cliente_id: "",
@@ -414,9 +417,9 @@ export function FichasPersonal() {
   const handleOpenEdit = (persona: any) => {
     setEditingId(persona.id);
     setPersonaForm({ ...persona });
-    
+
     // Initialize ubigeo description
-    const uDesc = persona.ubigeo_distritos 
+    const uDesc = persona.ubigeo_distritos
       ? `${persona.ubigeo_distritos.departamento} - ${persona.ubigeo_distritos.provincia} - ${persona.ubigeo_distritos.distrito}`
       : "";
     setUbigeoSearch(uDesc);
@@ -548,7 +551,7 @@ export function FichasPersonal() {
         .select("valor")
         .eq("clave", "clave_aprobacion_rrhh")
         .single();
-      
+
       if (paramError || !paramData) {
         throw new Error("No se pudo cargar la clave de aprobación del sistema. Verifica que la tabla parametros_sistema exista.");
       }
@@ -574,20 +577,20 @@ export function FichasPersonal() {
 
   const parseExcelDate = (val: any): string | null => {
     if (!val) return null;
-    
+
     if (val instanceof Date) {
       if (isNaN(val.getTime())) return null;
       return val.toISOString().split("T")[0];
     }
-    
+
     const num = Number(val);
     if (!isNaN(num) && num > 10000 && num < 100000) {
       const date = new Date((num - 25569) * 86400 * 1000);
       return date.toISOString().split("T")[0];
     }
-    
+
     const str = String(val).trim();
-    
+
     // DD-MM-YYYY or DD/MM/YYYY
     const dmyRegex = /^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/;
     const matchDmy = str.match(dmyRegex);
@@ -692,10 +695,10 @@ export function FichasPersonal() {
       try {
         const data = new Uint8Array(event.target?.result as ArrayBuffer);
         const workbook = XLSX.read(data, { type: "array", cellDates: true });
-        
+
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        
+
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
         if (jsonData.length < 2) {
           alert("El archivo Excel no tiene suficientes filas (debe incluir la cabecera y al menos una fila de datos).");
@@ -703,7 +706,7 @@ export function FichasPersonal() {
         }
 
         const headers = jsonData[0].map((h: any) => String(h || "").trim().toLowerCase());
-        
+
         // Find and query unique ubigeo_ids present in the file
         const ubigeoIdx = headers.indexOf("ubigeo_id");
         const uniqueExcelUbigeos = new Set<string>();
@@ -730,14 +733,14 @@ export function FichasPersonal() {
             .from("ubigeo_distritos")
             .select("id")
             .in("id", Array.from(uniqueExcelUbigeos));
-          
+
           if (!dbErr && dbUbigeos) {
             dbUbigeos.forEach(u => validUbigeoMap.set(u.id, true));
           }
         }
 
         const parsed: any[] = [];
-        
+
         for (let i = 1; i < jsonData.length; i++) {
           const row = jsonData[i];
           if (!row || row.length === 0 || row.every(cell => cell === null || cell === undefined || cell === "")) continue;
@@ -842,7 +845,7 @@ export function FichasPersonal() {
 
           const sedeName = String(rowData.sede_nombre || "").trim();
           const clienteName = String(rowData.cliente_nombre || "").trim();
-          const matchedSede = sedes.find(s => 
+          const matchedSede = sedes.find(s =>
             s.nombre.toLowerCase() === sedeName.toLowerCase() &&
             s.clientes?.razon_social?.toLowerCase() === clienteName.toLowerCase()
           );
@@ -1058,7 +1061,7 @@ export function FichasPersonal() {
     setImportSuccess(false);
     setImportStatusText("Iniciando importación masiva...");
     setImportStatus(prev => ({ ...prev, processed: 0, total: validRows.length, successCount: 0, errors: [], warnings: [] }));
-    
+
     let success = 0;
     const errorsList: string[] = [];
     const warningsList: string[] = [];
@@ -1066,13 +1069,13 @@ export function FichasPersonal() {
     for (let i = 0; i < validRows.length; i++) {
       const row = validRows[i];
       setImportStatusText(`Procesando fila ${i + 1} de ${validRows.length}: ${row.nombres || ""} ${row.apellidos || ""} (DNI: ${row.dni || ""})...`);
-      
+
       const payloadSedeId = row.vinculoPayload?.sede_id;
       const payloadEmpresaId = row.vinculoPayload?.empresa_interna_id;
-      
+
       const matchedSedeObj = sedes.find((s: any) => s.id === payloadSedeId);
       const matchedEmpresaObj = empresas.find((e: any) => e.id === payloadEmpresaId);
-      
+
       const sedeName = matchedSedeObj ? matchedSedeObj.nombre : `ID ${payloadSedeId || 'N/A'}`;
       const clienteName = matchedSedeObj?.clientes ? matchedSedeObj.clientes.razon_social : "No especificado";
       const empresaName = matchedEmpresaObj ? matchedEmpresaObj.razon_social : `ID ${payloadEmpresaId || 'N/A'}`;
@@ -1119,7 +1122,7 @@ export function FichasPersonal() {
                   .from("vinculos_laborales")
                   .update(vUpdatePayload)
                   .eq("id", activeVinc.id);
-                
+
                 if (resV.error) {
                   if (resV.error.message.includes("no pertenece a la Empresa Interna")) {
                     // Retry with exception flag set
@@ -1177,7 +1180,7 @@ export function FichasPersonal() {
                 .insert([vPayload])
                 .select("id")
                 .single();
-              
+
               if (resV.error) {
                 if (resV.error.message.includes("no pertenece a la Empresa Interna")) {
                   const retryPayload = { ...vPayload, excepcion_sede: true, excepcion_aprobada: false };
@@ -1222,7 +1225,7 @@ export function FichasPersonal() {
             .insert([vPayload])
             .select("id")
             .single();
-          
+
           if (resV.error) {
             if (resV.error.message.includes("no pertenece a la Empresa Interna")) {
               const retryPayload = { ...vPayload, excepcion_sede: true, excepcion_aprobada: false };
@@ -1253,9 +1256,9 @@ export function FichasPersonal() {
         success++;
       } catch (err: any) {
         console.error(`Error importing row ${row.rowNumber}:`, err);
-        
+
         let errMsg = err.message || String(err);
-        
+
         let typeError = "Error";
         if (errMsg.includes("Error registrando persona:")) {
           typeError = "Error registrando persona";
@@ -1276,11 +1279,11 @@ export function FichasPersonal() {
           typeError = "Error actualizando contrato vigente";
           errMsg = errMsg.replace("Error actualizando contrato vigente:", "").trim();
         }
-        
+
         if (errMsg.includes("no pertenece a la Empresa Interna")) {
           errMsg = `La sede seleccionada '${sedeName}' no pertenece a la Empresa Interna '${empresaName}' (Cliente: '${clienteName}')`;
         }
-        
+
         errorsList.push(
           `Fila ${row.rowNumber} (${row.dni} - Colaborador: ${row.nombres}): ${typeError}: ${errMsg} (Empresa: '${empresaName}', Cliente: '${clienteName}', Sede: '${sedeName}')`
         );
@@ -1301,12 +1304,12 @@ export function FichasPersonal() {
 
   const handleDownloadErrorReport = () => {
     if (importStatus.errors.length === 0 && importStatus.warnings.length === 0) return;
-    
+
     const headerText = `REPORTE DE IMPORTACION MASIVA\n`;
     const dateText = `Fecha: ${new Date().toLocaleDateString()} Hora: ${new Date().toLocaleTimeString()}\n`;
     const summaryText = `Total Procesados: ${importStatus.processed}\nExitosos: ${importStatus.successCount}\nFallidos: ${importStatus.errors.length}\nAdvertencias/Excepciones: ${importStatus.warnings.length}\n`;
     const separator = `================================================================================\n`;
-    
+
     let bodyText = "";
     if (importStatus.errors.length > 0) {
       bodyText += `ERRORES (FICHAS QUE FALLARON):\n`;
@@ -1316,9 +1319,9 @@ export function FichasPersonal() {
       bodyText += `ADVERTENCIAS / EXCEPCIONES REGISTRADAS (REQUERIRÁN APROBACIÓN):\n`;
       bodyText += importStatus.warnings.map((warn, i) => `${i + 1}. ${warn}`).join("\n") + "\n";
     }
-    
+
     const fullText = headerText + dateText + summaryText + separator + bodyText;
-    
+
     const blob = new Blob([fullText], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -1410,10 +1413,10 @@ export function FichasPersonal() {
 
   const handleSaveVinculo = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const targetEmpresaId = parseInt(vinculoForm.empresa_interna_id);
     const isDupCheckNeeded = !editingVinculoId || (editingVinculoId && vinculoForm.empresa_interna_id !== vinculos.find(v => v.id === editingVinculoId)?.empresa_interna_id);
-    
+
     if (isDupCheckNeeded) {
       const hasDuplicate = vinculos.some(
         v => v.id !== editingVinculoId && v.estado === "Activo" && v.empresa_interna_id === targetEmpresaId
@@ -1429,7 +1432,7 @@ export function FichasPersonal() {
       const contractModalidadId = vinculoPayload.contrato_modalidad_id;
       const contractFechaInicio = vinculoPayload.contrato_fecha_inicio;
       const contractFechaFin = vinculoPayload.contrato_fecha_fin;
-      
+
       delete vinculoPayload.contrato_modalidad_id;
       delete vinculoPayload.contrato_fecha_inicio;
       delete vinculoPayload.contrato_fecha_fin;
@@ -1442,7 +1445,7 @@ export function FichasPersonal() {
           .from("vinculos_laborales")
           .update(vinculoPayload)
           .eq("id", editingVinculoId);
-        
+
         if (dbError) throw dbError;
         alert("Puesto laboral actualizado correctamente.");
       } else {
@@ -1451,9 +1454,9 @@ export function FichasPersonal() {
           .insert([vinculoPayload])
           .select("id")
           .single();
-        
+
         if (dbError) throw dbError;
-        
+
         // Save corresponding contract if values are provided
         if (newVinc && contractModalidadId && contractFechaInicio) {
           const { error: contractErr } = await supabase
@@ -1602,7 +1605,7 @@ export function FichasPersonal() {
     if (!p.vinculos_laborales) return null;
     const active = p.vinculos_laborales.find((v: any) => v.estado === "Activo");
     if (active && active.fecha_ingreso) return active.fecha_ingreso;
-    
+
     const sorted = [...p.vinculos_laborales].sort((a: any, b: any) => b.id - a.id);
     const mostRecent = sorted[0];
     if (mostRecent && mostRecent.fecha_ingreso) return mostRecent.fecha_ingreso;
@@ -1625,7 +1628,7 @@ export function FichasPersonal() {
       dates.sort();
       return dates[0];
     }
-    
+
     const contractDates = p.vinculos_laborales
       .flatMap((v: any) => v.contratos || [])
       .map((c: any) => c.fecha_inicio)
@@ -1650,7 +1653,7 @@ export function FichasPersonal() {
     personas.forEach(p => {
       // Find all active vínculos
       const activeVinculos = p.vinculos_laborales?.filter((v: any) => v.estado === "Activo") || [];
-      
+
       if (activeVinculos.length > 0) {
         activeVinculos.forEach((v: any) => {
           list.push({
@@ -1752,7 +1755,7 @@ export function FichasPersonal() {
           emoDate.setHours(0, 0, 0, 0);
           const expDate = new Date(emoDate);
           expDate.setFullYear(expDate.getFullYear() + 1);
-          
+
           const diff = expDate.getTime() - today.getTime();
           const diffDays = Math.ceil(diff / (1000 * 60 * 60 * 24));
           if (diffDays < 0) {
@@ -1840,7 +1843,7 @@ export function FichasPersonal() {
 
     // 6. Contrato filters (Estado y Expiración)
     const activeContract = v?.contratos?.find((c: any) => c.estado === "Vigente");
-    
+
     let contractStatus = "sin_puesto";
     if (v) {
       if (activeContract) {
@@ -1853,7 +1856,7 @@ export function FichasPersonal() {
           end.setHours(0, 0, 0, 0);
           const diffTime = end.getTime() - today.getTime();
           const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-          
+
           if (diffDays < 0) {
             contractStatus = "vencido";
           } else if (diffDays <= 30) {
@@ -1948,10 +1951,10 @@ export function FichasPersonal() {
   // New Export function for Excel
   const exportPersonasToExcel = () => {
     const headers = [
-      "Tipo Documento", "Número Documento", "Apellidos", "Nombres", "Sexo", 
+      "Tipo Documento", "Número Documento", "Apellidos", "Nombres", "Sexo",
       "Empresa Planilla", "Cliente", "Sede Operativa", "Cargo", "Régimen Laboral",
-      "Sueldo Básico", "Bono", "Asignación Familiar", "Venc. Asig. Familiar", "F. Ingreso", 
-      "Inicio Contrato", "Fin Contrato", "Estado Contrato", 
+      "Sueldo Básico", "Bono", "Asignación Familiar", "Venc. Asig. Familiar", "F. Ingreso",
+      "Inicio Contrato", "Fin Contrato", "Estado Contrato",
       "Régimen Pensionario", "CUSSP", "Banco Sueldo", "Cuenta Sueldo",
       "Banco CTS", "Cuenta CTS",
       "Último EMO", "Teléfono", "Correo", "Talla Polo", "Talla Pantalón", "Talla Calzado"
@@ -1961,7 +1964,7 @@ export function FichasPersonal() {
       const p = row.persona;
       const v = row.vinculo;
       const fIng = getFechaIngreso(p);
-      
+
       const activeContract = v?.contratos?.find((c: any) => c.estado === "Vigente");
       let cEstado = "Sin Contrato";
       if (v) {
@@ -1969,9 +1972,9 @@ export function FichasPersonal() {
           if (!activeContract.fecha_fin) cEstado = "Indeterminado";
           else {
             const today = new Date();
-            today.setHours(0,0,0,0);
+            today.setHours(0, 0, 0, 0);
             const end = new Date(activeContract.fecha_fin);
-            const diffDays = Math.ceil((end.getTime() - today.getTime()) / (1000*60*60*24));
+            const diffDays = Math.ceil((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
             cEstado = diffDays < 0 ? "Vencido" : `${diffDays}d`;
           }
         }
@@ -2008,8 +2011,8 @@ export function FichasPersonal() {
         p.cuenta_sueldo === "TIENE_CUENTA"
           ? "Tiene Cuenta (Pendiente)"
           : p.cuenta_sueldo === "POR_AFILIAR"
-          ? "Por Afiliar"
-          : p.cuenta_sueldo || "-",
+            ? "Por Afiliar"
+            : p.cuenta_sueldo || "-",
         bancoCtsNombre,
         p.cuenta_cts || "-",
         p.fecha_ultimo_emo ? p.fecha_ultimo_emo.split("-").reverse().join("-") : "-",
@@ -2145,7 +2148,7 @@ export function FichasPersonal() {
       if (!payload.fecha_fin) {
         payload.fecha_fin = null;
       }
-      
+
       // Archive existing active contracts
       await supabase
         .from("contratos")
@@ -2156,9 +2159,9 @@ export function FichasPersonal() {
       const { error: dbError } = await supabase
         .from("contratos")
         .insert([payload]);
-      
+
       if (dbError) throw dbError;
-      
+
       setIsQuickContratoModalOpen(false);
       loadPersonas();
     } catch (err: any) {
@@ -2170,7 +2173,7 @@ export function FichasPersonal() {
 
   return (
     <div className="flex flex-col h-full space-y-6 overflow-y-auto pr-1">
-      
+
       {/* 1. VIEW MODE: LIST OF WORKERS */}
       {viewMode === "list" && (
         <>
@@ -2199,24 +2202,28 @@ export function FichasPersonal() {
                   Precargar Colaboradores
                 </button>
               )}
-              <button 
-                onClick={() => {
-                  setImportRows([]);
-                  setImportStatus({ processed: 0, total: 0, errors: [], successCount: 0 });
-                  setViewMode("import");
-                }}
-                className="inline-flex items-center gap-2 bg-emerald-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold shadow-lg shadow-emerald-200 hover:bg-emerald-700 active:scale-95 transition-all"
-              >
-                <FileSpreadsheet className="w-4 h-4 stroke-[3]" />
-                Importar Masivo
-              </button>
-              <button 
-                onClick={handleOpenAdd}
-                className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all"
-              >
-                <Plus className="w-4 h-4 stroke-[3]" />
-                Registrar Persona
-              </button>
+              {canWrite && (
+                <button
+                  onClick={() => {
+                    setImportRows([]);
+                    setImportStatus({ processed: 0, total: 0, errors: [], successCount: 0 });
+                    setViewMode("import");
+                  }}
+                  className="inline-flex items-center gap-2 bg-emerald-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold shadow-lg shadow-emerald-200 hover:bg-emerald-700 active:scale-95 transition-all"
+                >
+                  <FileSpreadsheet className="w-4 h-4 stroke-[3]" />
+                  Importar Masivo
+                </button>
+              )}
+              {canWrite && (
+                <button
+                  onClick={handleOpenAdd}
+                  className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all"
+                >
+                  <Plus className="w-4 h-4 stroke-[3]" />
+                  Registrar Persona
+                </button>
+              )}
             </div>
           </div>
 
@@ -2335,26 +2342,24 @@ export function FichasPersonal() {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-lg">
                     <button
                       onClick={() => setFilterTab("activos")}
-                      className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all border-none cursor-pointer ${
-                        filterTab === "activos"
+                      className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all border-none cursor-pointer ${filterTab === "activos"
                           ? "bg-white text-slate-800 shadow-sm"
                           : "text-slate-500 hover:text-slate-700 bg-transparent"
-                      }`}
+                        }`}
                     >
                       Activos ({stats.kpiActivosCount})
                     </button>
                     <button
                       onClick={() => setFilterTab("cesados")}
-                      className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all border-none cursor-pointer ${
-                        filterTab === "cesados"
+                      className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all border-none cursor-pointer ${filterTab === "cesados"
                           ? "bg-white text-slate-800 shadow-sm"
                           : "text-slate-500 hover:text-slate-700 bg-transparent"
-                      }`}
+                        }`}
                     >
                       Cesados ({stats.kpiCesadosCount})
                     </button>
@@ -2371,7 +2376,7 @@ export function FichasPersonal() {
                     <span>⚠️ Con Inconsistencias</span>
                   </label>
 
-                  <button 
+                  <button
                     onClick={exportPersonasToExcel}
                     className="inline-flex items-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-2 rounded-lg text-xs font-semibold border border-blue-200 transition-colors shadow-sm cursor-pointer"
                   >
@@ -2399,7 +2404,7 @@ export function FichasPersonal() {
                   )}
                 </div>
               </div>
-              
+
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3">
                 {/* Empresa Select */}
                 <div>
@@ -2527,7 +2532,7 @@ export function FichasPersonal() {
                   </select>
                 </div>
               </div>
-              
+
               {error && (
                 <div className="bg-red-50 text-red-700 border border-red-100 px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2">
                   <X className="w-4 h-4 shrink-0" />
@@ -2571,74 +2576,74 @@ export function FichasPersonal() {
                       const p = row.persona;
                       const v = row.vinculo;
                       const activeContract = v?.contratos?.find((c: any) => c.estado === "Vigente");
-                      
+
                       const getStatusBadge = (contract: any, hasActiveVinc: boolean) => {
                         if (!hasActiveVinc) {
                           if (row.isCesado) {
-                            return { 
-                              label: "Cesado - Vínculo Inactivo", 
-                              badgeClass: "bg-slate-100 text-slate-500 border-slate-200" 
+                            return {
+                              label: "Cesado - Vínculo Inactivo",
+                              badgeClass: "bg-slate-100 text-slate-500 border-slate-200"
                             };
                           }
-                          return { 
-                            label: "Sin Puesto", 
-                            badgeClass: "bg-slate-100 text-slate-400 border-slate-200" 
+                          return {
+                            label: "Sin Puesto",
+                            badgeClass: "bg-slate-100 text-slate-400 border-slate-200"
                           };
                         }
                         if (!contract) {
-                          return { 
-                            label: "Sin Contrato", 
-                            badgeClass: "bg-red-100 text-red-700 border-red-200 font-bold" 
+                          return {
+                            label: "Sin Contrato",
+                            badgeClass: "bg-red-100 text-red-700 border-red-200 font-bold"
                           };
                         }
-                        
+
                         if (!contract.fecha_fin) {
-                          return { 
-                            label: "Indeterminado", 
-                            badgeClass: "bg-emerald-100 text-emerald-800 border-emerald-200 font-semibold" 
+                          return {
+                            label: "Indeterminado",
+                            badgeClass: "bg-emerald-100 text-emerald-800 border-emerald-200 font-semibold"
                           };
                         }
-                        
+
                         const today = new Date();
                         today.setHours(0, 0, 0, 0);
                         const end = new Date(contract.fecha_fin);
                         end.setHours(0, 0, 0, 0);
                         const diffTime = end.getTime() - today.getTime();
                         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                        
+
                         if (diffDays < 0) {
-                          return { 
-                            label: "Vencido", 
-                            badgeClass: "bg-red-100 text-red-800 border-red-200 font-bold" 
+                          return {
+                            label: "Vencido",
+                            badgeClass: "bg-red-100 text-red-800 border-red-200 font-bold"
                           };
                         }
                         if (diffDays <= 15) {
-                          return { 
-                            label: `Faltan ${diffDays} d (Crítico)`, 
-                            badgeClass: "bg-red-50 text-red-650 border-red-200 font-bold animate-pulse" 
+                          return {
+                            label: `Faltan ${diffDays} d (Crítico)`,
+                            badgeClass: "bg-red-50 text-red-650 border-red-200 font-bold animate-pulse"
                           };
                         }
                         if (diffDays <= 30) {
-                          return { 
-                            label: `Faltan ${diffDays} d (Alerta)`, 
-                            badgeClass: "bg-amber-50 text-amber-700 border-amber-200 font-bold" 
+                          return {
+                            label: `Faltan ${diffDays} d (Alerta)`,
+                            badgeClass: "bg-amber-50 text-amber-700 border-amber-200 font-bold"
                           };
                         }
-                        return { 
-                          label: `Faltan ${diffDays} d`, 
-                          badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold" 
+                        return {
+                          label: `Faltan ${diffDays} d`,
+                          badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold"
                         };
                       };
-                      
+
                       const getEmoDisplay = (fechaEmoStr: string | null) => {
                         if (!fechaEmoStr) return <span className="text-slate-400 font-semibold">-</span>;
                         const today = new Date();
-                        today.setHours(0,0,0,0);
+                        today.setHours(0, 0, 0, 0);
                         const emo = new Date(fechaEmoStr);
                         emo.setFullYear(emo.getFullYear() + 1);
                         const diff = emo.getTime() - today.getTime();
                         const diffDays = Math.ceil(diff / (1000 * 60 * 60 * 24));
-                        
+
                         if (diffDays < 0) {
                           return (
                             <span className="inline-flex px-2 py-0.5 bg-red-100 text-red-800 border border-red-200 text-[10px] font-bold rounded-full">
@@ -2665,7 +2670,7 @@ export function FichasPersonal() {
                         const diasAnuales = v.regimenes_laborales?.dias_vacaciones ?? 30;
                         const fIng = v.fecha_primer_contrato || v.fecha_ingreso || (v.contratos && v.contratos.map((c: any) => c.fecha_inicio).filter(Boolean).sort()[0]) || v.creado_en;
                         if (!fIng) return null;
-                        
+
                         const today = new Date();
                         const ing = new Date(fIng);
                         const diffTime = Math.max(0, today.getTime() - ing.getTime());
@@ -2674,7 +2679,7 @@ export function FichasPersonal() {
                         const diasGozados = v.vacaciones_historico?.reduce((sum: number, vac: any) => sum + (vac.dias_calendario || 0), 0) ?? 0;
                         const net = Math.max(0, Math.floor(diasGanados - diasGozados));
                         if (net === 0) return null;
-                        
+
                         const periodos = Math.floor(net / diasAnuales);
                         const hasContract = v.contratos?.some((c: any) => c.estado === "Vigente");
                         return (
@@ -2700,15 +2705,15 @@ export function FichasPersonal() {
                             </span>
                           );
                         }
-                        
+
                         const today = new Date();
-                        today.setHours(0,0,0,0);
+                        today.setHours(0, 0, 0, 0);
                         const expDate = new Date(v.vencimiento_asignacion_familiar);
-                        expDate.setHours(0,0,0,0);
+                        expDate.setHours(0, 0, 0, 0);
                         const diff = expDate.getTime() - today.getTime();
                         const diffDays = Math.ceil(diff / (1000 * 60 * 60 * 24));
                         const formattedDate = v.vencimiento_asignacion_familiar.split("-").reverse().join("/");
-                        
+
                         if (diffDays < 0) {
                           return (
                             <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-red-50 text-red-800 border border-red-200 px-1.5 py-0.5 rounded">
@@ -2731,7 +2736,7 @@ export function FichasPersonal() {
                       };
 
                       const badge = getStatusBadge(activeContract, !!v);
-                      
+
                       return (
                         <tr key={row.id} className="hover:bg-slate-50/40 transition-colors text-slate-700">
                           <td className="px-6 py-4">
@@ -2821,20 +2826,22 @@ export function FichasPersonal() {
                             {v ? (
                               activeContract ? (
                                 <div className="inline-block px-2.5 py-1 bg-slate-50 rounded border border-slate-100">
-                                  <span className="font-semibold text-slate-500">Ini:</span> {formatDMY(activeContract.fecha_inicio)}<br/>
+                                  <span className="font-semibold text-slate-500">Ini:</span> {formatDMY(activeContract.fecha_inicio)}<br />
                                   <span className="font-semibold text-slate-500">Fin:</span> {activeContract.fecha_fin ? formatDMY(activeContract.fecha_fin) : "Indet."}
                                 </div>
                               ) : (
-                                <button
-                                  onClick={() => {
-                                    sessionStorage.setItem("autoSelectContractPersonaId", p.id.toString());
-                                    window.dispatchEvent(new CustomEvent("navigate-to", { detail: { path: "/rrhh/contratos" } }));
-                                  }}
-                                  className="inline-flex items-center gap-1 text-[10px] font-bold text-red-650 bg-red-50 hover:bg-red-100 border border-red-200 px-2 py-1 rounded transition-all cursor-pointer shadow-sm"
-                                >
-                                  <PlusCircle className="w-3.5 h-3.5" />
-                                  Crear Contrato
-                                </button>
+                                canWrite && (
+                                  <button
+                                    onClick={() => {
+                                      sessionStorage.setItem("autoSelectContractPersonaId", p.id.toString());
+                                      window.dispatchEvent(new CustomEvent("navigate-to", { detail: { path: "/rrhh/contratos" } }));
+                                    }}
+                                    className="inline-flex items-center gap-1 text-[10px] font-bold text-red-650 bg-red-50 hover:bg-red-100 border border-red-200 px-2 py-1 rounded transition-all cursor-pointer shadow-sm"
+                                  >
+                                    <PlusCircle className="w-3.5 h-3.5" />
+                                    Crear Contrato
+                                  </button>
+                                )
                               )
                             ) : (
                               <span className="text-slate-400">-</span>
@@ -2867,20 +2874,24 @@ export function FichasPersonal() {
                               >
                                 <Briefcase className="w-4 h-4" />
                               </button>
-                              <button
-                                onClick={() => handleOpenEdit(p)}
-                                className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                                title="Editar Ficha"
-                              >
-                                <Edit2 className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => handleOpenDeleteConfirm(p)}
-                                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                                title="Eliminar Ficha"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
+                              {canWrite && (
+                                <button
+                                  onClick={() => handleOpenEdit(p)}
+                                  className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                  title="Editar Ficha"
+                                >
+                                  <Edit2 className="w-4 h-4" />
+                                </button>
+                              )}
+                              {canDelete && (
+                                <button
+                                  onClick={() => handleOpenDeleteConfirm(p)}
+                                  className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                                  title="Eliminar Ficha"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -2920,7 +2931,7 @@ export function FichasPersonal() {
                   <span className="mr-2 text-slate-500">
                     Mostrando <strong className="text-slate-700 font-bold">{(currentPage - 1) * pageSize + 1}</strong> - <strong className="text-slate-700 font-bold">{Math.min(currentPage * pageSize, filteredRows.length)}</strong>
                   </span>
-                  
+
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
@@ -2930,7 +2941,7 @@ export function FichasPersonal() {
                     >
                       Ant.
                     </button>
-                    
+
                     {(() => {
                       const totalPages = Math.ceil(filteredRows.length / pageSize);
                       const pages: (number | string)[] = [];
@@ -2945,7 +2956,7 @@ export function FichasPersonal() {
                           pages.push(i);
                         }
                       }
-                      
+
                       return pages.map((page, idx) => {
                         if (page === "...") {
                           return <span key={`ellipse-${idx}`} className="px-1 text-slate-400">...</span>;
@@ -2955,11 +2966,10 @@ export function FichasPersonal() {
                             type="button"
                             key={page}
                             onClick={() => setCurrentPage(page as number)}
-                            className={`px-2.5 py-1 rounded-md text-xs font-semibold border transition-all cursor-pointer ${
-                              currentPage === page
+                            className={`px-2.5 py-1 rounded-md text-xs font-semibold border transition-all cursor-pointer ${currentPage === page
                                 ? "bg-blue-600 border-blue-600 text-white shadow-sm"
                                 : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                            }`}
+                              }`}
                           >
                             {page}
                           </button>
@@ -3006,7 +3016,7 @@ export function FichasPersonal() {
                 </p>
               </div>
             </div>
-            <button 
+            <button
               onClick={() => setViewMode("list")}
               className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all"
             >
@@ -3022,7 +3032,7 @@ export function FichasPersonal() {
                 <h4 className="text-xs font-bold text-slate-700">Descarga la Plantilla</h4>
                 <p className="text-[11px] text-slate-500 mt-1">Obtén el formato estructurado de Excel (.xlsx) con todos los campos requeridos y ejemplos de llenado en formato DD-MM-YYYY.</p>
               </div>
-              <button 
+              <button
                 type="button"
                 onClick={downloadExcelTemplate}
                 className="w-full py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
@@ -3050,11 +3060,11 @@ export function FichasPersonal() {
               <label className="w-full py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition-colors text-center animate-pulse">
                 <Upload className="w-4 h-4" />
                 Seleccionar Excel (.xlsx)
-                <input 
-                  type="file" 
-                  accept=".xlsx, .xls" 
-                  onChange={handleFileUpload} 
-                  className="hidden" 
+                <input
+                  type="file"
+                  accept=".xlsx, .xls"
+                  onChange={handleFileUpload}
+                  className="hidden"
                 />
               </label>
             </div>
@@ -3068,7 +3078,7 @@ export function FichasPersonal() {
                 <span>Procesado: {importStatus.processed} de {importStatus.total}</span>
               </div>
               <div className="w-full bg-blue-200 h-2.5 rounded-full overflow-hidden">
-                <div 
+                <div
                   className="h-full bg-blue-600 transition-all duration-300"
                   style={{ width: `${importStatus.total > 0 ? (importStatus.processed / importStatus.total) * 100 : 0}%` }}
                 />
@@ -3170,11 +3180,10 @@ export function FichasPersonal() {
                           )}
 
                           {problemRows.map((row) => (
-                            <tr 
-                              key={row.rowNumber} 
-                              className={`hover:bg-slate-50/20 transition-colors ${
-                                !row.isValid ? "bg-red-50/5" : "bg-amber-50/5"
-                              }`}
+                            <tr
+                              key={row.rowNumber}
+                              className={`hover:bg-slate-50/20 transition-colors ${!row.isValid ? "bg-red-50/5" : "bg-amber-50/5"
+                                }`}
                             >
                               <td className="px-4 py-3 font-mono font-bold text-slate-400">
                                 {row.rowNumber}
@@ -3258,7 +3267,7 @@ export function FichasPersonal() {
                 {editingId ? "Modificar Ficha Maestra" : "Nueva Ficha Maestra de Personal"}
               </h2>
             </div>
-            <button 
+            <button
               onClick={() => setViewMode("list")}
               className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all"
             >
@@ -3271,27 +3280,24 @@ export function FichasPersonal() {
             <button
               type="button"
               onClick={() => setActiveFormTab("personales")}
-              className={`pb-2 px-4 text-sm font-semibold border-b-2 transition-all bg-transparent border-none cursor-pointer ${
-                activeFormTab === "personales" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-700"
-              }`}
+              className={`pb-2 px-4 text-sm font-semibold border-b-2 transition-all bg-transparent border-none cursor-pointer ${activeFormTab === "personales" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-700"
+                }`}
             >
               Datos Personales
             </button>
             <button
               type="button"
               onClick={() => setActiveFormTab("financieros")}
-              className={`pb-2 px-4 text-sm font-semibold border-b-2 transition-all bg-transparent border-none cursor-pointer ${
-                activeFormTab === "financieros" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-700"
-              }`}
+              className={`pb-2 px-4 text-sm font-semibold border-b-2 transition-all bg-transparent border-none cursor-pointer ${activeFormTab === "financieros" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-700"
+                }`}
             >
               Cuentas y Pensiones
             </button>
             <button
               type="button"
               onClick={() => setActiveFormTab("tallas")}
-              className={`pb-2 px-4 text-sm font-semibold border-b-2 transition-all bg-transparent border-none cursor-pointer ${
-                activeFormTab === "tallas" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-700"
-              }`}
+              className={`pb-2 px-4 text-sm font-semibold border-b-2 transition-all bg-transparent border-none cursor-pointer ${activeFormTab === "tallas" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-700"
+                }`}
             >
               Tallas y Médico
             </button>
@@ -3299,9 +3305,8 @@ export function FichasPersonal() {
               <button
                 type="button"
                 onClick={() => setActiveFormTab("puesto")}
-                className={`pb-2 px-4 text-sm font-semibold border-b-2 transition-all bg-transparent border-none cursor-pointer ${
-                  activeFormTab === "puesto" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-700"
-                }`}
+                className={`pb-2 px-4 text-sm font-semibold border-b-2 transition-all bg-transparent border-none cursor-pointer ${activeFormTab === "puesto" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-700"
+                  }`}
               >
                 Puesto y Contrato
               </button>
@@ -3478,8 +3483,8 @@ export function FichasPersonal() {
                       personaForm.cuenta_sueldo === "TIENE_CUENTA"
                         ? "[Tiene Cuenta - Nro Pendiente]"
                         : personaForm.cuenta_sueldo === "POR_AFILIAR"
-                        ? "[Por Afiliar - Apertura Pendiente]"
-                        : "Nro. Cuenta"
+                          ? "[Por Afiliar - Apertura Pendiente]"
+                          : "Nro. Cuenta"
                     }
                   />
                   <div className="flex items-center gap-4 mt-2">
@@ -3660,8 +3665,8 @@ export function FichasPersonal() {
                               key={c.id}
                               type="button"
                               onMouseDown={() => {
-                                setPersonaForm({ 
-                                  ...personaForm, 
+                                setPersonaForm({
+                                  ...personaForm,
                                   cliente_id: c.id,
                                   sede_id: ""
                                 });
@@ -3962,22 +3967,24 @@ export function FichasPersonal() {
                 </div>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-2 self-start md:self-auto">
-              <button 
+              <button
                 onClick={() => setViewMode("list")}
                 className="inline-flex items-center gap-1.5 px-4 py-2 border border-slate-200 text-slate-600 rounded-lg text-sm font-semibold hover:bg-slate-50 hover:text-slate-800 hover:border-slate-300 shadow-sm hover:shadow transition-all cursor-pointer"
               >
                 <ArrowLeft className="w-4 h-4" />
                 Volver al Listado
               </button>
-              <button 
-                onClick={handleOpenAddVinculo}
-                className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 shadow-md shadow-blue-200 transition-all"
-              >
-                <PlusCircle className="w-4 h-4" />
-                Asignar Puesto (Vínculo)
-              </button>
+              {canWrite && (
+                <button
+                  onClick={handleOpenAddVinculo}
+                  className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 shadow-md shadow-blue-200 transition-all"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  Asignar Puesto (Vínculo)
+                </button>
+              )}
             </div>
           </div>
 
@@ -4031,12 +4038,14 @@ export function FichasPersonal() {
                     <h4 className="text-xs font-bold text-slate-700">Sin puestos asignados</h4>
                     <p className="text-xs text-slate-500 max-w-xs mx-auto">Este colaborador no está asignado a ninguna empresa ni obra/sede actualmente.</p>
                   </div>
-                  <button 
-                    onClick={handleOpenAddVinculo}
-                    className="text-xs text-blue-600 hover:text-blue-700 font-semibold underline"
-                  >
-                    Asignar puesto ahora
-                  </button>
+                  {canWrite && (
+                    <button
+                      onClick={handleOpenAddVinculo}
+                      className="text-xs text-blue-600 hover:text-blue-700 font-semibold underline"
+                    >
+                      Asignar puesto ahora
+                    </button>
+                  )}
                 </div>
               ) : (
                 <table className="w-full text-left border-collapse min-w-[700px]">
@@ -4098,13 +4107,13 @@ export function FichasPersonal() {
                               );
                             }
                             const today = new Date();
-                            today.setHours(0,0,0,0);
+                            today.setHours(0, 0, 0, 0);
                             const expDate = new Date(v.vencimiento_asignacion_familiar);
-                            expDate.setHours(0,0,0,0);
+                            expDate.setHours(0, 0, 0, 0);
                             const diff = expDate.getTime() - today.getTime();
                             const diffDays = Math.ceil(diff / (1000 * 60 * 60 * 24));
                             const formattedDate = v.vencimiento_asignacion_familiar.split("-").reverse().join("/");
-                            
+
                             if (diffDays < 0) {
                               return (
                                 <span className="text-[9px] bg-red-50 text-red-700 border border-red-100 font-bold px-1 py-0.5 rounded mt-1 inline-block">
@@ -4127,47 +4136,52 @@ export function FichasPersonal() {
                           })()}
                         </td>
                         <td className="px-6 py-4 text-center">
-                          <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                            v.estado === "Activo" ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"
-                          }`}>
+                          <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${v.estado === "Activo" ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"
+                            }`}>
                             {v.estado}
                           </span>
                           {v.estado === "Inactivo" && v.fecha_cese && (
                             <div className="text-[10px] text-slate-500 font-medium mt-1">
                               <div>Cese: {new Date(v.fecha_cese).toLocaleDateString("es-PE")}</div>
-                              {v.motivo_cese && <div className="text-red-500 italic font-normal">"{v.motivo_cese}"</div>}
+                              {v.motivo_cese && <div className="text-red-500 italic font-normal" title={v.motivo_cese}>Causa registrada</div>}
                             </div>
                           )}
                         </td>
                         <td className="px-6 py-4 text-right">
                           <div className="flex items-center justify-end gap-2">
                             {v.estado === "Activo" ? (
-                              <button
-                                onClick={() => handleOpenCese(v.id)}
-                                className="px-2 py-1 bg-red-50 text-red-600 border border-red-100 rounded text-xs font-semibold hover:bg-red-100 active:scale-95 transition-all"
-                                title="Cesar puesto (Soft Delete)"
-                              >
-                                Cesar Puesto
-                              </button>
+                              canWrite ? (
+                                <button
+                                  onClick={() => handleOpenCese(v.id)}
+                                  className="px-2 py-1 bg-red-50 text-red-600 border border-red-100 rounded text-xs font-semibold hover:bg-red-100 active:scale-95 transition-all"
+                                  title="Cesar puesto (Soft Delete)"
+                                >
+                                  Cesar Puesto
+                                </button>
+                              ) : null
                             ) : (
-                              <div className="text-xs text-slate-400 font-medium italic" title={v.motivo_cese}>
+                              <div className="text-xs text-slate-400 font-medium italic">
                                 Cese Registrado
                               </div>
                             )}
-                            <button
-                              onClick={() => handleOpenEditVinculo(v)}
-                              className="px-2 py-1 bg-blue-50 text-blue-600 border border-blue-100 rounded text-xs font-semibold hover:bg-blue-100 active:scale-95 transition-all cursor-pointer"
-                              title="Editar puesto laboral (Sueldo, Cargo, Sede, etc.)"
-                            >
-                              Editar
-                            </button>
-                            <button
-                              onClick={() => handleDeleteVinculo(v.id)}
-                              className="px-2 py-1 bg-slate-50 text-slate-600 border border-slate-200 rounded text-xs font-semibold hover:bg-slate-100 active:scale-95 transition-all cursor-pointer"
-                              title="Eliminar puesto permanentemente"
-                            >
-                              Eliminar
-                            </button>
+                            {canWrite && (
+                              <button
+                                onClick={() => handleOpenEditVinculo(v)}
+                                className="px-2 py-1 bg-blue-50 text-blue-600 border border-blue-100 rounded text-xs font-semibold hover:bg-blue-100 active:scale-95 transition-all cursor-pointer"
+                                title="Editar puesto laboral (Sueldo, Cargo, Sede, etc.)"
+                              >
+                                Editar
+                              </button>
+                            )}
+                            {canDelete && (
+                              <button
+                                onClick={() => handleDeleteVinculo(v.id)}
+                                className="px-2 py-1 bg-slate-50 text-slate-600 border border-slate-200 rounded text-xs font-semibold hover:bg-slate-100 active:scale-95 transition-all cursor-pointer"
+                                title="Eliminar puesto permanentemente"
+                              >
+                                Eliminar
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -4189,7 +4203,7 @@ export function FichasPersonal() {
                 <Briefcase className="w-5 h-5 text-blue-600" />
                 {editingVinculoId ? "Editar Puesto y Régimen" : "Asignar Puesto y Régimen"}
               </h3>
-              <button 
+              <button
                 onClick={() => { setIsVinculoModalOpen(false); setEditingVinculoId(null); }}
                 className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg"
               >
@@ -4230,11 +4244,11 @@ export function FichasPersonal() {
                     value={vinculoForm.empresa_interna_id || ""}
                     onChange={(e) => {
                       const empId = parseInt(e.target.value);
-                      setVinculoForm({ 
-                        ...vinculoForm, 
-                        empresa_interna_id: empId, 
+                      setVinculoForm({
+                        ...vinculoForm,
+                        empresa_interna_id: empId,
                         cliente_id: "",
-                        sede_id: "" 
+                        sede_id: ""
                       });
                       setModalClienteSearchText("");
                       setSedeSearchText("");
@@ -4272,8 +4286,8 @@ export function FichasPersonal() {
                             key={c.id}
                             type="button"
                             onMouseDown={() => {
-                              setVinculoForm({ 
-                                ...vinculoForm, 
+                              setVinculoForm({
+                                ...vinculoForm,
                                 cliente_id: c.id,
                                 sede_id: ""
                               });
@@ -4321,9 +4335,8 @@ export function FichasPersonal() {
                                 setSedeSearchText(s.nombre);
                                 setShowSedeDropdown(false);
                               }}
-                              className={`w-full text-left px-3 py-2.5 text-xs font-medium hover:bg-slate-50 transition-colors ${
-                                vinculoForm.sede_id === s.id ? "bg-blue-50 text-blue-700 font-bold" : "text-slate-700"
-                              }`}
+                              className={`w-full text-left px-3 py-2.5 text-xs font-medium hover:bg-slate-50 transition-colors ${vinculoForm.sede_id === s.id ? "bg-blue-50 text-blue-700 font-bold" : "text-slate-700"
+                                }`}
                             >
                               {s.nombre}
                             </button>
@@ -4332,7 +4345,7 @@ export function FichasPersonal() {
                       </div>
                     )}
                   </div>
-                  
+
                   <div className="relative">
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Cargo a Desempeñar</label>
                     <input
@@ -4362,9 +4375,8 @@ export function FichasPersonal() {
                                 setCargoSearchText(c.nombre);
                                 setShowCargoDropdown(false);
                               }}
-                              className={`w-full text-left px-3 py-2.5 text-xs font-medium hover:bg-slate-50 transition-colors ${
-                                vinculoForm.cargo_id === c.id ? "bg-blue-50 text-blue-700 font-bold" : "text-slate-700"
-                              }`}
+                              className={`w-full text-left px-3 py-2.5 text-xs font-medium hover:bg-slate-50 transition-colors ${vinculoForm.cargo_id === c.id ? "bg-blue-50 text-blue-700 font-bold" : "text-slate-700"
+                                }`}
                             >
                               {c.nombre}
                             </button>
@@ -4576,7 +4588,7 @@ export function FichasPersonal() {
                 <TrendingDown className="w-5 h-5 text-red-600" />
                 Registrar Cese (Baja Lógica)
               </h3>
-              <button 
+              <button
                 onClick={() => setIsCeseModalOpen(false)}
                 className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg"
               >
@@ -4644,7 +4656,7 @@ export function FichasPersonal() {
                 <Eye className="w-5 h-5 text-blue-600" />
                 Detalle de Validación - Fila {activeErrorRow.rowNumber}
               </h3>
-              <button 
+              <button
                 onClick={() => setActiveErrorRow(null)}
                 className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg"
               >
@@ -4706,7 +4718,7 @@ export function FichasPersonal() {
                 <FileText className="w-5 h-5 text-blue-600" />
                 Registrar Contrato Inicial
               </h3>
-              <button 
+              <button
                 onClick={() => setIsQuickContratoModalOpen(false)}
                 className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg"
               >
@@ -4789,13 +4801,13 @@ export function FichasPersonal() {
       {/* 8. CONTRACT HISTORY MODAL FOR A SPECIFIC PERSON */}
       {isContractHistoryModalOpen && selectedPersonaForHistory && (() => {
         const p = selectedPersonaForHistory;
-        const pContracts = p.vinculos_laborales?.flatMap((v: any) => 
+        const pContracts = p.vinculos_laborales?.flatMap((v: any) =>
           (v.contratos || []).map((c: any) => ({
             ...c,
             vinculo: v
           }))
         ) || [];
-        
+
         // Sort contracts chronologically (newest first)
         pContracts.sort((a: any, b: any) => new Date(b.fecha_inicio).getTime() - new Date(a.fecha_inicio).getTime());
 
@@ -4812,7 +4824,7 @@ export function FichasPersonal() {
                     Colaborador: <span className="text-slate-800 font-bold">{p.apellidos}, {p.nombres}</span> (DNI: {p.numero_documento})
                   </p>
                 </div>
-                <button 
+                <button
                   onClick={() => setIsContractHistoryModalOpen(false)}
                   className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
                 >
@@ -4832,17 +4844,23 @@ export function FichasPersonal() {
                       <p className="text-xs text-slate-500 max-w-xs mx-auto">Esta persona no registra contratos en su historial de puesto.</p>
                     </div>
                     {p.vinculos_laborales?.some((v: any) => v.estado === "Activo") ? (
-                      <button 
-                        onClick={() => {
-                          setIsContractHistoryModalOpen(false);
-                          sessionStorage.setItem("autoSelectContractPersonaId", p.id.toString());
-                          window.dispatchEvent(new CustomEvent("navigate-to", { detail: { path: "/rrhh/contratos" } }));
-                        }}
-                        className="inline-flex items-center gap-1.5 bg-blue-600 text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold hover:bg-blue-700 shadow-md cursor-pointer border-none"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        Ir a Registro de Contratos
-                      </button>
+                      canWrite ? (
+                        <button
+                          onClick={() => {
+                            setIsContractHistoryModalOpen(false);
+                            sessionStorage.setItem("autoSelectContractPersonaId", p.id.toString());
+                            window.dispatchEvent(new CustomEvent("navigate-to", { detail: { path: "/rrhh/contratos" } }));
+                          }}
+                          className="inline-flex items-center gap-1.5 bg-blue-600 text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold hover:bg-blue-700 shadow-md cursor-pointer border-none"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          Ir a Registro de Contratos
+                        </button>
+                      ) : (
+                        <p className="text-[10px] text-slate-500 font-semibold bg-slate-50 px-2 py-1 rounded">
+                          🔒 Se requieren permisos de escritura para gestionar contratos.
+                        </p>
+                      )
                     ) : (
                       <p className="text-[10px] text-amber-600 font-semibold bg-amber-50 px-2 py-1 rounded">
                         ⚠️ Debe tener un puesto laboral ACTIVO para poder generarle un contrato.
@@ -4865,14 +4883,14 @@ export function FichasPersonal() {
                       <tbody className="divide-y divide-slate-100 bg-white">
                         {pContracts.map((c: any) => {
                           const v = c.vinculo;
-                          
+
                           // Contract alerts
                           const today = new Date();
                           today.setHours(0, 0, 0, 0);
                           const end = c.fecha_fin ? new Date(c.fecha_fin) : null;
                           if (end) end.setHours(0, 0, 0, 0);
                           const diffDays = end ? Math.ceil((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)) : 999;
-                          
+
                           let badgeClass = "bg-slate-100 text-slate-700";
                           if (c.estado === "Vigente") {
                             if (!end) badgeClass = "bg-emerald-100 text-emerald-800 border border-emerald-250";
@@ -4885,7 +4903,7 @@ export function FichasPersonal() {
                           } else if (c.estado === "Vencido") {
                             badgeClass = "bg-red-100 text-red-800";
                           }
-                          
+
                           return (
                             <tr key={c.id} className="hover:bg-slate-50/20 transition-colors">
                               <td className="px-4 py-3">
@@ -4936,8 +4954,8 @@ export function FichasPersonal() {
               {/* Modal footer actions */}
               <div className="border-t border-slate-100 pt-4 flex gap-2 justify-between flex-shrink-0">
                 <div>
-                  {p.vinculos_laborales?.some((v: any) => v.estado === "Activo") && (
-                    <button 
+                  {canWrite && p.vinculos_laborales?.some((v: any) => v.estado === "Activo") && (
+                    <button
                       onClick={() => {
                         setIsContractHistoryModalOpen(false);
                         sessionStorage.setItem("autoSelectContractPersonaId", p.id.toString());
@@ -4970,7 +4988,7 @@ export function FichasPersonal() {
             <div className="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center text-red-500 border border-red-100">
               <Trash2 className="w-6 h-6" />
             </div>
-            
+
             <div className="space-y-1">
               <h3 className="font-heading text-base font-bold text-slate-900">
                 ¿Eliminar ficha de personal?
@@ -5027,7 +5045,7 @@ export function FichasPersonal() {
                     <FileSpreadsheet className="w-8 h-8 text-emerald-600 animate-pulse" />
                   </div>
                 </div>
-                
+
                 <div className="space-y-2">
                   <h3 className="font-heading text-lg font-bold text-slate-800">
                     Procesando Archivo de Personal...
@@ -5040,8 +5058,8 @@ export function FichasPersonal() {
                 {/* Progress Bar Container */}
                 <div className="w-full space-y-1">
                   <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
-                    <div 
-                      className="bg-emerald-600 h-full rounded-full transition-all duration-300 ease-out" 
+                    <div
+                      className="bg-emerald-600 h-full rounded-full transition-all duration-300 ease-out"
                       style={{ width: `${importStatus.total > 0 ? (importStatus.processed / importStatus.total) * 100 : 0}%` }}
                     />
                   </div>
@@ -5065,12 +5083,12 @@ export function FichasPersonal() {
 
                 <div className="space-y-2 w-full">
                   <h3 className="font-heading text-xl font-bold text-slate-900">
-                    {importStatus.errors.length === 0 
+                    {importStatus.errors.length === 0
                       ? (importStatus.warnings.length === 0 ? "¡Importación Completada!" : "Importación con Advertencias")
                       : "Importación con Observaciones"}
                   </h3>
                   <p className="text-xs text-slate-500 font-medium leading-relaxed">
-                    {importStatus.errors.length === 0 
+                    {importStatus.errors.length === 0
                       ? `Se registraron y vincularon correctamente ${importStatus.successCount} fichas de personal ${importStatus.warnings.length > 0 ? `(${importStatus.warnings.length} bajo excepción)` : ''}.`
                       : `Se procesaron exitosamente ${importStatus.successCount} registros y fallaron ${importStatus.errors.length} registros.`
                     }
@@ -5114,11 +5132,10 @@ export function FichasPersonal() {
                   <button
                     type="button"
                     onClick={handleCloseImportOverlay}
-                    className={`py-3 text-white rounded-xl text-sm font-bold shadow-lg transition-all cursor-pointer ${
-                      importStatus.errors.length === 0 && importStatus.warnings.length === 0
-                        ? "w-full bg-emerald-600 hover:bg-emerald-700 shadow-emerald-100 active:scale-[0.98]" 
+                    className={`py-3 text-white rounded-xl text-sm font-bold shadow-lg transition-all cursor-pointer ${importStatus.errors.length === 0 && importStatus.warnings.length === 0
+                        ? "w-full bg-emerald-600 hover:bg-emerald-700 shadow-emerald-100 active:scale-[0.98]"
                         : "flex-1 bg-blue-600 hover:bg-blue-700 shadow-blue-105 active:scale-[0.98]"
-                    }`}
+                      }`}
                   >
                     Aceptar
                   </button>

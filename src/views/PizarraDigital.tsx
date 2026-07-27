@@ -321,8 +321,8 @@ export function PizarraDigital() {
           sede_id: selectedRequest.sede_id,
           cargo_id: selectedRequest.cargo_id,
           tipo_trabajador_id: firstType.id,
-          regimen_laboral_id: ingresoForm.regimen_laboral_id,
-          sueldo_basico: ingresoForm.sueldo_basico,
+          regimen_laboral_id: ingresoForm.regimen_laboral_id || regimenes[0]?.id || 1,
+          sueldo_basico: ingresoForm.sueldo_basico || 1130.00,
           bono: parseFloat(ingresoForm.bono) || 0.00,
           fecha_ingreso: startJobDate,
           fecha_primer_contrato: startJobDate,
@@ -545,11 +545,11 @@ export function PizarraDigital() {
   });
 
   // Filter candidates for autocomplete
-  const targetEmpresaId = selectedRequest?.sedes?.clientes?.empresa_interna_id;
   const filteredCandidates = personas
     .filter((p) => {
+      // Excluir si ya tiene un vínculo laboral activo en cualquier empresa
       return !activeVinculos.some(
-        (v) => v.estado === "Activo" && v.persona_id === p.id && v.empresa_interna_id === targetEmpresaId
+        (v) => v.estado === "Activo" && v.persona_id === p.id
       );
     })
     .filter((p) => {
@@ -1364,67 +1364,71 @@ export function PizarraDigital() {
                   <span className="text-[10px] text-slate-400 block mt-1">Busca y selecciona al postulante de su Ficha Maestra o usa el formulario rápido.</span>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Sueldo Básico (S/.)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min={0}
-                      required
-                      value={ingresoForm.sueldo_basico || ""}
-                      onChange={(e) => setIngresoForm({ ...ingresoForm, sueldo_basico: parseFloat(e.target.value) || 0 })}
-                      className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none font-semibold text-indigo-750"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Bono (S/.)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min={0}
-                      value={ingresoForm.bono ?? 0.00}
-                      onChange={(e) => setIngresoForm({ ...ingresoForm, bono: parseFloat(e.target.value) || 0 })}
-                      className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none font-semibold text-indigo-750"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Régimen Laboral</label>
-                    <select
-                      required
-                      value={ingresoForm.regimen_laboral_id || ""}
-                      onChange={(e) => setIngresoForm({ ...ingresoForm, regimen_laboral_id: parseInt(e.target.value) })}
-                      className="w-full p-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none"
-                    >
-                      <option value="">Seleccione...</option>
-                      {regimenes.map((r) => (
-                        <option key={r.id} value={r.id}>{r.nombre}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
+                {currentRole !== "reclutador" && currentRole !== "reclutamiento" && (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Sueldo Básico (S/.)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min={0}
+                          required
+                          value={ingresoForm.sueldo_basico || ""}
+                          onChange={(e) => setIngresoForm({ ...ingresoForm, sueldo_basico: parseFloat(e.target.value) || 0 })}
+                          className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none font-semibold text-indigo-750"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Bono (S/.)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min={0}
+                          value={ingresoForm.bono ?? 0.00}
+                          onChange={(e) => setIngresoForm({ ...ingresoForm, bono: parseFloat(e.target.value) || 0 })}
+                          className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none font-semibold text-indigo-750"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Régimen Laboral</label>
+                        <select
+                          required
+                          value={ingresoForm.regimen_laboral_id || ""}
+                          onChange={(e) => setIngresoForm({ ...ingresoForm, regimen_laboral_id: parseInt(e.target.value) })}
+                          className="w-full p-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none"
+                        >
+                          <option value="">Seleccione...</option>
+                          {regimenes.map((r) => (
+                            <option key={r.id} value={r.id}>{r.nombre}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Fecha Inicio Contrato</label>
-                    <input
-                      type="date"
-                      required
-                      value={ingresoForm.fecha_inicio || ""}
-                      onChange={(e) => setIngresoForm({ ...ingresoForm, fecha_inicio: e.target.value })}
-                      className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Fecha Fin (Opcional)</label>
-                    <input
-                      type="date"
-                      value={ingresoForm.fecha_fin || ""}
-                      onChange={(e) => setIngresoForm({ ...ingresoForm, fecha_fin: e.target.value })}
-                      className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none font-mono"
-                    />
-                  </div>
-                </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Fecha Inicio Contrato</label>
+                        <input
+                          type="date"
+                          required
+                          value={ingresoForm.fecha_inicio || ""}
+                          onChange={(e) => setIngresoForm({ ...ingresoForm, fecha_inicio: e.target.value })}
+                          className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Fecha Fin (Opcional)</label>
+                        <input
+                          type="date"
+                          value={ingresoForm.fecha_fin || ""}
+                          onChange={(e) => setIngresoForm({ ...ingresoForm, fecha_fin: e.target.value })}
+                          className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none font-mono"
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 <div className="border-t border-slate-100 pt-4 flex gap-2 justify-end">
                   <button

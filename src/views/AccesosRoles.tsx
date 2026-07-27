@@ -56,6 +56,8 @@ const colorMap: Record<string, string> = {
   almacen: "bg-amber-100 text-amber-700",
   supervisor: "bg-purple-100 text-purple-700",
   gerencia: "bg-slate-100 text-slate-700",
+  reclutador: "bg-emerald-100 text-emerald-700",
+  reclutamiento: "bg-emerald-100 text-emerald-700",
 };
 
 export function AccesosRoles() {

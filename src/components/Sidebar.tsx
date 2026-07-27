@@ -39,7 +39,7 @@ export function Sidebar({
           // Logistica permissions
           if (currentRole === "logistica") {
             if (group.name === "Dashboards" && item.path !== "/dashboards/logistico") return false;
-            if (group.name === "Recursos Humanos") return false;
+            if (group.name === "Recursos Humanos" && item.path !== "/rrhh/fichas") return false;
             if (group.name === "Configuración" && item.path === "/config/accesos") return false;
             return true;
           }
@@ -56,7 +56,7 @@ export function Sidebar({
           // Almacen permissions
           if (currentRole === "almacen") {
             if (group.name === "Dashboards" && item.path !== "/dashboards/logistico") return false;
-            if (group.name === "Recursos Humanos") return false;
+            if (group.name === "Recursos Humanos" && item.path !== "/rrhh/fichas") return false;
             if (group.name === "Requerimientos" && item.path !== "/requerimientos/uniformes") return false;
             if (group.name === "Reportes") return false;
             if (group.name === "Configuración") return false;
@@ -66,7 +66,7 @@ export function Sidebar({
           // Supervisor permissions
           if (currentRole === "supervisor") {
             if (group.name === "Dashboards" && item.path !== "/dashboards/logistico") return false;
-            if (group.name === "Recursos Humanos" && item.path !== "/rrhh/pizarra") return false;
+            if (group.name === "Recursos Humanos" && item.path !== "/rrhh/pizarra" && item.path !== "/rrhh/fichas") return false;
             if (group.name === "Almacén") return false;
             if (group.name === "Reportes") return false;
             if (group.name === "Configuración" && item.path !== "/config/estructura") return false;
