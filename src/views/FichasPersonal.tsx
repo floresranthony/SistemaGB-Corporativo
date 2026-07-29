@@ -2563,7 +2563,7 @@ export function FichasPersonal() {
                       <th className="px-6 py-4 bg-slate-50">NOMBRES</th>
                       <th className="px-6 py-4 bg-slate-50">EMPRESA / PUESTO</th>
                       <th className="px-6 py-4 bg-slate-50">CONTACTO</th>
-                      <th className="px-6 py-4 bg-slate-50">TALLAS</th>
+                      <th className="px-6 py-4 bg-slate-50">FECHA DE NACIMIENTO</th>
                       <th className="px-6 py-4 bg-slate-50">INICIO 1ER CONTRATO</th>
                       <th className="px-6 py-4 bg-slate-50 text-center">CONTRATO VIGENTE</th>
                       <th className="px-6 py-4 bg-slate-50 text-center">ESTADO CONTRATO</th>
@@ -2812,12 +2812,8 @@ export function FichasPersonal() {
                             <div className="text-sm text-slate-700">{p.telefono || "-"}</div>
                             <div className="text-xs text-slate-400 font-mono">{p.correo || "-"}</div>
                           </td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-1.5">
-                              <span className="px-1.5 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-bold" title="Polo">P: {p.talla_polo || "-"}</span>
-                              <span className="px-1.5 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-bold" title="Pantalón">T: {p.talla_pantalon || "-"}</span>
-                              <span className="px-1.5 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-bold" title="Calzado">C: {p.talla_calzado || "-"}</span>
-                            </div>
+                          <td className="px-6 py-4 text-xs font-mono font-bold">
+                            {formatDMY(p.fecha_nacimiento)}
                           </td>
                           <td className="px-6 py-4 text-xs font-mono font-bold">
                             {formatDMY(getFechaIngreso(p))}
