@@ -107,7 +107,7 @@ export function ControlVacaciones() {
             creado_en,
             regimenes_laborales (id, nombre, dias_vacaciones),
             cargos (id, nombre),
-            empresas_internas (id, razon_social),
+            empresas_internas (id, razon_social, ruc, logo_url),
             sedes (id, nombre, cliente_id, clientes (id, razon_social)),
             contratos (
               id,
@@ -728,12 +728,376 @@ export function ControlVacaciones() {
   };
 
   const handlePrint = (type: "solicitud" | "kardex") => {
-    setPrintType(type);
-    setPrintingRequest(true);
-    setTimeout(() => {
-      setPrintingRequest(false);
-      window.print();
-    }, 1200);
+    if (!selectedPersona || !activeVinculo || !selectedMetrics) return;
+
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      alert("Por favor, permite las ventanas emergentes (popups) en tu navegador para poder previsualizar el documento.");
+      return;
+    }
+
+    const internalCompany = activeVinculo.empresas_internas;
+    let companyLogo = "/logo.png";
+    if (internalCompany) {
+      if (internalCompany.logo_url) {
+        const rawLogo = internalCompany.logo_url;
+        companyLogo = rawLogo.startsWith("http")
+          ? rawLogo
+          : rawLogo.startsWith("/")
+            ? rawLogo
+            : `/${rawLogo}`;
+      } else {
+        const rucClean = String(internalCompany.ruc || "").trim();
+        const socialClean = String(internalCompany.razon_social || "").toLowerCase();
+        if (rucClean === "20601234567" || socialClean.includes("bax")) {
+          companyLogo = "/uploads/logos/logogrupobaxssee.png";
+        } else if (rucClean === "20609876543" || socialClean.includes("office") || socialClean.includes("mac")) {
+          companyLogo = "/logo_office.jpg";
+        }
+      }
+    }
+    const resolvedLogoUrl = companyLogo.startsWith("http") ? companyLogo : `${window.location.origin}${companyLogo}`;
+
+    let htmlContent = "";
+
+    if (type === "solicitud") {
+      htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Solicitud de Vacaciones - ${selectedPersona.apellidos}, ${selectedPersona.nombres}</title>
+          <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+          <style>
+            body {
+              margin: 0;
+              padding: 0;
+              background-color: #f1f5f9;
+              font-family: system-ui, -apple-system, sans-serif;
+            }
+            #print-container {
+              background-color: white;
+              width: 794px;
+              height: 1122px;
+              margin: 20px auto;
+              padding: 50px;
+              box-sizing: border-box;
+              box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+              display: flex;
+              flex-direction: column;
+              justify-content: space-between;
+            }
+            @media print {
+              body {
+                background-color: white;
+                padding: 0;
+              }
+              #print-container {
+                box-shadow: none;
+                width: 100%;
+                height: auto;
+                padding: 0;
+                margin: 0;
+              }
+              .no-print {
+                display: none !important;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="no-print" style="background-color: #0f172a; padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10000; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); font-family: system-ui, -apple-system, sans-serif; color: white; width: 100%; box-sizing: border-box;">
+            <div style="display: flex; flex-direction: column; text-align: left;">
+              <span style="font-weight: 800; font-size: 13px; letter-spacing: 0.3px;">Previsualización de Solicitud Vacacional</span>
+              <span style="font-size: 10px; color: #94a3b8; font-weight: 600; margin-top: 2px;">Colaborador: ${selectedPersona.apellidos}, ${selectedPersona.nombres}</span>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button onclick="window.print()" style="background-color: #3b82f6; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-size: 11px; font-weight: bold; cursor: pointer; font-family: system-ui, sans-serif; display: flex; align-items: center; gap: 4px; transition: all 0.15s; text-transform: uppercase; letter-spacing: 0.3px;">
+                🖨️ Imprimir
+              </button>
+              <button onclick="descargarPDF()" style="background-color: #10b981; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-size: 11px; font-weight: bold; cursor: pointer; font-family: system-ui, sans-serif; display: flex; align-items: center; gap: 4px; transition: all 0.15s; text-transform: uppercase; letter-spacing: 0.3px;">
+                📥 Descargar PDF
+              </button>
+            </div>
+          </div>
+
+          <div id="print-container">
+            <div style="border: 1px solid #cbd5e1; padding: 40px; border-radius: 12px; display: flex; flex-direction: column; justify-content: space-between; height: 100%; box-sizing: border-box; background-color: white; font-size: 13px; line-height: 1.6; color: #1e293b;">
+              
+              <div>
+                <div style="text-align: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 30px; display: flex; align-items: center; justify-content: space-between;">
+                  <div style="text-align: left;">
+                    <img src="${resolvedLogoUrl}" alt="Logo" style="max-height: 55px; max-width: 150px; object-fit: contain;" />
+                  </div>
+                  <div style="text-align: right;">
+                    <h1 style="font-size: 16px; font-weight: 800; margin: 0; color: #0f172a; text-transform: uppercase; letter-spacing: 0.5px;">SOLICITUD DE DESCANSO VACACIONAL</h1>
+                    <p style="color: #64748b; font-size: 10px; margin: 4px 0 0 0; font-family: monospace;">Recursos Humanos / Control de Personal - ${internalCompany?.razon_social || "Grupo Bax"}</p>
+                  </div>
+                </div>
+                
+                <div style="margin-bottom: 30px;">
+                  <p>
+                    Por medio del presente documento, yo <strong>${selectedPersona.apellidos}, ${selectedPersona.nombres}</strong>, identificado con documento de identidad N° <strong>${selectedPersona.numero_documento}</strong>, en mi condición de colaborador en el puesto de <strong>${activeVinculo.cargos?.nombre || "-"}</strong> para la empresa <strong>${internalCompany?.razon_social || "Grupo Bax"}</strong> en la sede <strong>${activeVinculo.sedes?.nombre || "-"}</strong>, solicito formalmente el goce de mi descanso físico vacacional según el siguiente detalle:
+                  </p>
+                  
+                  <div style="padding: 24px; background-color: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; margin: 25px 0; font-size: 13px;">
+                    <div style="margin-bottom: 12px; display: flex; justify-content: space-between;"><strong style="color: #475569;">Fecha de Inicio:</strong> <span style="font-family: monospace; border-bottom: 1px dashed #94a3b8; width: 250px; display: inline-block; text-align: center;">&nbsp;</span></div>
+                    <div style="margin-bottom: 12px; display: flex; justify-content: space-between;"><strong style="color: #475569;">Fecha de Finalización:</strong> <span style="font-family: monospace; border-bottom: 1px dashed #94a3b8; width: 250px; display: inline-block; text-align: center;">&nbsp;</span></div>
+                    <div style="margin-bottom: 12px; display: flex; justify-content: space-between;"><strong style="color: #475569;">Total de Días Solicitados:</strong> <span style="font-family: monospace; border-bottom: 1px dashed #94a3b8; width: 250px; display: inline-block; text-align: center;">_______ días calendario</span></div>
+                    <div style="display: flex; justify-content: space-between;"><strong style="color: #475569;">Periodo Adquirido Correspondiente:</strong> <span style="font-family: monospace; border-bottom: 1px dashed #94a3b8; width: 250px; display: inline-block; text-align: center;">&nbsp;</span></div>
+                  </div>
+
+                  <div style="margin-top: 30px; text-align: justify;">
+                    <h3 style="font-weight: bold; text-transform: uppercase; font-size: 11px; color: #475569; margin-bottom: 8px;">Declaración Jurada y Conformidad:</h3>
+                    <p style="font-size: 11px; color: #64748b; margin: 0; line-height: 1.6;">
+                      El suscrito declara que las fechas arriba solicitadas han sido coordinadas y consensuadas previamente con su jefatura inmediata, garantizando la no afectación de las operaciones del área. Asimismo, se conviene que los días gozados se deducirán directamente del saldo vacacional acumulado a la fecha.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div style="margin-top: 80px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; text-align: center; font-size: 12px;">
+                  <div style="border-top: 1px solid #94a3b8; padding-top: 10px;">
+                    <strong>Firma del Colaborador</strong>
+                    <div style="font-size: 10px; color: #64748b; font-family: monospace; margin-top: 4px;">DNI: ${selectedPersona.numero_documento}</div>
+                  </div>
+                  <div style="border-top: 1px solid #94a3b8; padding-top: 10px;">
+                    <strong>V°B° Jefe Directo / Recursos Humanos</strong>
+                    <div style="font-size: 10px; color: #64748b; font-family: monospace; margin-top: 4px;">Aprobado por</div>
+                  </div>
+                </div>
+
+                <div style="margin-top: 50px; border-top: 1px dashed #cbd5e1; padding-top: 15px; font-size: 10px; color: #94a3b8; display: flex; justify-content: space-between;">
+                  <span>Fecha de emisión: ${new Date().toLocaleDateString("es-PE")} ${new Date().toLocaleTimeString("es-PE", {hour: '2-digit', minute:'2-digit'})}</span>
+                  <span>Documento generado por Antigravity HR System</span>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <script>
+            function descargarPDF() {
+              const element = document.getElementById("print-container");
+              const opt = {
+                margin:       0,
+                filename:     "Solicitud_Vacaciones_${selectedPersona.apellidos}_${selectedPersona.nombres}.pdf",
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 1.5, logging: false },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+              };
+              html2pdf().from(element).set(opt).save();
+            }
+          </script>
+        </body>
+      </html>
+      `;
+    } else {
+      const periodSummaryRows = periodSummary.map((p: any) => `
+        <tr style="border: 1px solid #cbd5e1; font-size: 11px;">
+          <td style="border: 1px solid #cbd5e1; padding: 8px; font-weight: bold; color: #334155;">Periodo: ${p.label}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 8px; text-align: center; font-family: monospace; color: #0f172a;">${p.earned} días</td>
+          <td style="border: 1px solid #cbd5e1; padding: 8px; text-align: center; font-family: monospace; color: #2563eb; font-weight: bold;">${p.taken} días</td>
+          <td style="border: 1px solid #cbd5e1; padding: 8px; text-align: center; font-family: monospace; color: #16a34a; font-weight: bold;">${p.balance} días</td>
+        </tr>
+      `).join("");
+
+      const historyVacations = [...(activeVinculo.vacaciones_historico || [])]
+        .sort((a: any, b: any) => b.fecha_inicio.localeCompare(a.fecha_inicio));
+
+      const historyRows = historyVacations.length === 0
+        ? `<tr><td colspan="5" style="border: 1px solid #cbd5e1; padding: 16px; text-align: center; color: #94a3b8; font-weight: 500;">No se registran descansos vacacionales.</td></tr>`
+        : historyVacations.map((vac: any) => {
+            const periodKey = getVacationPeriodKey(vac, availablePeriods);
+            const periodLabel = periodKey 
+              ? `${formatDMY(periodKey.split("|")[0])} - ${formatDMY(periodKey.split("|")[1])}`
+              : "-";
+            return `
+              <tr style="border: 1px solid #cbd5e1; font-size: 10px;">
+                <td style="border: 1px solid #cbd5e1; padding: 6px 8px; font-family: monospace; color: #0f172a;">${formatDMY(vac.fecha_inicio)}</td>
+                <td style="border: 1px solid #cbd5e1; padding: 6px 8px; font-family: monospace; color: #0f172a;">${formatDMY(vac.fecha_fin)}</td>
+                <td style="border: 1px solid #cbd5e1; padding: 6px 8px; text-align: center; font-family: monospace; color: #2563eb; font-weight: bold;">${vac.dias_calendario} d</td>
+                <td style="border: 1px solid #cbd5e1; padding: 6px 8px; font-weight: 500; color: #334155;">${periodLabel}</td>
+                <td style="border: 1px solid #cbd5e1; padding: 6px 8px; color: #64748b;">${vac.notas || "-"}</td>
+              </tr>
+            `;
+          }).join("");
+
+      htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Kardex Vacacional - ${selectedPersona.apellidos}, ${selectedPersona.nombres}</title>
+          <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+          <style>
+            body {
+              margin: 0;
+              padding: 0;
+              background-color: #f1f5f9;
+              font-family: system-ui, -apple-system, sans-serif;
+            }
+            #print-container {
+              background-color: white;
+              width: 794px;
+              height: 1122px;
+              margin: 20px auto;
+              padding: 40px;
+              box-sizing: border-box;
+              box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+              display: flex;
+              flex-direction: column;
+              justify-content: space-between;
+            }
+            @media print {
+              body {
+                background-color: white;
+                padding: 0;
+              }
+              #print-container {
+                box-shadow: none;
+                width: 100%;
+                height: auto;
+                padding: 0;
+                margin: 0;
+              }
+              .no-print {
+                display: none !important;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="no-print" style="background-color: #0f172a; padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10000; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); font-family: system-ui, -apple-system, sans-serif; color: white; width: 100%; box-sizing: border-box;">
+            <div style="display: flex; flex-direction: column; text-align: left;">
+              <span style="font-weight: 800; font-size: 13px; letter-spacing: 0.3px;">Previsualización de Kardex Vacacional (SUNAFIL)</span>
+              <span style="font-size: 10px; color: #94a3b8; font-weight: 600; margin-top: 2px;">Colaborador: ${selectedPersona.apellidos}, ${selectedPersona.nombres}</span>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button onclick="window.print()" style="background-color: #3b82f6; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-size: 11px; font-weight: bold; cursor: pointer; font-family: system-ui, sans-serif; display: flex; align-items: center; gap: 4px; transition: all 0.15s; text-transform: uppercase; letter-spacing: 0.3px;">
+                🖨️ Imprimir
+              </button>
+              <button onclick="descargarPDF()" style="background-color: #10b981; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-size: 11px; font-weight: bold; cursor: pointer; font-family: system-ui, sans-serif; display: flex; align-items: center; gap: 4px; transition: all 0.15s; text-transform: uppercase; letter-spacing: 0.3px;">
+                📥 Descargar PDF
+              </button>
+            </div>
+          </div>
+
+          <div id="print-container">
+            <div style="display: flex; flex-direction: column; justify-content: space-between; height: 100%; box-sizing: border-box; background-color: white;">
+              
+              <div>
+                <!-- Header -->
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #cbd5e1; padding-bottom: 15px; margin-bottom: 20px;">
+                  <div style="display: flex; align-items: center; gap: 15px;">
+                    <img src="${resolvedLogoUrl}" alt="Logo" style="max-height: 55px; max-width: 150px; object-fit: contain; display: block;" />
+                    <div>
+                      <h2 style="font-size: 14px; font-weight: 800; text-transform: uppercase; margin: 0; color: #1e293b;">${internalCompany?.razon_social || "GRUPO BAX"}</h2>
+                      <p style="font-size: 11px; margin: 2px 0 0 0; color: #64748b; font-family: monospace;">RUC: ${internalCompany?.ruc || "-"}</p>
+                    </div>
+                  </div>
+                  <div style="text-align: right;">
+                    <h1 style="font-size: 15px; font-weight: 900; margin: 0; color: #0f172a; text-transform: uppercase; letter-spacing: 0.5px;">KARDEX VACACIONAL DE CONTROL INTERNO</h1>
+                    <p style="font-size: 10px; margin: 4px 0 0 0; color: #64748b; font-family: monospace; font-weight: 600;">Reporte de Cumplimiento Laboral (SUNAFIL)</p>
+                  </div>
+                </div>
+
+                <!-- Collaborator info box -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; border: 1px solid #cbd5e1; padding: 15px; border-radius: 8px; background-color: #f8fafc; margin-bottom: 20px; color: #1e293b;">
+                  <div>
+                    <div style="font-size: 9px; text-transform: uppercase; color: #64748b; font-weight: bold; letter-spacing: 0.05em; margin-bottom: 2px;">Colaborador</div>
+                    <div style="font-size: 12px; font-weight: bold; color: #0f172a;">${selectedPersona.apellidos}, ${selectedPersona.nombres}</div>
+                    <div style="font-size: 9px; text-transform: uppercase; color: #64748b; font-weight: bold; letter-spacing: 0.05em; margin-top: 10px; margin-bottom: 2px;">Documento (DNI/CE)</div>
+                    <div style="font-size: 12px; font-weight: 600; color: #334155;">${selectedPersona.numero_documento}</div>
+                  </div>
+                  <div>
+                    <div style="font-size: 9px; text-transform: uppercase; color: #64748b; font-weight: bold; letter-spacing: 0.05em; margin-bottom: 2px;">Puesto / Sede</div>
+                    <div style="font-size: 12px; font-weight: 600; color: #334155;">${activeVinculo.cargos?.nombre || "-"} &bull; ${activeVinculo.sedes?.nombre || "-"}</div>
+                    <div style="font-size: 9px; text-transform: uppercase; color: #64748b; font-weight: bold; letter-spacing: 0.05em; margin-top: 10px; margin-bottom: 2px;">Fecha de Ingreso</div>
+                    <div style="font-size: 12px; font-weight: 600; color: #334155;">${formatDMY(selectedMetrics.startDateStr)} (Antigüedad: ${selectedMetrics.years} años)</div>
+                  </div>
+                </div>
+
+                <!-- Resumen de Saldos -->
+                <div style="margin-bottom: 20px;">
+                  <h3 style="font-size: 11px; font-weight: 800; text-transform: uppercase; color: #475569; margin: 0 0 10px 0; letter-spacing: 0.05em;">Resumen de Saldos por Periodo Vacacional:</h3>
+                  <table style="width: 100%; border-collapse: collapse; border: 1px solid #cbd5e1; color: #1e293b;">
+                    <thead>
+                      <tr style="background-color: #f1f5f9; font-size: 10px; font-weight: bold; text-align: left; border-bottom: 1px solid #cbd5e1;">
+                        <th style="padding: 8px; border: 1px solid #cbd5e1;">Periodo Anual Acumulado</th>
+                        <th style="padding: 8px; border: 1px solid #cbd5e1; text-align: center; width: 100px;">Días Ganados</th>
+                        <th style="padding: 8px; border: 1px solid #cbd5e1; text-align: center; width: 100px;">Días Gozados</th>
+                        <th style="padding: 8px; border: 1px solid #cbd5e1; text-align: center; width: 100px;">Saldo Pendiente</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${periodSummaryRows}
+                    </tbody>
+                  </table>
+                </div>
+
+                <!-- Detalle Cronológico -->
+                <div style="margin-bottom: 20px;">
+                  <h3 style="font-size: 11px; font-weight: 800; text-transform: uppercase; color: #475569; margin: 0 0 10px 0; letter-spacing: 0.05em;">Detalle Cronológico de Descansos Físicos Gozados:</h3>
+                  <table style="width: 100%; border-collapse: collapse; border: 1px solid #cbd5e1; color: #1e293b;">
+                    <thead>
+                      <tr style="background-color: #f1f5f9; font-size: 9px; font-weight: bold; text-align: left; border-bottom: 1px solid #cbd5e1;">
+                        <th style="padding: 6px 8px; border: 1px solid #cbd5e1; width: 100px;">Fecha Salida</th>
+                        <th style="padding: 6px 8px; border: 1px solid #cbd5e1; width: 100px;">Fecha Retorno</th>
+                        <th style="padding: 6px 8px; border: 1px solid #cbd5e1; text-align: center; width: 90px;">Días Gozados</th>
+                        <th style="padding: 6px 8px; border: 1px solid #cbd5e1; width: 180px;">Periodo Asociado</th>
+                        <th style="padding: 6px 8px; border: 1px solid #cbd5e1;">Observaciones / Notas</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${historyRows}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <!-- Footer info and signature -->
+              <div>
+                <div style="margin-top: 50px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; text-align: center; font-size: 11px; color: #1e293b;">
+                  <div style="border-top: 1px solid #94a3b8; padding-top: 8px;">
+                    <strong>Firma del Colaborador</strong>
+                    <div style="font-size: 9px; color: #64748b; font-family: monospace; margin-top: 2px;">DNI: ${selectedPersona.numero_documento}</div>
+                  </div>
+                  <div style="border-top: 1px solid #94a3b8; padding-top: 8px;">
+                    <strong>V°B° Recursos Humanos / Representante Legal</strong>
+                    <div style="font-size: 9px; color: #64748b; font-family: monospace; margin-top: 2px;">${internalCompany?.razon_social || "Grupo Bax S.A.C."}</div>
+                  </div>
+                </div>
+
+                <div style="margin-top: 40px; border-top: 1px dashed #cbd5e1; padding-top: 12px; font-size: 9px; color: #94a3b8; display: flex; justify-content: space-between;">
+                  <span>Fecha de emisión: ${new Date().toLocaleDateString("es-PE")} ${new Date().toLocaleTimeString("es-PE", {hour: '2-digit', minute:'2-digit'})}</span>
+                  <span>Documento generado para inspección SUNAFIL - Antigravity HR System</span>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <script>
+            function descargarPDF() {
+              const element = document.getElementById("print-container");
+              const opt = {
+                margin:       0,
+                filename:     "Kardex_Vacacional_${selectedPersona.apellidos}_${selectedPersona.nombres}.pdf",
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 1.5, logging: false },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+              };
+              html2pdf().from(element).set(opt).save();
+            }
+          </script>
+        </body>
+      </html>
+      `;
+    }
+
+    printWindow.document.open();
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
   };
 
   const uniqueClientes = React.useMemo(() => {
@@ -983,7 +1347,8 @@ export function ControlVacaciones() {
   };
 
   return (
-    <div className="flex flex-col h-full space-y-6">
+    <>
+      <div className="flex flex-col h-full space-y-6 print:hidden">
       
       {/* Cabecera */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-2 flex-shrink-0 gap-4">
@@ -1023,7 +1388,7 @@ export function ControlVacaciones() {
       </div>
 
       {/* KPIs Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 print:hidden">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 print:hidden">
         
         {/* KPI 1 */}
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center space-x-4">
@@ -1031,14 +1396,15 @@ export function ControlVacaciones() {
             <User className="w-6 h-6" />
           </div>
           <div>
-            <span className="text-[10px] font-bold text-slate-450 uppercase tracking-wider block">Monitoreados Activos</span>
+            <span className="text-[10px] font-bold text-slate-455 uppercase tracking-wider block">Monitoreados Activos</span>
             <span className="text-2xl font-black text-slate-800">{stats.total}</span>
           </div>
         </div>
 
+        {/* / */}
         {/* KPI 2 */}
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center space-x-4">
-          <div className="p-3 bg-red-50 text-red-650 rounded-xl">
+          <div className="p-3 bg-red-50 text-red-655 text-red-600 rounded-xl">
             <AlertCircle className="w-6 h-6 text-red-600 animate-pulse" />
           </div>
           <div>
@@ -1049,23 +1415,12 @@ export function ControlVacaciones() {
 
         {/* KPI 3 */}
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center space-x-4">
-          <div className="p-3 bg-amber-55 bg-amber-50 text-amber-600 rounded-xl">
+          <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
             <Clock className="w-6 h-6 text-amber-500" />
           </div>
           <div>
             <span className="text-[10px] font-bold text-slate-455 uppercase tracking-wider block">Próximos a 2 Periodos</span>
-            <span className="text-2xl font-black text-amber-650 text-amber-600">{stats.proximos}</span>
-          </div>
-        </div>
-
-        {/* KPI 4 */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center space-x-4">
-          <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
-            <CalendarDays className="w-6 h-6" />
-          </div>
-          <div>
-            <span className="text-[10px] font-bold text-slate-455 uppercase tracking-wider block">Días Gozados (Suma Activos)</span>
-            <span className="text-2xl font-black text-blue-650 text-blue-600">{stats.totalGozados} d</span>
+            <span className="text-2xl font-black text-amber-600">{stats.proximos}</span>
           </div>
         </div>
 
@@ -1101,16 +1456,6 @@ export function ControlVacaciones() {
                 Activos
               </button>
               <button
-                onClick={() => setFilterVinculoEstado("Todos")}
-                className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all border-none cursor-pointer ${
-                  filterVinculoEstado === "Todos"
-                    ? "bg-white text-slate-800 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700 bg-transparent"
-                }`}
-              >
-                Todos
-              </button>
-              <button
                 onClick={() => setFilterVinculoEstado("Inactivo")}
                 className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all border-none cursor-pointer ${
                   filterVinculoEstado === "Inactivo"
@@ -1119,6 +1464,16 @@ export function ControlVacaciones() {
                 }`}
               >
                 Cesados
+              </button>
+              <button
+                onClick={() => setFilterVinculoEstado("Todos")}
+                className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all border-none cursor-pointer ${
+                  filterVinculoEstado === "Todos"
+                    ? "bg-white text-slate-800 shadow-sm"
+                    : "text-slate-500 hover:text-slate-700 bg-transparent"
+                }`}
+              >
+                Todos
               </button>
             </div>
           </div>
@@ -1361,6 +1716,7 @@ export function ControlVacaciones() {
           <span>Mostrando {filteredRows.length} de {processedRows.length} registros laborales.</span>
         </div>
       </div>
+      </div>
 
       {/* Selected Person Details Modal (Drawer) */}
       {isModalOpen && selectedPersona && activeVinculo && selectedMetrics && (
@@ -1596,166 +1952,7 @@ export function ControlVacaciones() {
                   </div>
                 </div>
               </div>
-
             </div>
-
-          </div>
-        </div>
-      )}
-
-      {/* Printable Request Sheet */}
-      {selectedPersona && activeVinculo && selectedMetrics && (
-        <div className="hidden print:block bg-white p-8 border border-slate-350 rounded-lg text-xs space-y-8 max-w-2xl mx-auto">
-          <div className="text-center border-b pb-4">
-            <h1 className="text-lg font-bold">SOLICITUD DE DESCANSO VACACIONAL</h1>
-            <p className="text-slate-500 font-mono mt-1">Recursos Humanos / Control de Personal - Grupo Bax</p>
-          </div>
-          
-          <div className="space-y-4">
-            <p className="leading-relaxed">
-              Por medio del presente documento, yo <strong>{selectedPersona.apellidos}, {selectedPersona.nombres}</strong>, identificado con documento de identidad N° <strong>{selectedPersona.numero_documento}</strong>, en mi condición de colaborador en el puesto de <strong>{activeVinculo.cargos?.nombre}</strong> para la empresa <strong>{activeVinculo.empresas_internas?.razon_social}</strong> en la sede <strong>{activeVinculo.sedes?.nombre}</strong>, solicito formalmente el goce de mi descanso físico vacacional según el siguiente detalle:
-            </p>
-            
-            <div className="p-4 bg-slate-50 rounded-lg border border-slate-200/80 space-y-2">
-              <div><strong>Fecha de Inicio:</strong> ________________________</div>
-              <div><strong>Fecha de Finalización:</strong> ________________________</div>
-              <div><strong>Total de Días Solicitados:</strong> _______ días calendario</div>
-              <div><strong>Periodo Adquirido Correspondiente:</strong> ________________________</div>
-            </div>
-
-            <div className="pt-4 space-y-2 text-justify">
-              <h3 className="font-bold uppercase text-[10px] tracking-wider text-slate-700">Declaración Jurada y Conformidad:</h3>
-              <p className="text-[10px] text-slate-550 leading-relaxed text-slate-500">
-                El suscrito declara que las fechas arriba solicitadas han sido coordinadas y consensuadas previamente con su jefatura inmediata, garantizando la no afectación de las operaciones del área. Asimismo, se conviene que los días gozados se deducirán directamente del saldo vacacional acumulado a la fecha.
-              </p>
-            </div>
-          </div>
-
-          <div className="pt-28 grid grid-cols-2 gap-12 text-center">
-            <div className="border-t border-slate-400 pt-2">
-              Firma del Colaborador
-              <div className="text-[9px] text-slate-400 font-mono mt-1">DNI: {selectedPersona.numero_documento}</div>
-            </div>
-            <div className="border-t border-slate-400 pt-2">
-              V°B° Jefe Directo / Recursos Humanos
-              <div className="text-[9px] text-slate-400 font-mono mt-1">Aprobado por</div>
-            </div>
-          </div>
-
-          <div className="pt-10 border-t border-dashed border-slate-300 text-[9px] text-slate-400 flex justify-between">
-            <span>Fecha de emisión: {new Date().toLocaleDateString("es-PE")} {new Date().toLocaleTimeString("es-PE", {hour: '2-digit', minute:'2-digit'})}</span>
-            <span>Documento generado por Antigravity HR System</span>
-          </div>
-        </div>
-      )}
-
-      {/* Printable Kardex Sheet for SUNAFIL */}
-      {selectedPersona && activeVinculo && selectedMetrics && printType === "kardex" && (
-        <div className="hidden print:block bg-white p-8 border border-slate-300 rounded-lg text-xs space-y-6 max-w-4xl mx-auto font-sans">
-          <div className="text-center border-b pb-4 flex justify-between items-center">
-            <div className="text-left">
-              <h2 className="text-sm font-bold text-slate-800 uppercase">{activeVinculo.empresas_internas?.razon_social || "GRUPO BAX"}</h2>
-              <p className="text-[9px] text-slate-450 font-mono">RUC: {activeVinculo.empresas_internas?.ruc || "-"}</p>
-            </div>
-            <div className="text-right">
-              <h1 className="text-md font-bold text-slate-900">KARDEX VACACIONAL DE CONTROL INTERNO</h1>
-              <p className="text-[9px] text-slate-500 font-mono">Reporte de Cumplimiento Laboral (SUNAFIL)</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4 border p-3 rounded-lg bg-slate-50/50">
-            <div>
-              <div className="text-[10px] text-slate-400 uppercase font-bold">Colaborador</div>
-              <div className="text-xs font-bold text-slate-800">{selectedPersona.apellidos}, {selectedPersona.nombres}</div>
-              <div className="text-[10px] mt-1 text-slate-400 uppercase font-bold">Documento (DNI/CE)</div>
-              <div className="text-xs font-semibold text-slate-800">{selectedPersona.numero_documento}</div>
-            </div>
-            <div>
-              <div className="text-[10px] text-slate-400 uppercase font-bold">Puesto / Sede</div>
-              <div className="text-xs font-semibold text-slate-800">{activeVinculo.cargos?.nombre} &bull; {activeVinculo.sedes?.nombre}</div>
-              <div className="text-[10px] mt-1 text-slate-400 uppercase font-bold">Fecha de Ingreso</div>
-              <div className="text-xs font-semibold text-slate-800">{formatDMY(selectedMetrics.startDateStr)} (Antigüedad: {selectedMetrics.years} años)</div>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <h3 className="font-bold uppercase text-[10px] tracking-wider text-slate-700">Resumen de Saldos por Periodo Vacacional:</h3>
-            <table className="w-full text-left border-collapse border border-slate-200">
-              <thead>
-                <tr className="bg-slate-100 text-[10px] font-bold text-slate-750">
-                  <th className="border p-2">Periodo Anual Acumulado</th>
-                  <th className="border p-2 text-center">Días Ganados</th>
-                  <th className="border p-2 text-center">Días Gozados</th>
-                  <th className="border p-2 text-center">Saldo Pendiente</th>
-                </tr>
-              </thead>
-              <tbody>
-                {periodSummary.map((p: any, idx: number) => (
-                  <tr key={idx} className="hover:bg-slate-50 text-[11px] text-slate-800">
-                    <td className="border p-2 font-semibold">Periodo: {p.label}</td>
-                    <td className="border p-2 text-center font-mono">{p.earned} días</td>
-                    <td className="border p-2 text-center font-mono text-blue-600 font-bold">{p.taken} días</td>
-                    <td className="border p-2 text-center font-mono font-bold text-emerald-700">{p.balance} días</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="space-y-2">
-            <h3 className="font-bold uppercase text-[10px] tracking-wider text-slate-700">Detalle Cronológico de Descansos Físicos Gozados:</h3>
-            <table className="w-full text-left border-collapse border border-slate-200">
-              <thead>
-                <tr className="bg-slate-100 text-[10px] font-bold text-slate-750">
-                  <th className="border p-2">Fecha Salida</th>
-                  <th className="border p-2">Fecha Retorno</th>
-                  <th className="border p-2 text-center">Días Gozados</th>
-                  <th className="border p-2">Periodo Asociado</th>
-                  <th className="border p-2">Observaciones / Notas</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(!activeVinculo.vacaciones_historico || activeVinculo.vacaciones_historico.length === 0) ? (
-                  <tr>
-                    <td colSpan={5} className="border p-4 text-center text-slate-400 font-medium">No se registran descansos vacacionales.</td>
-                  </tr>
-                ) : (
-                  [...activeVinculo.vacaciones_historico]
-                    .sort((a: any, b: any) => b.fecha_inicio.localeCompare(a.fecha_inicio))
-                    .map((vac: any, idx: number) => {
-                      const periodKey = getVacationPeriodKey(vac, availablePeriods);
-                      const periodLabel = periodKey 
-                        ? `${formatDMY(periodKey.split("|")[0])} - ${formatDMY(periodKey.split("|")[1])}`
-                        : "-";
-                      return (
-                        <tr key={idx} className="hover:bg-slate-50 text-[10px] text-slate-800">
-                          <td className="border p-2 font-mono">{formatDMY(vac.fecha_inicio)}</td>
-                          <td className="border p-2 font-mono">{formatDMY(vac.fecha_fin)}</td>
-                          <td className="border p-2 text-center font-mono font-bold text-blue-600">{vac.dias_calendario} d</td>
-                          <td className="border p-2 font-medium">{periodLabel}</td>
-                          <td className="border p-2 text-slate-500">{vac.notas || "-"}</td>
-                        </tr>
-                      );
-                    })
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="pt-20 grid grid-cols-2 gap-12 text-center">
-            <div className="border-t border-slate-400 pt-2">
-              Firma del Colaborador
-              <div className="text-[9px] text-slate-400 font-mono mt-0.5">DNI: {selectedPersona.numero_documento}</div>
-            </div>
-            <div className="border-t border-slate-400 pt-2">
-              V°B° Recursos Humanos / Representante Legal
-              <div className="text-[9px] text-slate-400 font-mono mt-0.5">Grupo Bax S.A.C.</div>
-            </div>
-          </div>
-
-          <div className="pt-10 border-t border-dashed border-slate-300 text-[9px] text-slate-400 flex justify-between">
-            <span>Fecha de emisión: {new Date().toLocaleDateString("es-PE")} {new Date().toLocaleTimeString("es-PE", {hour: '2-digit', minute:'2-digit'})}</span>
-            <span>Documento generado para inspección SUNAFIL - Antigravity HR System</span>
           </div>
         </div>
       )}
@@ -1945,6 +2142,6 @@ export function ControlVacaciones() {
         </div>
       )}
 
-    </div>
+    </>
   );
 }

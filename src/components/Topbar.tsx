@@ -256,7 +256,7 @@ export function Topbar({ onMenuToggle, currentRole }: TopbarProps) {
   const totalUnread = eventUnreadCount + rrhhCount;
 
   return (
-    <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 sm:px-8 flex-shrink-0 z-25 sticky top-0">
+    <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 sm:px-8 flex-shrink-0 z-25 sticky top-0 print:hidden">
       <div className="flex items-center gap-4">
         <button
           type="button"

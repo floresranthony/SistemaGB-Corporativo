@@ -235,7 +235,7 @@ export function Sidebar({
 
       <div
         className={classNames(
-          "fixed inset-y-0 left-0 z-40 transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:h-full shrink-0 h-full",
+          "fixed inset-y-0 left-0 z-40 transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:h-full shrink-0 h-full print:hidden",
           isOpen ? "translate-x-0" : "-translate-x-full",
         )}
       >
