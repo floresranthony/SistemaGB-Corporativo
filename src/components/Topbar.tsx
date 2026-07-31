@@ -256,8 +256,8 @@ export function Topbar({ onMenuToggle, currentRole }: TopbarProps) {
   const totalUnread = eventUnreadCount + rrhhCount;
 
   return (
-    <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 sm:px-8 flex-shrink-0 z-25 sticky top-0 print:hidden">
-      <div className="flex items-center gap-4">
+    <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-3 sm:px-8 flex-shrink-0 z-25 sticky top-0 print:hidden">
+      <div className="flex items-center gap-1.5 sm:gap-4">
         <button
           type="button"
           className="p-2 -ml-2 text-slate-500 hover:bg-slate-50 rounded-full focus:outline-none"
@@ -271,7 +271,7 @@ export function Topbar({ onMenuToggle, currentRole }: TopbarProps) {
       {/* Role Switcher & Profile */}
       <div className="flex items-center gap-4">
         {/* Simple role badge for all users */}
-        <div className="flex items-center gap-1.5">
+        <div className="hidden xs:flex items-center gap-1.5">
           <Shield className="w-3.5 h-3.5 text-slate-400" />
           <span className={`text-xs font-bold border rounded-lg px-2.5 py-1.5 ${currentRoleMeta.color}`}>
             {currentRoleMeta.label}
@@ -294,7 +294,7 @@ export function Topbar({ onMenuToggle, currentRole }: TopbarProps) {
 
           {/* Panel Desplegable (Popover) */}
           {isOpen && (
-            <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-xl shadow-xl border border-slate-100 z-30 py-2 max-h-[500px] overflow-hidden flex flex-col">
+            <div className="fixed sm:absolute inset-x-2 sm:inset-x-auto sm:right-0 top-16 sm:top-auto mt-2 w-auto sm:w-96 bg-white rounded-xl shadow-xl border border-slate-100 z-30 py-2 max-h-[calc(100dvh-5rem)] sm:max-h-[500px] overflow-hidden flex flex-col">
               <div className="px-4 py-2 border-b border-slate-100 flex items-center justify-between flex-shrink-0">
                 <span className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
                   Notificaciones

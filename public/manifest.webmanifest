@@ -1,0 +1,15 @@
+{
+  "name": "Grupo BAX",
+  "short_name": "BAX",
+  "description": "Sistema corporativo Grupo BAX",
+  "lang": "es-PE",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#2563eb",
+  "icons": [
+    { "src": "./logo.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./logo.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

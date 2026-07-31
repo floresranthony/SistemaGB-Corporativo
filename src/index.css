@@ -21,3 +21,50 @@
     @apply font-heading;
   }
 }
+
+@layer components {
+  .mobile-page {
+    @apply px-0.5 sm:px-1;
+  }
+
+  .touch-target {
+    @apply min-h-11 min-w-11;
+  }
+
+  .desktop-data-table {
+    @apply overflow-x-auto rounded-xl border border-slate-200 bg-white;
+  }
+}
+
+@media (max-width: 639px) {
+  html, body, #root {
+    min-height: 100%;
+    min-height: 100dvh;
+  }
+
+  input, select, textarea, button {
+    font-size: 16px;
+  }
+
+  main {
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+  }
+
+  .mobile-scroll-area {
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Mantiene legibles las pantallas administrativas que aún usan tablas densas. */
+  main table {
+    min-width: max-content;
+  }
+
+  .tareo-page table {
+    display: none;
+  }
+
+  .tareo-page .tareo-mobile-summary + div {
+    flex: none;
+  }
+}

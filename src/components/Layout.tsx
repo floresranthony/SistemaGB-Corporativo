@@ -233,7 +233,7 @@ export function Layout() {
           }}
         />
 
-        <main className="flex-1 overflow-hidden p-2 sm:p-4 bg-slate-50">
+        <main className="flex-1 overflow-auto lg:overflow-hidden p-2 sm:p-4 bg-slate-50 mobile-scroll-area">
           <div className="h-full w-full max-w-none mx-auto px-0.5 sm:px-1">
             {renderContent()}
           </div>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "../utils/supabase";
 import { useAuth } from "../utils/authContext";
+import { SearchableSelect } from "../components/SearchableSelect";
 import {
   ClipboardList,
   Search,
@@ -24,13 +25,6 @@ import {
   ArrowLeft,
   Filter
 } from "lucide-react";
-
-const padString = (str: string, length: number): string => {
-  if (str.length >= length) {
-    return str.substring(0, length - 3) + "...";
-  }
-  return str + "\u00A0".repeat(length - str.length);
-};
 
 interface CartItem {
   id: string; // local temporary UI ID
@@ -133,6 +127,7 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
   // Form Fields
   const [selectedSedeId, setSelectedSedeId] = useState<number | "">("");
   const [selectedClienteId, setSelectedClienteId] = useState<number | "">("");
+  const preserveCartOnSedeChange = React.useRef(false);
 
   const uniqueClientes = React.useMemo(() => {
     const map = new Map<number, string>();
@@ -155,6 +150,8 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
   const [itemObservation, setItemObservation] = useState("");
   const [isAssignToPerson, setIsAssignToPerson] = useState(false);
   const [cameFromDetail, setCameFromDetail] = useState(false);
+  const [editingDraftId, setEditingDraftId] = useState<number | null>(null);
+  const [editingDraftCode, setEditingDraftCode] = useState<string | null>(null);
 
   // --- CUSTOM SYSTEM ALERTS / CONFIRM MODALS ---
   const [systemAlert, setSystemAlert] = useState<{
@@ -238,10 +235,14 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
   useEffect(() => {
     if (selectedSedeId) {
       loadWorkersForSede(Number(selectedSedeId));
-      setCart([]);
+      if (preserveCartOnSedeChange.current) {
+        preserveCartOnSedeChange.current = false;
+      } else {
+        setCart([]);
+      }
     } else {
       setVinculos([]);
-      setCart([]);
+      if (!preserveCartOnSedeChange.current) setCart([]);
     }
   }, [selectedSedeId]);
 
@@ -615,10 +616,47 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
     }
   };
 
+  const handleEditDraft = async (req: Requerimiento) => {
+    if (!user || req.estado !== "Borrador" || req.usuario_solicitante_id !== user.id) {
+      alert("Solo puedes editar tus propios requerimientos en estado Borrador.");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    try {
+      const details = await fetchRequestDetails(req.id);
+      setActiveTab(req.tipo_solicitud);
+      setSelectedClienteId(req.sedes?.clientes?.id || "");
+      preserveCartOnSedeChange.current = true;
+      setSelectedSedeId(req.sede_id);
+      setIsExtraordinarySupport(!!req.apoyo_extraordinario);
+      setCart(details.map((det: any) => ({
+        id: `draft-${det.id}`,
+        producto: det.productos,
+        productoTallaId: det.producto_talla_id || undefined,
+        tallaValor: det.producto_tallas?.tallas?.valor || undefined,
+        vinculoLaboralId: det.vinculo_laboral_id || undefined,
+        personaNombre: det.vinculos_laborales?.personas ? `${det.vinculos_laborales.personas.nombres} ${det.vinculos_laborales.personas.apellidos}` : undefined,
+        cantidad: det.cantidad_solicitada,
+        observacion: det.observacion || undefined,
+      })));
+      setEditingDraftId(req.id);
+      setEditingDraftCode(req.codigo);
+      setSelectedReq(null);
+      setViewState("create");
+    } catch (err: any) {
+      console.error("Error loading draft for editing:", err);
+      setError(err.message || "No se pudo cargar el borrador para editar.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // --- ACTIONS ---
 
   const handleDetailQtyEdit = (detailId: number, value: number, maxVal: number) => {
-    const qty = Math.max(0, value);
+    const qty = Math.min(maxVal, Math.max(0, value));
     setEdits(prev => ({
       ...prev,
       [detailId]: {
@@ -650,6 +688,9 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
     let validationFailed = false;
     reqDetails.forEach((det) => {
       const edit = edits[det.id];
+      if (!edit || edit.cantidad_aprobada < 0 || edit.cantidad_aprobada > det.cantidad_solicitada) {
+        validationFailed = true;
+      }
       if (isLineAltered(det) && (!edit?.motivo_modificacion || !edit.motivo_modificacion.trim())) {
         validationFailed = true;
       }
@@ -1277,31 +1318,42 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
     setSuccessMsg(null);
 
     try {
-      const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-      const randomId = Math.floor(100 + Math.random() * 900);
-      const code = `REQ-${dateStr}-${randomId}-${activeTab === "Materiales_y_EPP" ? "EPP" : "UNI"}`;
-
       const finalState = isDraft ? "Borrador" : "Pendiente Aprobacion";
       const affectsStock = activeTab === "Uniformes_Almacen" || cart.some(item => item.producto.es_uniforme);
+      let reqId: number;
+      let code: string;
 
-      const { data: reqHead, error: headErr } = await supabase
-        .from("requerimientos")
-        .insert({
-          codigo: code,
-          sede_id: Number(selectedSedeId),
-          usuario_solicitante_id: user.id,
-          tipo_solicitud: activeTab,
-          afecta_stock: affectsStock,
-          estado: finalState,
-          apoyo_extraordinario: isExtraordinarySupport
-        })
-        .select("id")
-        .single();
-
-      if (headErr) throw headErr;
+      if (editingDraftId) {
+        code = editingDraftCode || "Borrador";
+        const { data: updatedDraft, error: draftErr } = await supabase
+          .from("requerimientos")
+          .update({ sede_id: Number(selectedSedeId), tipo_solicitud: activeTab, afecta_stock: affectsStock, estado: finalState, apoyo_extraordinario: isExtraordinarySupport, actualizado_en: new Date().toISOString() })
+          .eq("id", editingDraftId)
+          .eq("estado", "Borrador")
+          .eq("usuario_solicitante_id", user.id)
+          .select("id, codigo")
+          .maybeSingle();
+        if (draftErr) throw draftErr;
+        if (!updatedDraft) throw new Error("El borrador ya no está disponible para edición.");
+        reqId = updatedDraft.id;
+        code = updatedDraft.codigo;
+        const { error: deleteDetailsErr } = await supabase.from("requerimiento_detalles").delete().eq("requerimiento_id", reqId);
+        if (deleteDetailsErr) throw deleteDetailsErr;
+      } else {
+        const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+        const randomId = Math.floor(100 + Math.random() * 900);
+        code = `REQ-${dateStr}-${randomId}-${activeTab === "Materiales_y_EPP" ? "EPP" : "UNI"}`;
+        const { data: reqHead, error: headErr } = await supabase
+          .from("requerimientos")
+          .insert({ codigo: code, sede_id: Number(selectedSedeId), usuario_solicitante_id: user.id, tipo_solicitud: activeTab, afecta_stock: affectsStock, estado: finalState, apoyo_extraordinario: isExtraordinarySupport })
+          .select("id")
+          .single();
+        if (headErr) throw headErr;
+        reqId = reqHead.id;
+      }
 
       const detailsToInsert = cart.map(item => ({
-        requerimiento_id: reqHead.id,
+        requerimiento_id: reqId,
         producto_id: item.producto.id,
         producto_talla_id: item.productoTallaId || null,
         vinculo_laboral_id: item.vinculoLaboralId || null,
@@ -1332,6 +1384,8 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
       setSelectedSedeId("");
       setSelectedClienteId("");
       setIsExtraordinarySupport(false);
+      setEditingDraftId(null);
+      setEditingDraftCode(null);
       
       const successText = isDraft
         ? `Borrador guardado con éxito: ${code}`
@@ -1625,7 +1679,7 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
   const renderListView = () => {
     return (
       <div className="flex flex-col h-full space-y-4">
-        <div className="flex items-center justify-between flex-shrink-0">
+          <div className="flex items-start sm:items-center justify-between gap-3 flex-shrink-0">
           <div className="space-y-1">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
               Requerimientos / Solicitudes
@@ -1645,9 +1699,11 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
                 setSelectedSedeId("");
                 setBulkProductId("");
                 setIsExtraordinarySupport(false);
+                setEditingDraftId(null);
+                setEditingDraftCode(null);
                 setViewState("create");
               }}
-              className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all"
+              className="inline-flex shrink-0 items-center gap-2 bg-blue-600 text-white px-3 sm:px-4 py-2.5 rounded-lg text-xs sm:text-sm font-semibold shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all"
             >
               <Plus className="w-4 h-4" />
               Nuevo Requerimiento
@@ -1828,6 +1884,8 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
                 <span className="text-xs font-medium">No se encontraron requerimientos registrados en este panel.</span>
               </div>
             ) : (
+              <>
+              <div className="hidden md:block">
               <table className="w-full text-left min-w-[900px] border-collapse">
                 <thead className="sticky top-0 bg-white border-b border-slate-200 z-10">
                   <tr className="text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50/10">
@@ -1957,6 +2015,38 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
                   })}
                 </tbody>
               </table>
+              </div>
+              <div className="md:hidden divide-y divide-slate-100">
+                {filteredRequerimientos.map((req) => {
+                  const statusColors: Record<string, string> = {
+                    Borrador: "bg-slate-100 text-slate-700", "Pendiente Aprobacion": "bg-amber-100 text-amber-800",
+                    Aprobado: "bg-blue-100 text-blue-800", Enviado: "bg-purple-100 text-purple-800",
+                    Entregado: "bg-emerald-100 text-emerald-800", "Entregado Incompleto": "bg-fuchsia-100 text-fuchsia-800", Rechazado: "bg-red-100 text-red-800",
+                  };
+                  const canSend = req.estado === "Aprobado" && (role === "admin" || role === "logistica" || role === "almacen");
+                  const canReceive = req.estado === "Enviado" && (role === "admin" || role === "logistica" || role === "almacen" || (user && req.usuario_solicitante_id === user.id));
+                  const canComplete = req.estado === "Entregado Incompleto" && (role === "admin" || (user && req.usuario_solicitante_id === user.id));
+                  const canEditDraft = req.estado === "Borrador" && !!user && req.usuario_solicitante_id === user.id;
+                  const date = new Date(req.fecha_solicitud).toLocaleDateString("es-PE");
+                  return <article key={req.id} className="p-4 space-y-3 bg-white">
+                    <div className="flex items-start justify-between gap-3">
+                      <div><p className="font-mono font-extrabold text-slate-900">{req.codigo}</p><p className="text-xs text-slate-500 mt-1">{date} · {req.sedes?.nombre}</p></div>
+                      <span className={`shrink-0 px-2 py-1 rounded-full text-[10px] font-bold uppercase text-center ${statusColors[req.estado] || "bg-slate-100 text-slate-800"}`}>{req.estado === "Pendiente Aprobacion" ? "Pendiente" : req.estado}</span>
+                    </div>
+                    <p className="text-xs text-slate-600"><span className="font-semibold">Solicitante:</span> {req.usuarios ? `${req.usuarios.nombres} ${req.usuarios.apellidos}` : "Sistema"}</p>
+                    {req.estado === "Entregado Incompleto" && req.notas_entrega_incompleta && <p className="text-xs text-purple-700 bg-purple-50 rounded-lg p-2">Pendiente: {req.notas_entrega_incompleta}</p>}
+                    <div className="grid grid-cols-2 gap-2">
+                      <button onClick={() => handleOpenDetails(req)} className="min-h-11 rounded-lg border border-slate-200 text-xs font-bold text-slate-700">Ver detalle</button>
+                      {canEditDraft && <button onClick={() => handleEditDraft(req)} className="min-h-11 rounded-lg bg-blue-600 text-white text-xs font-bold">Editar borrador</button>}
+                      {canSend && <button onClick={() => handleSendRequest(req.id)} className="min-h-11 rounded-lg bg-blue-600 text-white text-xs font-bold">Enviar</button>}
+                      {canReceive && <button onClick={() => handleMarkFullyDelivered(req.id)} className="min-h-11 rounded-lg bg-emerald-600 text-white text-xs font-bold">Confirmar recibido</button>}
+                      {canReceive && <button onClick={() => { setCameFromDetail(false); handleOpenMarkIncomplete(req); }} className="min-h-11 rounded-lg border border-amber-300 text-amber-700 text-xs font-bold">Recepción parcial</button>}
+                      {canComplete && <button onClick={() => { setCameFromDetail(false); handleOpenCompleteDelivery(req); }} className="min-h-11 rounded-lg bg-emerald-600 text-white text-xs font-bold">Completar entrega</button>}
+                    </div>
+                  </article>;
+                })}
+              </div>
+              </>
             )}
           </div>
 
@@ -2112,6 +2202,13 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
             {selectedReq.estado === "Borrador" && user && selectedReq.usuario_solicitante_id === user.id && (
               <>
                 <button
+                  onClick={() => handleEditDraft(selectedReq)}
+                  className="inline-flex items-center gap-1.5 border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold py-2 px-4 rounded-lg text-xs shadow-sm transition-colors"
+                >
+                  <FileText className="w-4 h-4" />
+                  Editar Borrador
+                </button>
+                <button
                   onClick={() => handleDeleteDraft(selectedReq.id)}
                   className="inline-flex items-center gap-1.5 bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 font-bold py-2 px-4 rounded-lg text-xs shadow-sm transition-colors"
                 >
@@ -2236,6 +2333,7 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
                                 <input
                                   type="number"
                                   min="0"
+                                  max={det.cantidad_solicitada}
                                   value={currentApproved}
                                   onChange={(e) => handleDetailQtyEdit(det.id, parseInt(e.target.value) || 0, det.cantidad_solicitada)}
                                   className="w-16 p-1 border border-slate-200 rounded text-center font-black focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -2363,7 +2461,7 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
             </span>
             <h1 className="font-heading text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
               <Plus className="w-8 h-8 text-blue-600" />
-              Nuevo Requerimiento ({activeTab === "Materiales_y_EPP" ? "Materiales" : "Uniformes y EPP"})
+                {editingDraftCode ? `Editar Borrador ${editingDraftCode}` : `Nuevo Requerimiento (${activeTab === "Materiales_y_EPP" ? "Materiales" : "Uniformes y EPP"})`}
             </h1>
           </div>
           <button
@@ -2373,6 +2471,8 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
               setSelectedSedeId("");
               setSelectedClienteId("");
               setIsExtraordinarySupport(false);
+              setEditingDraftId(null);
+              setEditingDraftCode(null);
             }}
             className="inline-flex items-center gap-1.5 text-slate-600 border border-slate-255 bg-white hover:bg-slate-50 px-3.5 py-2 rounded-lg text-xs font-bold transition-all shadow-sm cursor-pointer"
           >
@@ -2411,40 +2511,28 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
               <div className="space-y-4">
                 <div>
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Cliente</label>
-                  <select
+                  <SearchableSelect
                     value={selectedClienteId}
-                    onChange={(e) => {
-                      setSelectedClienteId(e.target.value ? Number(e.target.value) : "");
+                    placeholder="Seleccione un cliente..."
+                    searchPlaceholder="Buscar cliente..."
+                    options={uniqueClientes.map((c) => ({ value: c.id, label: c.name }))}
+                    onChange={(value) => {
+                      setSelectedClienteId(value === "" ? "" : Number(value));
                       setSelectedSedeId("");
                     }}
-                    className="w-full p-2.5 border border-slate-250 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 font-medium cursor-pointer text-slate-700"
-                  >
-                    <option value="">Seleccione un cliente...</option>
-                    {uniqueClientes.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </div>
 
                 {selectedClienteId && (
                   <div className="animate-fade-in">
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Sede Operativa</label>
-                    <select
+                    <SearchableSelect
                       value={selectedSedeId}
-                      onChange={(e) => setSelectedSedeId(e.target.value ? Number(e.target.value) : "")}
-                      className="w-full p-2.5 border border-slate-250 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 font-medium cursor-pointer text-slate-700"
-                    >
-                      <option value="">Seleccione una sede...</option>
-                      {sedes
-                        .filter((s) => s.clientes?.id === selectedClienteId)
-                        .map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.nombre}
-                          </option>
-                        ))}
-                    </select>
+                      placeholder="Seleccione una sede..."
+                      searchPlaceholder="Buscar sede..."
+                      options={sedes.filter((s) => s.clientes?.id === selectedClienteId).map((s) => ({ value: s.id, label: s.nombre }))}
+                      onChange={(value) => setSelectedSedeId(value === "" ? "" : Number(value))}
+                    />
                   </div>
                 )}
               </div>
@@ -2490,26 +2578,13 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
                 <form onSubmit={handleAddItemToCart} className="space-y-4 animate-fade-in">
                   <div>
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Producto / Artículo</label>
-                    <select
-                      required
+                    <SearchableSelect
                       value={selectedProductId}
-                      onChange={(e) => handleProductChange(Number(e.target.value))}
-                      className="w-full p-2.5 border border-slate-250 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 font-mono font-bold"
-                    >
-                      <option value="">Seleccione un producto...</option>
-                      {productos
-                        .filter(p => (activeTab === "Uniformes_Almacen" ? p.es_uniforme : true))
-                        .map(p => {
-                          const paddedName = padString(p.nombre, 45);
-                          const unit = p.unidades_medida?.nombre ? ` | U.M.: ${p.unidades_medida.nombre.toUpperCase()}` : " | U.M.: -";
-                          const typeLabel = p.es_uniforme ? " | PRENDA" : " | INSUMO";
-                          return (
-                            <option key={p.id} value={p.id}>
-                              {paddedName}{unit}{typeLabel}
-                            </option>
-                          );
-                        })}
-                    </select>
+                      placeholder="Seleccione un producto..."
+                      searchPlaceholder="Buscar por nombre, SKU o unidad..."
+                      options={productos.filter(p => (activeTab === "Uniformes_Almacen" ? p.es_uniforme : true)).map((p) => ({ value: p.id, label: p.nombre, detail: `${p.sku || "Sin SKU"} · U.M.: ${p.unidades_medida?.nombre || "-"} · ${p.es_uniforme ? "Prenda" : "Insumo"}`, searchText: `${p.sku || ""} ${p.unidades_medida?.nombre || ""}` }))}
+                      onChange={(value) => handleProductChange(value === "" ? 0 : Number(value))}
+                    />
                   </div>
 
                   {selectedProductId && activeProduct && (activeProduct.es_uniforme || activeProductVariants.length > 0) && (
@@ -2612,23 +2687,13 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
 
                   <div>
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Prenda / Uniforme</label>
-                    <select
-                      required
+                    <SearchableSelect
                       value={bulkProductId}
-                      onChange={(e) => setBulkProductId(e.target.value ? Number(e.target.value) : "")}
-                      className="w-full p-2.5 border border-slate-250 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 font-mono font-bold"
-                    >
-                      <option value="">Seleccione una prenda...</option>
-                      {productos.filter(p => p.es_uniforme).map(p => {
-                        const paddedName = padString(p.nombre, 45);
-                        const unit = p.unidades_medida?.nombre ? ` | U.M.: ${p.unidades_medida.nombre.toUpperCase()}` : " | U.M.: -";
-                        return (
-                          <option key={p.id} value={p.id}>
-                            {paddedName}{unit}
-                          </option>
-                        );
-                      })}
-                    </select>
+                      placeholder="Seleccione una prenda..."
+                      searchPlaceholder="Buscar prenda o SKU..."
+                      options={productos.filter(p => p.es_uniforme).map((p) => ({ value: p.id, label: p.nombre, detail: `${p.sku || "Sin SKU"} · U.M.: ${p.unidades_medida?.nombre || "-"}`, searchText: `${p.sku || ""} ${p.unidades_medida?.nombre || ""}` }))}
+                      onChange={(value) => setBulkProductId(value === "" ? "" : Number(value))}
+                    />
                   </div>
 
                   <div className="grid grid-cols-3 gap-3">
@@ -2819,7 +2884,7 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
                         className="inline-flex items-center justify-center gap-1.5 border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold py-2.5 px-4 rounded-xl text-xs shadow-sm transition-all"
                       >
                         <FileText className="w-3.5 h-3.5" />
-                        Guardar Borrador
+                        {editingDraftId ? "Guardar Cambios" : "Guardar Borrador"}
                       </button>
                       <button
                         onClick={() => handleSaveRequest(false)}
@@ -2827,7 +2892,7 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
                         className="inline-flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-5 rounded-xl text-xs shadow-md hover:shadow-lg transition-all active:scale-95"
                       >
                         <Send className="w-3.5 h-3.5" />
-                        Enviar a Logística
+                        {editingDraftId ? "Guardar y Enviar" : "Enviar a Logística"}
                       </button>
                     </div>
                   </div>
