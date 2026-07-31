@@ -21,6 +21,7 @@ import { BandejaAprobaciones } from "../views/BandejaAprobaciones.tsx";
 import { DespachosEntregas } from "../views/DespachosEntregas.tsx";
 import { DashboardLogistica } from "../views/DashboardLogistica.tsx";
 import { Reportes } from "../views/Reportes";
+import { TareoSedes } from "../views/TareoSedes";
 import { navigationStructure } from "../navigation";
 
 interface LayoutProps {
@@ -65,11 +66,15 @@ const isPathAllowed = (path: string, currentRole: string): boolean => {
         // Supervisor permissions
         if (currentRole === "supervisor") {
           if (group.name === "Dashboards" && item.path !== "/dashboards/logistico") return false;
-          if (group.name === "Recursos Humanos" && item.path !== "/rrhh/pizarra" && item.path !== "/rrhh/fichas") return false;
+          if (group.name === "Recursos Humanos" && item.path !== "/rrhh/pizarra" && item.path !== "/rrhh/fichas" && item.path !== "/rrhh/tareo") return false;
           if (group.name === "Almacén") return false;
           if (group.name === "Reportes") return false;
           if (group.name === "Configuración" && item.path !== "/config/estructura") return false;
           return true;
+        }
+
+        if (currentRole === "planilla") {
+          return item.path === "/rrhh/tareo" || item.path === "/rrhh/fichas" || item.path === "/rrhh/vacaciones";
         }
 
         return true;
@@ -84,7 +89,8 @@ const getDefaultPath = (currentRole: string): string => {
   if (currentRole === "rrhh") return "/dashboards/rrhh";
   if (currentRole === "logistica") return "/dashboards/logistico";
   if (currentRole === "almacen") return "/almacen/catalogo";
-  if (currentRole === "supervisor") return "/rrhh/pizarra";
+  if (currentRole === "supervisor") return "/rrhh/tareo";
+  if (currentRole === "planilla") return "/rrhh/tareo";
   return "/config/estructura";
 };
 
@@ -164,10 +170,12 @@ export function Layout() {
         return <GestionContratos />;
       case "/rrhh/vacaciones":
         return <ControlVacaciones />;
+      case "/rrhh/tareo":
+        return <TareoSedes />;
       case "/almacen/kardex":
         return <KardexEntregas />;
       case "/config/accesos":
-        if (role === "logistica" || role === "almacen" || role === "rrhh" || role === "supervisor") {
+        if (role === "logistica" || role === "almacen" || role === "rrhh" || role === "supervisor" || role === "planilla") {
           return (
             <div className="p-8 text-center text-slate-600 font-bold bg-white rounded-2xl border border-slate-150 shadow-sm max-w-lg mx-auto mt-12">
               ⚠️ Acceso Denegado: Tu rol de usuario no tiene autorización para ver la gestión de Accesos y Roles.

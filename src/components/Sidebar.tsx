@@ -66,11 +66,15 @@ export function Sidebar({
           // Supervisor permissions
           if (currentRole === "supervisor") {
             if (group.name === "Dashboards" && item.path !== "/dashboards/logistico") return false;
-            if (group.name === "Recursos Humanos" && item.path !== "/rrhh/pizarra" && item.path !== "/rrhh/fichas") return false;
+            if (group.name === "Recursos Humanos" && item.path !== "/rrhh/pizarra" && item.path !== "/rrhh/fichas" && item.path !== "/rrhh/tareo") return false;
             if (group.name === "Almacén") return false;
             if (group.name === "Reportes") return false;
             if (group.name === "Configuración" && item.path !== "/config/estructura") return false;
             return true;
+          }
+
+          if (currentRole === "planilla") {
+            return item.path === "/rrhh/tareo" || item.path === "/rrhh/fichas" || item.path === "/rrhh/vacaciones";
           }
 
           return true;

@@ -26,6 +26,7 @@ export function Topbar({ onMenuToggle, currentRole }: TopbarProps) {
     { value: "admin", label: "Administrador", color: "text-red-700 bg-red-50 border-red-200" },
     { value: "logistica", label: "Logística", color: "text-blue-700 bg-blue-50 border-blue-200" },
     { value: "rrhh", label: "Recursos Humanos", color: "text-indigo-700 bg-indigo-50 border-indigo-200" },
+    { value: "planilla", label: "Planilla", color: "text-emerald-700 bg-emerald-50 border-emerald-200" },
     { value: "almacen", label: "Almacén", color: "text-amber-700 bg-amber-50 border-amber-200" },
     { value: "supervisor", label: "Supervisor", color: "text-purple-700 bg-purple-50 border-purple-200" },
     { value: "gerencia", label: "Gerencia (Lectura)", color: "text-slate-700 bg-slate-50 border-slate-200" },
@@ -453,4 +454,3 @@ export function Topbar({ onMenuToggle, currentRole }: TopbarProps) {
     </header>
   );
 }
-
