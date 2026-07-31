@@ -1369,7 +1369,11 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
     if (internalCompany) {
       if (internalCompany.logo_url) {
         const rawLogo = internalCompany.logo_url;
-        companyLogo = rawLogo.startsWith("/") ? rawLogo.substring(1) : rawLogo;
+        companyLogo = rawLogo.startsWith("http")
+          ? rawLogo
+          : rawLogo.startsWith("/")
+            ? rawLogo.substring(1)
+            : rawLogo;
       } else {
         // Fallback checks based on RUC or name if logo_url is empty in DB
         const rucClean = String(internalCompany.ruc || "").trim();
@@ -1382,6 +1386,14 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
         }
       }
     }
+
+    const getBaseUrl = () => {
+      const origin = window.location.origin;
+      const path = window.location.pathname;
+      const dir = path.substring(0, path.lastIndexOf("/") + 1);
+      return `${origin}${dir}`;
+    };
+    const resolvedLogoUrl = companyLogo.startsWith("http") ? companyLogo : `${getBaseUrl()}${companyLogo}`;
 
     // Standard HTML page string with exact A4 screen pixel aspect ratio (794px width x 1122px height)
     // Zero Tailwind stylesheet hooks prevents color space parsing oklch failures.
@@ -1447,7 +1459,7 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
                   <tbody>
                     <tr>
                       <td style="width: 25%; border: 1px solid black; padding: 8px; text-align: center; vertical-align: middle;">
-                        <img src="${companyLogo}" alt="Logo" style="max-height: 48px; max-width: 120px; display: block; margin: 0 auto;" />
+                        <img src="${resolvedLogoUrl}" alt="Logo" style="max-height: 48px; max-width: 120px; display: block; margin: 0 auto;" />
                       </td>
                       <td style="width: 50%; border: 1px solid black; padding: 8px; text-align: center; vertical-align: middle;">
                         <div style="color: #dc2626; font-weight: 900; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; text-align: center;">REQUERIMIENTO DE MATERIALES</div>

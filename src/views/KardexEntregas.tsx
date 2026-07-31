@@ -180,7 +180,11 @@ export function KardexEntregas() {
     if (internalCompany) {
       if (internalCompany.logo_url) {
         const rawLogo = internalCompany.logo_url;
-        companyLogo = rawLogo.startsWith("/") ? rawLogo.substring(1) : rawLogo;
+        companyLogo = rawLogo.startsWith("http")
+          ? rawLogo
+          : rawLogo.startsWith("/")
+            ? rawLogo.substring(1)
+            : rawLogo;
       } else {
         const rucClean = String(internalCompany.ruc || "").trim();
         const socialClean = String(internalCompany.razon_social || "").toLowerCase();
@@ -191,6 +195,14 @@ export function KardexEntregas() {
         }
       }
     }
+
+    const getBaseUrl = () => {
+      const origin = window.location.origin;
+      const path = window.location.pathname;
+      const dir = path.substring(0, path.lastIndexOf("/") + 1);
+      return `${origin}${dir}`;
+    };
+    const resolvedLogoUrl = companyLogo.startsWith("http") ? companyLogo : `${getBaseUrl()}${companyLogo}`;
 
     // Build EPP elements rows (max 15 rows for A4 single-page format)
     const maxRows = 15;
@@ -294,7 +306,7 @@ export function KardexEntregas() {
                   <tbody>
                     <tr>
                       <td style="width: 20%; border: 1px solid black; padding: 6px; text-align: center; vertical-align: middle;">
-                        <img src="${companyLogo}" alt="Logo" style="max-height: 44px; max-width: 110px; display: block; margin: 0 auto;" />
+                        <img src="${resolvedLogoUrl}" alt="Logo" style="max-height: 44px; max-width: 110px; display: block; margin: 0 auto;" />
                       </td>
                       <td style="width: 55%; border: 1px solid black; padding: 6px; text-align: center; vertical-align: middle;">
                         <div style="font-weight: 900; font-size: 13px; text-transform: uppercase; text-align: center; color: black; letter-spacing: 0.3px;">REGISTRO DE ENTREGA DE EPP O E. EMERGENCIA</div>

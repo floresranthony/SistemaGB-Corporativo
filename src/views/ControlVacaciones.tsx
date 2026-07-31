@@ -737,26 +737,32 @@ export function ControlVacaciones() {
     }
 
     const internalCompany = activeVinculo.empresas_internas;
-    let companyLogo = "/logo.png";
+    let companyLogo = "logo.png";
     if (internalCompany) {
       if (internalCompany.logo_url) {
         const rawLogo = internalCompany.logo_url;
         companyLogo = rawLogo.startsWith("http")
           ? rawLogo
           : rawLogo.startsWith("/")
-            ? rawLogo
-            : `/${rawLogo}`;
+            ? rawLogo.substring(1)
+            : rawLogo;
       } else {
         const rucClean = String(internalCompany.ruc || "").trim();
         const socialClean = String(internalCompany.razon_social || "").toLowerCase();
         if (rucClean === "20601234567" || socialClean.includes("bax")) {
-          companyLogo = "/uploads/logos/logogrupobaxssee.png";
+          companyLogo = "uploads/logos/logogrupobaxssee.png";
         } else if (rucClean === "20609876543" || socialClean.includes("office") || socialClean.includes("mac")) {
-          companyLogo = "/logo_office.jpg";
+          companyLogo = "logo_office.jpg";
         }
       }
     }
-    const resolvedLogoUrl = companyLogo.startsWith("http") ? companyLogo : `${window.location.origin}${companyLogo}`;
+    const getBaseUrl = () => {
+      const origin = window.location.origin;
+      const path = window.location.pathname;
+      const dir = path.substring(0, path.lastIndexOf("/") + 1);
+      return `${origin}${dir}`;
+    };
+    const resolvedLogoUrl = companyLogo.startsWith("http") ? companyLogo : `${getBaseUrl()}${companyLogo}`;
 
     let htmlContent = "";
 
@@ -969,7 +975,7 @@ export function ControlVacaciones() {
         <body>
           <div class="no-print" style="background-color: #0f172a; padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10000; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); font-family: system-ui, -apple-system, sans-serif; color: white; width: 100%; box-sizing: border-box;">
             <div style="display: flex; flex-direction: column; text-align: left;">
-              <span style="font-weight: 800; font-size: 13px; letter-spacing: 0.3px;">Previsualización de Kardex Vacacional (SUNAFIL)</span>
+              <span style="font-weight: 800; font-size: 13px; letter-spacing: 0.3px;">Previsualización de Kardex Vacacional</span>
               <span style="font-size: 10px; color: #94a3b8; font-weight: 600; margin-top: 2px;">Colaborador: ${selectedPersona.apellidos}, ${selectedPersona.nombres}</span>
             </div>
             <div style="display: flex; gap: 8px;">
@@ -997,7 +1003,7 @@ export function ControlVacaciones() {
                   </div>
                   <div style="text-align: right;">
                     <h1 style="font-size: 15px; font-weight: 900; margin: 0; color: #0f172a; text-transform: uppercase; letter-spacing: 0.5px;">KARDEX VACACIONAL DE CONTROL INTERNO</h1>
-                    <p style="font-size: 10px; margin: 4px 0 0 0; color: #64748b; font-family: monospace; font-weight: 600;">Reporte de Cumplimiento Laboral (SUNAFIL)</p>
+                    <p style="font-size: 10px; margin: 4px 0 0 0; color: #64748b; font-family: monospace; font-weight: 600;">Reporte de Cumplimiento Laboral</p>
                   </div>
                 </div>
 
@@ -1070,7 +1076,7 @@ export function ControlVacaciones() {
 
                 <div style="margin-top: 40px; border-top: 1px dashed #cbd5e1; padding-top: 12px; font-size: 9px; color: #94a3b8; display: flex; justify-content: space-between;">
                   <span>Fecha de emisión: ${new Date().toLocaleDateString("es-PE")} ${new Date().toLocaleTimeString("es-PE", {hour: '2-digit', minute:'2-digit'})}</span>
-                  <span>Documento generado para inspección SUNAFIL - Antigravity HR System</span>
+                  <span>Documento generado - Antigravity HR System</span>
                 </div>
               </div>
 
@@ -1828,7 +1834,7 @@ export function ControlVacaciones() {
                       className="w-full inline-flex items-center justify-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 py-2 rounded-lg text-xs font-bold border border-emerald-150 transition-colors cursor-pointer"
                     >
                       <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-                      Imprimir Kardex SUNAFIL
+                      Imprimir Kardex
                     </button>
                   </div>
                 </div>
