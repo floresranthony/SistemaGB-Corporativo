@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "../utils/supabase";
 import { createClient } from "@supabase/supabase-js";
+import { useAuth } from "../utils/authContext";
 import { 
   Key, 
   UserPlus, 
@@ -15,7 +16,8 @@ import {
   Trash2, 
   Power,
   Search,
-  MapPin
+  MapPin,
+  Edit2
 } from "lucide-react";
 
 // Initialize a secondary Supabase client without session persistence 
@@ -61,6 +63,7 @@ const colorMap: Record<string, string> = {
 };
 
 export function AccesosRoles() {
+  const { user: currentUser } = useAuth();
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
@@ -75,6 +78,19 @@ export function AccesosRoles() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalLoading, setModalLoading] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
+
+  // Edit Modal State
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<Usuario | null>(null);
+  const [editFormNombres, setEditFormNombres] = useState("");
+  const [editFormApellidos, setEditFormApellidos] = useState("");
+  const [editFormUsername, setEditFormUsername] = useState("");
+  const [editFormCorreo, setEditFormCorreo] = useState("");
+  const [editFormRolId, setEditFormRolId] = useState<number | "">("");
+  const [editFormPassword, setEditFormPassword] = useState("");
+  const [editModalLoading, setEditModalLoading] = useState(false);
+  const [editModalError, setEditModalError] = useState<string | null>(null);
+  const [sendingResetEmail, setSendingResetEmail] = useState(false);
 
   // Form State
   const [formNombres, setFormNombres] = useState("");
@@ -306,6 +322,113 @@ export function AccesosRoles() {
       setModalError(err.message || "Error al registrar el usuario en el sistema.");
     } finally {
       setModalLoading(false);
+    }
+  };
+
+  const handleOpenEditModal = (user: Usuario) => {
+    setEditingUser(user);
+    setEditFormNombres(user.nombres);
+    setEditFormApellidos(user.apellidos);
+    setEditFormUsername(user.username);
+    setEditFormCorreo(user.correo);
+    setEditFormRolId(user.rol_id);
+    setEditFormPassword("");
+    setEditModalError(null);
+    setIsEditModalOpen(true);
+  };
+
+  const handleResetPasswordEmail = async () => {
+    if (!editingUser) return;
+    setSendingResetEmail(true);
+    setEditModalError(null);
+    try {
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(editingUser.correo, {
+        redirectTo: window.location.origin + "/reset-password"
+      });
+      if (resetError) throw resetError;
+      alert(`Se ha enviado un correo de restablecimiento de contraseña a ${editingUser.correo}`);
+    } catch (err: any) {
+      console.error("Error sending reset password email:", err);
+      setEditModalError("Error al enviar el correo: " + err.message);
+    } finally {
+      setSendingResetEmail(false);
+    }
+  };
+
+  const handleUpdateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+    setEditModalError(null);
+    
+    if (!editFormNombres.trim() || !editFormApellidos.trim() || !editFormUsername.trim() || !editFormCorreo.trim() || !editFormRolId) {
+      setEditModalError("Por favor rellena todos los campos requeridos.");
+      return;
+    }
+    
+    setEditModalLoading(true);
+    try {
+      // 1. Check duplicate username (if changed)
+      if (editFormUsername.trim() !== editingUser.username) {
+        const { data: dupUsername } = await supabase
+          .from("usuarios")
+          .select("id")
+          .eq("username", editFormUsername.trim())
+          .maybeSingle();
+        if (dupUsername) {
+          throw new Error(`El nombre de usuario "${editFormUsername.trim()}" ya está en uso.`);
+        }
+      }
+
+      // 2. Check duplicate email (if changed)
+      if (editFormCorreo.trim() !== editingUser.correo) {
+        const { data: dupEmail } = await supabase
+          .from("usuarios")
+          .select("id")
+          .eq("correo", editFormCorreo.trim())
+          .maybeSingle();
+        if (dupEmail) {
+          throw new Error(`El correo electrónico "${editFormCorreo.trim()}" ya está registrado.`);
+        }
+      }
+
+      // 3. If editing oneself and password is provided, update it in Supabase Auth
+      const isSelf = currentUser && currentUser.id === editingUser.id;
+      if (isSelf && editFormPassword.trim()) {
+        if (editFormPassword.trim().length < 6) {
+          throw new Error("La nueva contraseña debe tener al menos 6 caracteres.");
+        }
+        const { error: authError } = await supabase.auth.updateUser({
+          password: editFormPassword.trim()
+        });
+        if (authError) throw authError;
+      }
+
+      // 4. Update the user database row in public.usuarios
+      const { data: updatedDbUser, error: dbError } = await supabase
+        .from("usuarios")
+        .update({
+          nombres: editFormNombres.trim(),
+          apellidos: editFormApellidos.trim(),
+          username: editFormUsername.trim(),
+          correo: editFormCorreo.trim(),
+          rol_id: Number(editFormRolId)
+        })
+        .eq("id", editingUser.id)
+        .select("*, roles(*)")
+        .single();
+
+      if (dbError) throw dbError;
+
+      // 5. Update local state
+      setUsuarios(usuarios.map(u => u.id === editingUser.id ? updatedDbUser : u));
+      setIsEditModalOpen(false);
+      setSuccess(`Usuario "${editFormNombres.trim()} ${editFormApellidos.trim()}" actualizado con éxito.`);
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err: any) {
+      console.error("Error updating user:", err);
+      setEditModalError(err.message || "Error al actualizar los datos del usuario.");
+    } finally {
+      setEditModalLoading(false);
     }
   };
 
@@ -642,6 +765,13 @@ export function AccesosRoles() {
                             </button>
                           )}
                           <button
+                            onClick={() => handleOpenEditModal(user)}
+                            className="text-slate-400 hover:text-blue-650 p-1.5 rounded hover:bg-slate-100 transition-colors cursor-pointer"
+                            title="Editar Datos y Rol"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
                             onClick={() => handleToggleActive(user)}
                             className={`p-1.5 rounded hover:bg-slate-100 transition-colors ${user.activo ? 'text-slate-400 hover:text-red-500' : 'text-slate-400 hover:text-emerald-500'}`}
                             title={user.activo ? "Desactivar Acceso" : "Habilitar Acceso"}
@@ -959,6 +1089,177 @@ export function AccesosRoles() {
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit User Modal */}
+      {isEditModalOpen && editingUser && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <h3 className="font-heading text-lg font-bold text-slate-800 flex items-center gap-2">
+                <Edit2 className="w-5 h-5 text-blue-500" />
+                Editar Acceso / Rol: {editingUser.nombres} {editingUser.apellidos}
+              </h3>
+              <button
+                onClick={() => setIsEditModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 text-sm font-semibold p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Form */}
+            <form onSubmit={handleUpdateUser} className="flex-1 overflow-y-auto p-6 space-y-4">
+              {editModalError && (
+                <div className="bg-red-50 border border-red-200 text-red-800 text-xs p-3.5 rounded-lg flex items-start gap-2.5">
+                  <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                  <span>{editModalError}</span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-600">Nombres</label>
+                  <input
+                    type="text"
+                    required
+                    value={editFormNombres}
+                    onChange={(e) => setEditFormNombres(e.target.value)}
+                    className="block w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:bg-white"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-600">Apellidos</label>
+                  <input
+                    type="text"
+                    required
+                    value={editFormApellidos}
+                    onChange={(e) => setEditFormApellidos(e.target.value)}
+                    className="block w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-600">Nombre de Usuario (Username)</label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 text-sm">
+                    @
+                  </span>
+                  <input
+                    type="text"
+                    required
+                    value={editFormUsername}
+                    onChange={(e) => setEditFormUsername(e.target.value)}
+                    className="block w-full pl-7 pr-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-600">Correo Electrónico</label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-450">
+                    <Mail className="w-4 h-4 text-slate-400" />
+                  </span>
+                  <input
+                    type="email"
+                    required
+                    value={editFormCorreo}
+                    onChange={(e) => setEditFormCorreo(e.target.value)}
+                    className="block w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-600">Rol del Usuario</label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-450">
+                    <Shield className="w-4 h-4 text-slate-400" />
+                  </span>
+                  <select
+                    required
+                    value={editFormRolId}
+                    onChange={(e) => setEditFormRolId(Number(e.target.value))}
+                    className="block w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:bg-white cursor-pointer"
+                  >
+                    <option value="" disabled>Selecciona un rol...</option>
+                    {roles.map(r => (
+                      <option key={r.id} value={r.id}>{r.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Password management section */}
+              <div className="border-t border-slate-100 pt-4 mt-2 space-y-3">
+                <h4 className="font-bold text-xs text-slate-700 uppercase tracking-wider">Gestión de Contraseña</h4>
+                
+                {currentUser && currentUser.id === editingUser.id ? (
+                  // Editing oneself: Admin can directly change their password
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-600">Nueva Contraseña (Dejar en blanco para no cambiar)</label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-450">
+                        <Lock className="w-4 h-4 text-slate-400" />
+                      </span>
+                      <input
+                        type="password"
+                        placeholder="Nueva contraseña (mín. 6 caracteres)"
+                        value={editFormPassword}
+                        onChange={(e) => setEditFormPassword(e.target.value)}
+                        className="block w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:bg-white"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  // Editing someone else: show Option A (Send password reset email)
+                  <div className="bg-slate-50 p-3 rounded-lg border border-slate-200/60 flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <div className="text-xs text-slate-500">
+                      <p className="font-semibold text-slate-700">Restablecer Contraseña (Opción A)</p>
+                      <p className="mt-0.5">Se enviará un correo seguro al usuario para que configure su nueva contraseña.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleResetPasswordEmail}
+                      disabled={sendingResetEmail}
+                      className="bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 active:scale-95 transition-all text-xs font-bold px-3 py-1.5 rounded-lg disabled:opacity-50 shrink-0 cursor-pointer"
+                    >
+                      {sendingResetEmail ? "Enviando..." : "Enviar Correo"}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer actions */}
+              <div className="flex gap-3 justify-end pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="px-4 py-2 border border-slate-250 rounded-lg text-xs font-bold text-slate-650 hover:bg-slate-50 transition-colors cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={editModalLoading}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 active:scale-95 disabled:opacity-55 text-white rounded-lg text-xs font-bold shadow-lg shadow-blue-200 transition-all flex items-center gap-1.5 cursor-pointer border-none"
+                >
+                  {editModalLoading ? (
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      Guardar Cambios
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

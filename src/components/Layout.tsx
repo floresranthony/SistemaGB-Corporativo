@@ -33,6 +33,11 @@ const isPathAllowed = (path: string, currentRole: string): boolean => {
     return true;
   }
 
+  // Rutas adicionales que no están en el menú lateral (navigationStructure)
+  if (path === "/rrhh/contratos") {
+    return currentRole === "rrhh";
+  }
+
   for (const group of navigationStructure) {
     for (const item of group.items) {
       if (item.path === path) {
@@ -167,15 +172,29 @@ export function Layout() {
       case "/rrhh/fichas":
         return <FichasPersonal />;
       case "/rrhh/contratos":
+        if (role === "reclutador" || role === "reclutamiento") {
+          return (
+            <div className="p-8 text-center text-slate-600 font-bold bg-white rounded-2xl border border-slate-150 shadow-sm max-w-lg mx-auto mt-12">
+              ⚠️ Acceso Denegado: Tu rol de usuario no tiene autorización para ver la gestión de Contratos.
+            </div>
+          );
+        }
         return <GestionContratos />;
       case "/rrhh/vacaciones":
         return <ControlVacaciones />;
       case "/rrhh/tareo":
+        if (role === "reclutador" || role === "reclutamiento") {
+          return (
+            <div className="p-8 text-center text-slate-600 font-bold bg-white rounded-2xl border border-slate-150 shadow-sm max-w-lg mx-auto mt-12">
+              ⚠️ Acceso Denegado: Tu rol de usuario no tiene autorización para ver el Tareo.
+            </div>
+          );
+        }
         return <TareoSedes />;
       case "/almacen/kardex":
         return <KardexEntregas />;
       case "/config/accesos":
-        if (role === "logistica" || role === "almacen" || role === "rrhh" || role === "supervisor" || role === "planilla") {
+        if (role === "logistica" || role === "almacen" || role === "rrhh" || role === "supervisor" || role === "planilla" || role === "reclutador" || role === "reclutamiento") {
           return (
             <div className="p-8 text-center text-slate-600 font-bold bg-white rounded-2xl border border-slate-150 shadow-sm max-w-lg mx-auto mt-12">
               ⚠️ Acceso Denegado: Tu rol de usuario no tiene autorización para ver la gestión de Accesos y Roles.
@@ -184,8 +203,22 @@ export function Layout() {
         }
         return <AccesosRoles />;
       case "/config/diccionarios":
+        if (role === "reclutador" || role === "reclutamiento") {
+          return (
+            <div className="p-8 text-center text-slate-600 font-bold bg-white rounded-2xl border border-slate-150 shadow-sm max-w-lg mx-auto mt-12">
+              ⚠️ Acceso Denegado: Tu rol de usuario no tiene autorización para ver Diccionarios de Datos.
+            </div>
+          );
+        }
         return <DiccionariosDatos />;
       case "/config/estructura":
+        if (role === "reclutador" || role === "reclutamiento") {
+          return (
+            <div className="p-8 text-center text-slate-600 font-bold bg-white rounded-2xl border border-slate-150 shadow-sm max-w-lg mx-auto mt-12">
+              ⚠️ Acceso Denegado: Tu rol de usuario no tiene autorización para ver la Estructura Comercial.
+            </div>
+          );
+        }
         return <EstructuraComercial />;
       case "/reportes/descarga":
         return <Reportes />;

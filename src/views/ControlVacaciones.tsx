@@ -26,6 +26,8 @@ import {
 } from "lucide-react";
 
 export function ControlVacaciones() {
+  const currentRole = localStorage.getItem("bax_role") || "admin";
+  const canWrite = currentRole === "admin" || currentRole === "rrhh";
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
@@ -100,6 +102,7 @@ export function ControlVacaciones() {
             estado,
             fecha_ingreso,
             fecha_primer_contrato,
+            fecha_cese,
             empresa_interna_id,
             sede_id,
             cargo_id,
@@ -1839,72 +1842,74 @@ export function ControlVacaciones() {
                   </div>
                 </div>
 
-                {/* Registrar Vacaciones Form */}
-                <div className="bg-white p-4 rounded-xl border border-slate-200/70 space-y-4">
-                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1">
-                    <Plus className="w-4 h-4 text-emerald-600 stroke-[3]" />
-                    Registrar Descanso Físico
-                  </h4>
-                  <form onSubmit={handleSaveVacation} className="space-y-3">
-                    <div>
-                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Fecha Inicio</label>
-                      <input
-                        type="date"
-                        required
-                        value={vacationForm.fecha_inicio}
-                        onChange={(e) => setVacationForm({ ...vacationForm, fecha_inicio: e.target.value })}
-                        className="w-full p-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono text-slate-700"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Fecha Fin (Inclusive)</label>
-                      <input
-                        type="date"
-                        required
-                        value={vacationForm.fecha_fin}
-                        onChange={(e) => setVacationForm({ ...vacationForm, fecha_fin: e.target.value })}
-                        className="w-full p-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono text-slate-700"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                        Periodo Correspondiente
-                      </label>
-                      <select
-                        required
-                        value={vacationForm.periodo}
-                        onChange={(e) => setVacationForm({ ...vacationForm, periodo: e.target.value })}
-                        className="w-full p-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-white font-semibold text-slate-700"
-                      >
-                        <option value="auto">Automático (Por antigüedad - FIFO)</option>
-                        {availablePeriods.map((p, idx) => (
-                          <option key={idx} value={`${p.start}|${p.end}`}>
-                            {p.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Notas / Observaciones</label>
-                      <textarea
-                        rows={2}
-                        value={vacationForm.notas}
-                        onChange={(e) => setVacationForm({ ...vacationForm, notas: e.target.value })}
-                        className="w-full p-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 text-slate-700"
-                        placeholder="Ej. Goce correspondiente al periodo..."
-                      />
-                    </div>
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="w-full py-2 bg-emerald-600 text-white rounded-lg text-xs font-semibold hover:bg-emerald-700 active:scale-95 disabled:opacity-50 transition-all shadow-md shadow-emerald-100 flex items-center justify-center gap-1.5 cursor-pointer"
-                    >
-                      {loading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                      Registrar Periodo
-                    </button>
-                  </form>
-                </div>
-              </div>
+                 {/* Registrar Vacaciones Form */}
+                 {canWrite && (
+                   <div className="bg-white p-4 rounded-xl border border-slate-200/70 space-y-4">
+                     <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1">
+                       <Plus className="w-4 h-4 text-emerald-600 stroke-[3]" />
+                       Registrar Descanso Físico
+                     </h4>
+                     <form onSubmit={handleSaveVacation} className="space-y-3">
+                       <div>
+                         <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Fecha Inicio</label>
+                         <input
+                           type="date"
+                           required
+                           value={vacationForm.fecha_inicio}
+                           onChange={(e) => setVacationForm({ ...vacationForm, fecha_inicio: e.target.value })}
+                           className="w-full p-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono text-slate-700"
+                         />
+                       </div>
+                       <div>
+                         <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Fecha Fin (Inclusive)</label>
+                         <input
+                           type="date"
+                           required
+                           value={vacationForm.fecha_fin}
+                           onChange={(e) => setVacationForm({ ...vacationForm, fecha_fin: e.target.value })}
+                           className="w-full p-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono text-slate-700"
+                         />
+                       </div>
+                       <div>
+                         <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                           Periodo Correspondiente
+                         </label>
+                         <select
+                           required
+                           value={vacationForm.periodo}
+                           onChange={(e) => setVacationForm({ ...vacationForm, periodo: e.target.value })}
+                           className="w-full p-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-white font-semibold text-slate-700"
+                         >
+                           <option value="auto">Automático (Por antigüedad - FIFO)</option>
+                           {availablePeriods.map((p, idx) => (
+                             <option key={idx} value={`${p.start}|${p.end}`}>
+                               {p.label}
+                             </option>
+                           ))}
+                         </select>
+                       </div>
+                       <div>
+                         <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Notas / Observaciones</label>
+                         <textarea
+                           rows={2}
+                           value={vacationForm.notes || vacationForm.notas || ""}
+                           onChange={(e) => setVacationForm({ ...vacationForm, notas: e.target.value })}
+                           className="w-full p-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 text-slate-700"
+                           placeholder="Ej. Goce correspondiente al periodo..."
+                         />
+                       </div>
+                       <button
+                         type="submit"
+                         disabled={loading}
+                         className="w-full py-2 bg-emerald-600 text-white rounded-lg text-xs font-semibold hover:bg-emerald-700 active:scale-95 disabled:opacity-50 transition-all shadow-md shadow-emerald-100 flex items-center justify-center gap-1.5 cursor-pointer"
+                       >
+                         {loading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                         Registrar Periodo
+                       </button>
+                     </form>
+                   </div>
+                 )}
+               </div>
 
               {/* History list side (8 cols) */}
               <div className="lg:col-span-8 flex flex-col h-full min-h-[300px]">
@@ -1943,14 +1948,16 @@ export function ControlVacaciones() {
                             <span className="text-xs font-black text-blue-700 bg-blue-50 border border-blue-100 px-2.5 py-0.5 rounded-lg">
                               {vac.dias_calendario} días
                             </span>
-                            <button
-                              onClick={() => handleDeleteVacation(vac.id)}
-                              disabled={loading}
-                              className="p-1.5 text-slate-400 hover:text-red-655 hover:bg-red-50 rounded-lg transition-all cursor-pointer"
-                              title="Eliminar descanso vacacional"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            {canWrite && (
+                              <button
+                                onClick={() => handleDeleteVacation(vac.id)}
+                                disabled={loading}
+                                className="p-1.5 text-slate-400 hover:text-red-655 hover:bg-red-50 rounded-lg transition-all cursor-pointer"
+                                title="Eliminar descanso vacacional"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
                           </div>
                         </div>
                       ))

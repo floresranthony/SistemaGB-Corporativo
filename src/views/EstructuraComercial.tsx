@@ -726,7 +726,10 @@ export function EstructuraComercial() {
       const matchesCliente = !filterClienteId || String(s.cliente_id) === filterClienteId;
       const matchesEmpresa = !filterEmpresaInternaId || String(s.clientes?.empresa_interna_id) === filterEmpresaInternaId;
       const matchesSupervisor = !filterSupervisorId || 
-        (s.usuario_sedes && s.usuario_sedes.some((us: any) => String(us.usuario_id) === filterSupervisorId));
+        (filterSupervisorId === "sin_asignar"
+          ? (!s.usuario_sedes || s.usuario_sedes.map((us: any) => us.usuarios).filter(Boolean).length === 0)
+          : (s.usuario_sedes && s.usuario_sedes.some((us: any) => String(us.usuarios?.id || us.usuario_id || "") === filterSupervisorId))
+        );
       return matchesSearch && matchesCliente && matchesEmpresa && matchesSupervisor;
     });
   };
@@ -968,9 +971,10 @@ export function EstructuraComercial() {
               <select
                 value={filterSupervisorId}
                 onChange={(e) => setFilterSupervisorId(e.target.value)}
-                className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 text-slate-600 font-semibold"
+                className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 text-slate-600 font-semibold cursor-pointer"
               >
                 <option value="">Todos los Supervisores</option>
+                <option value="sin_asignar" className="text-amber-600 font-semibold">⚠️ Sin Supervisor</option>
                 {usuarios
                   .filter(u => u.roles?.codigo === "supervisor" || u.roles?.codigo === "rrhh")
                   .map((usr) => (

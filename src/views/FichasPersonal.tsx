@@ -312,6 +312,8 @@ export function FichasPersonal() {
             vencimiento_asignacion_familiar,
             tipo_trabajador_id,
             lugar_especifico_trabajo,
+            fecha_cese,
+            motivo_cese,
             regimenes_laborales (id, nombre, dias_vacaciones),
             cargos (id, nombre),
             empresas_internas (id, razon_social),
@@ -1401,7 +1403,9 @@ export function FichasPersonal() {
       fecha_primer_contrato: v.fecha_primer_contrato || "",
       asignacion_familiar: v.asignacion_familiar || false,
       vencimiento_asignacion_familiar: v.vencimiento_asignacion_familiar || "",
-      estado: v.estado
+      estado: v.estado,
+      fecha_cese: v.fecha_cese || "",
+      motivo_cese: v.motivo_cese || ""
     });
     setSedeSearchText(v.sedes?.nombre || "");
     setCargoSearchText(v.cargos?.nombre || "");
@@ -4139,7 +4143,11 @@ export function FichasPersonal() {
                           {v.estado === "Inactivo" && v.fecha_cese && (
                             <div className="text-[10px] text-slate-500 font-medium mt-1">
                               <div>Cese: {new Date(v.fecha_cese).toLocaleDateString("es-PE")}</div>
-                              {v.motivo_cese && <div className="text-red-500 italic font-normal" title={v.motivo_cese}>Causa registrada</div>}
+                              {v.motivo_cese && (
+                                <div className="text-red-650 italic font-normal mt-0.5 max-w-[180px] break-words mx-auto" title={v.motivo_cese}>
+                                  Motivo: {v.motivo_cese}
+                                </div>
+                              )}
                             </div>
                           )}
                         </td>
@@ -4507,6 +4515,61 @@ export function FichasPersonal() {
                     </div>
                   )}
                 </div>
+
+                {/* Estado y Detalles de Cese (Solo cuando se edita un puesto existente) */}
+                {editingVinculoId && (
+                  <div className="border-t border-slate-150 pt-4 mt-2 space-y-4">
+                    <h4 className="font-bold text-xs text-blue-600 uppercase tracking-wider">Estado y Cese del Puesto</h4>
+                    
+                    <div className="grid grid-cols-1 gap-4">
+                      <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Estado del Puesto</label>
+                        <select
+                          value={vinculoForm.estado || "Activo"}
+                          onChange={(e) => {
+                            const newStatus = e.target.value;
+                            setVinculoForm({
+                              ...vinculoForm,
+                              estado: newStatus,
+                              fecha_cese: newStatus === "Activo" ? null : (vinculoForm.fecha_cese || new Date().toISOString().split("T")[0]),
+                              motivo_cese: newStatus === "Activo" ? null : (vinculoForm.motivo_cese || "Término de contrato")
+                            });
+                          }}
+                          className="w-full p-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none cursor-pointer"
+                        >
+                          <option value="Activo">Activo</option>
+                          <option value="Inactivo">Inactivo (Cesado)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {vinculoForm.estado === "Inactivo" && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-red-50/30 p-3 rounded-lg border border-red-100/50 animate-fadeIn">
+                        <div>
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1 text-red-700">Fecha de Cese</label>
+                          <input
+                            type="date"
+                            required={vinculoForm.estado === "Inactivo"}
+                            value={vinculoForm.fecha_cese || ""}
+                            onChange={(e) => setVinculoForm({ ...vinculoForm, fecha_cese: e.target.value })}
+                            className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none font-mono bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1 text-red-700">Motivo del Cese</label>
+                          <input
+                            type="text"
+                            required={vinculoForm.estado === "Inactivo"}
+                            value={vinculoForm.motivo_cese || ""}
+                            onChange={(e) => setVinculoForm({ ...vinculoForm, motivo_cese: e.target.value })}
+                            placeholder="Detalle el motivo del cese..."
+                            className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none bg-white"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Campos de Contrato Inicial */}
                 {!editingVinculoId && (

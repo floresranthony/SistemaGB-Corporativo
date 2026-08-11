@@ -23,7 +23,8 @@ import {
   ShieldAlert,
   Eye,
   ArrowLeft,
-  Filter
+  Filter,
+  Copy
 } from "lucide-react";
 
 interface CartItem {
@@ -33,7 +34,7 @@ interface CartItem {
   tallaValor?: string; // variant name (e.g. "M", "S", or "Estándar")
   vinculoLaboralId?: number; // associated worker vínculo
   personaNombre?: string; // worker display name
-  cantidad: number;
+  cantidad: number | string;
   observacion?: string; // item specific notes (marca, color, aroma)
 }
 
@@ -146,12 +147,13 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
   const [selectedProductId, setSelectedProductId] = useState<number | "">("");
   const [selectedVariantId, setSelectedVariantId] = useState<number | "">("");
   const [selectedVinculoId, setSelectedVinculoId] = useState<number | " text-slate-700">("");
-  const [itemQuantity, setItemQuantity] = useState<number>(1);
+  const [itemQuantity, setItemQuantity] = useState<number | string>(1);
   const [itemObservation, setItemObservation] = useState("");
   const [isAssignToPerson, setIsAssignToPerson] = useState(false);
   const [cameFromDetail, setCameFromDetail] = useState(false);
   const [editingDraftId, setEditingDraftId] = useState<number | null>(null);
   const [editingDraftCode, setEditingDraftCode] = useState<string | null>(null);
+  const [replicatedFromCode, setReplicatedFromCode] = useState<string | null>(null);
 
   // --- CUSTOM SYSTEM ALERTS / CONFIRM MODALS ---
   const [systemAlert, setSystemAlert] = useState<{
@@ -196,14 +198,14 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
   // Bulk mode fields
   const [isBulkMode, setIsBulkMode] = useState(false);
   const [bulkProductId, setBulkProductId] = useState<number | "">("");
-  const [bulkQuantity, setBulkQuantity] = useState<number>(1);
+  const [bulkQuantity, setBulkQuantity] = useState<number | string>(1);
   const [bulkObservation, setBulkObservation] = useState("");
   const [bulkWorkers, setBulkWorkers] = useState<any[]>([]);
 
   // Enforce role-based Tab permissions
   useEffect(() => {
     if (!lockTab) {
-      if (role === "rrhh" || role === "almacen") {
+      if (role === "rrhh" || role === "almacen" || role === "reclutador" || role === "reclutamiento") {
         setActiveTab("Uniformes_Almacen");
       }
     }
@@ -396,7 +398,7 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
         `)
         .order("fecha_solicitud", { ascending: false });
 
-      if (role === "supervisor" || role === "rrhh") {
+      if (role === "supervisor" || role === "rrhh" || role === "reclutador" || role === "reclutamiento") {
         query = query.eq("usuario_solicitante_id", user.id);
       }
       
@@ -643,11 +645,50 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
       })));
       setEditingDraftId(req.id);
       setEditingDraftCode(req.codigo);
+      setReplicatedFromCode(null);
       setSelectedReq(null);
       setViewState("create");
     } catch (err: any) {
       console.error("Error loading draft for editing:", err);
       setError(err.message || "No se pudo cargar el borrador para editar.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDuplicateRequisition = async (req: Requerimiento) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const details = await fetchRequestDetails(req.id);
+      setActiveTab(req.tipo_solicitud);
+      setSelectedClienteId(req.sedes?.clientes?.id || "");
+      preserveCartOnSedeChange.current = true;
+      setSelectedSedeId(req.sede_id);
+      setIsExtraordinarySupport(!!req.apoyo_extraordinario);
+      await loadWorkersForSede(req.sede_id);
+
+      setCart(details.map((det: any) => ({
+        id: Math.random().toString(36).substr(2, 9),
+        producto: det.productos,
+        productoTallaId: det.producto_talla_id || undefined,
+        tallaValor: det.producto_tallas?.tallas?.valor || undefined,
+        vinculoLaboralId: det.vinculo_laboral_id || undefined,
+        personaNombre: det.vinculos_laborales?.personas
+          ? `${det.vinculos_laborales.personas.nombres} ${det.vinculos_laborales.personas.apellidos}`
+          : undefined,
+        cantidad: det.cantidad_solicitada,
+        observacion: det.observacion || undefined,
+      })));
+
+      setEditingDraftId(null);
+      setEditingDraftCode(null);
+      setReplicatedFromCode(req.codigo);
+      setSelectedReq(null);
+      setViewState("create");
+    } catch (err: any) {
+      console.error("Error replicating requirement:", err);
+      alert("Error al replicar requerimiento: " + (err.message || err));
     } finally {
       setLoading(false);
     }
@@ -1233,10 +1274,7 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
       workerName = `${workerObj?.personas?.nombres} ${workerObj?.personas?.apellidos}`;
     }
 
-    if (itemQuantity <= 0) {
-      alert("La cantidad debe ser mayor a 0.");
-      return;
-    }
+    const parsedQty = Math.max(1, parseInt(String(itemQuantity)) || 1);
 
     const newItem: CartItem = {
       id: Math.random().toString(36).substr(2, 9),
@@ -1245,7 +1283,7 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
       tallaValor: tallaVal,
       vinculoLaboralId: workerId,
       personaNombre: workerName,
-      cantidad: itemQuantity,
+      cantidad: parsedQty,
       observacion: itemObservation.trim() || undefined
     };
 
@@ -1276,10 +1314,7 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
       return;
     }
 
-    if (bulkQuantity <= 0) {
-      alert("La cantidad debe ser mayor a 0.");
-      return;
-    }
+    const parsedBulkQty = Math.max(1, parseInt(String(bulkQuantity)) || 1);
 
     const newItems: CartItem[] = selectedWorkers.map(w => {
       const variantObj = prod.producto_tallas?.find((pt: any) => pt.id === Number(w.selectedVariantId));
@@ -1290,7 +1325,7 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
         tallaValor: variantObj?.tallas?.valor || "Única",
         vinculoLaboralId: w.vinculoId,
         personaNombre: w.nombreCompleto,
-        cantidad: bulkQuantity,
+        cantidad: parsedBulkQty,
         observacion: bulkObservation.trim() || undefined
       };
     });
@@ -1304,6 +1339,35 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
     setIsBulkMode(false);
   };
 
+  const getUnidadMedida = (prod: any) => {
+    if (!prod) return "Unidad";
+    if (prod.unidades_medida) {
+      if (Array.isArray(prod.unidades_medida)) {
+        return prod.unidades_medida[0]?.nombre || prod.unidades_medida[0]?.codigo || "Unidad";
+      }
+      return prod.unidades_medida?.nombre || prod.unidades_medida?.codigo || "Unidad";
+    }
+    return "Unidad";
+  };
+
+  const handleUpdateCartItemQuantity = (id: string, newQuantity: number | string) => {
+    setCart(prev => prev.map(item => item.id === id ? { ...item, cantidad: newQuantity } : item));
+  };
+
+  const handleUpdateCartItemObservation = (id: string, newObservation: string) => {
+    setCart(prev => prev.map(item => item.id === id ? { ...item, observacion: newObservation } : item));
+  };
+
+  const handleUpdateCartItemAssignment = (id: string, vinculoId: number | null) => {
+    if (!vinculoId) {
+      setCart(prev => prev.map(item => item.id === id ? { ...item, vinculoLaboralId: undefined, personaNombre: undefined } : item));
+    } else {
+      const worker = vinculos.find(v => v.id === vinculoId);
+      const name = worker ? `${worker.personas?.apellidos}, ${worker.personas?.nombres}` : undefined;
+      setCart(prev => prev.map(item => item.id === id ? { ...item, vinculoLaboralId: vinculoId, personaNombre: name } : item));
+    }
+  };
+
   const handleRemoveFromCart = (id: string) => {
     setCart(prev => prev.filter(item => item.id !== id));
   };
@@ -1312,6 +1376,14 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
     if (cart.length === 0) return;
     if (!selectedSedeId) return;
     if (!user) return;
+
+    if (!isDraft) {
+      const inactiveItem = cart.find(item => item.vinculoLaboralId && !vinculos.some(v => v.id === item.vinculoLaboralId));
+      if (inactiveItem) {
+        alert(`El producto "${inactiveItem.producto?.nombre || 'Artículo'}" está asignado a ${inactiveItem.personaNombre || "un colaborador"} que ya no figura activo en esta sede. Por favor, reasígnalo a un colaborador activo o cámbialo a "General" antes de enviar.`);
+        return;
+      }
+    }
 
     setLoading(true);
     setError(null);
@@ -1352,15 +1424,18 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
         reqId = reqHead.id;
       }
 
-      const detailsToInsert = cart.map(item => ({
-        requerimiento_id: reqId,
-        producto_id: item.producto.id,
-        producto_talla_id: item.productoTallaId || null,
-        vinculo_laboral_id: item.vinculoLaboralId || null,
-        cantidad_solicitada: item.cantidad,
-        cantidad_aprobada: item.cantidad,
-        observacion: item.observacion || null
-      }));
+      const detailsToInsert = cart.map(item => {
+        const finalQty = Math.max(1, parseInt(String(item.cantidad)) || 1);
+        return {
+          requerimiento_id: reqId,
+          producto_id: item.producto.id,
+          producto_talla_id: item.productoTallaId || null,
+          vinculo_laboral_id: item.vinculoLaboralId || null,
+          cantidad_solicitada: finalQty,
+          cantidad_aprobada: finalQty,
+          observacion: item.observacion || null
+        };
+      });
 
       const { error: detErr } = await supabase
         .from("requerimiento_detalles")
@@ -2002,6 +2077,14 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
                               </button>
                             )}
                             <button
+                              onClick={() => handleDuplicateRequisition(req)}
+                              className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200 hover:border-blue-300 hover:bg-blue-50 text-slate-700 hover:text-blue-700 font-bold py-1 px-2 rounded text-[11px] transition-all shadow-2xs"
+                              title="Crear un nuevo requerimiento basado en este"
+                            >
+                              <Copy className="w-3 h-3 text-blue-600" />
+                              Replicar
+                            </button>
+                            <button
                               onClick={() => handleOpenDetails(req)}
                               className="inline-flex items-center gap-1 text-slate-600 hover:text-blue-600 font-bold py-1 px-2 hover:underline"
                             >
@@ -2037,6 +2120,7 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
                     {req.estado === "Entregado Incompleto" && req.notas_entrega_incompleta && <p className="text-xs text-purple-700 bg-purple-50 rounded-lg p-2">Pendiente: {req.notas_entrega_incompleta}</p>}
                     <div className="grid grid-cols-2 gap-2">
                       <button onClick={() => handleOpenDetails(req)} className="min-h-11 rounded-lg border border-slate-200 text-xs font-bold text-slate-700">Ver detalle</button>
+                      <button onClick={() => handleDuplicateRequisition(req)} className="min-h-11 rounded-lg border border-blue-200 bg-blue-50/50 text-blue-700 text-xs font-bold flex items-center justify-center gap-1"><Copy className="w-3.5 h-3.5"/>Replicar</button>
                       {canEditDraft && <button onClick={() => handleEditDraft(req)} className="min-h-11 rounded-lg bg-blue-600 text-white text-xs font-bold">Editar borrador</button>}
                       {canSend && <button onClick={() => handleSendRequest(req.id)} className="min-h-11 rounded-lg bg-blue-600 text-white text-xs font-bold">Enviar</button>}
                       {canReceive && <button onClick={() => handleMarkFullyDelivered(req.id)} className="min-h-11 rounded-lg bg-emerald-600 text-white text-xs font-bold">Confirmar recibido</button>}
@@ -2116,6 +2200,16 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
           </div>
 
           <div className="flex items-center gap-2 self-start md:self-auto">
+            {/* Replicar Requerimiento button */}
+            <button
+              onClick={() => handleDuplicateRequisition(selectedReq)}
+              className="inline-flex items-center gap-1.5 border border-slate-300 hover:bg-slate-50 bg-white text-slate-700 font-bold py-2 px-3.5 rounded-lg text-xs shadow-sm transition-colors cursor-pointer"
+              title="Crear un nuevo requerimiento a partir de este"
+            >
+              <Copy className="w-4 h-4 text-blue-600" />
+              Replicar
+            </button>
+
             {/* Vale de Salida direct PDF download button */}
             <button
               onClick={handleDownloadPDF}
@@ -2461,7 +2555,11 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
             </span>
             <h1 className="font-heading text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
               <Plus className="w-8 h-8 text-blue-600" />
-                {editingDraftCode ? `Editar Borrador ${editingDraftCode}` : `Nuevo Requerimiento (${activeTab === "Materiales_y_EPP" ? "Materiales" : "Uniformes y EPP"})`}
+                {editingDraftCode 
+                  ? `Editar Borrador ${editingDraftCode}` 
+                  : replicatedFromCode 
+                  ? `Nuevo Requerimiento (Copia de ${replicatedFromCode})` 
+                  : `Nuevo Requerimiento (${activeTab === "Materiales_y_EPP" ? "Materiales" : "Uniformes y EPP"})`}
             </h1>
           </div>
           <button
@@ -2473,6 +2571,7 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
               setIsExtraordinarySupport(false);
               setEditingDraftId(null);
               setEditingDraftCode(null);
+              setReplicatedFromCode(null);
             }}
             className="inline-flex items-center gap-1.5 text-slate-600 border border-slate-255 bg-white hover:bg-slate-50 px-3.5 py-2 rounded-lg text-xs font-bold transition-all shadow-sm cursor-pointer"
           >
@@ -2480,6 +2579,28 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
             Volver al Listado
           </button>
         </div>
+
+        {replicatedFromCode && (
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 text-blue-900 p-3.5 rounded-xl text-xs flex items-center justify-between shadow-2xs animate-fade-in">
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                <Copy className="w-4 h-4" />
+              </div>
+              <div>
+                <span className="font-bold block">Requerimiento replicado desde {replicatedFromCode}</span>
+                <span className="text-[11px] text-blue-700 font-medium">Se cargaron los materiales y sede. Revisa las cantidades, colaboradores asignados o añade/elimina productos según lo necesario.</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setReplicatedFromCode(null)}
+              className="text-blue-400 hover:text-blue-700 p-1 rounded-lg hover:bg-blue-100/50 transition-colors"
+              title="Ocultar aviso"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           <div className="lg:col-span-5 space-y-6">
@@ -2648,10 +2769,18 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
                       <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Cantidad</label>
                       <input
                         type="number"
-                        required
                         min="1"
                         value={itemQuantity}
-                        onChange={(e) => setItemQuantity(parseInt(e.target.value) || 1)}
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setItemQuantity(val === "" ? "" : (parseInt(val) || ""));
+                        }}
+                        onBlur={() => {
+                          if (itemQuantity === "" || Number(itemQuantity) < 1) {
+                            setItemQuantity(1);
+                          }
+                        }}
                         className="w-full p-2 border border-slate-255 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 font-black text-center"
                       />
                     </div>
@@ -2701,10 +2830,18 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
                       <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Cant. c/u</label>
                       <input
                         type="number"
-                        required
                         min="1"
                         value={bulkQuantity}
-                        onChange={(e) => setBulkQuantity(parseInt(e.target.value) || 1)}
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setBulkQuantity(val === "" ? "" : (parseInt(val) || ""));
+                        }}
+                        onBlur={() => {
+                          if (bulkQuantity === "" || Number(bulkQuantity) < 1) {
+                            setBulkQuantity(1);
+                          }
+                        }}
                         className="w-full p-2 border border-slate-255 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 font-black text-center"
                       />
                     </div>
@@ -2834,26 +2971,108 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
                           <tr key={item.id} className="hover:bg-slate-50/40 transition-colors">
                             <td className="px-4 py-3">
                               <span className="font-bold text-slate-800 block">{item.producto.nombre}</span>
-                              <span className="text-[10px] text-slate-400 font-mono">{item.producto.sku}</span>
-                            </td>
-                            <td className="px-4 py-3 text-slate-600 font-medium">
-                              {item.personaNombre ? (
-                                <span className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded text-slate-700 font-medium">
-                                  <User className="w-3 h-3 text-slate-400" />
-                                  {item.personaNombre}
+                              <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                                {item.producto.sku && (
+                                  <span className="text-[10px] text-slate-400 font-mono bg-slate-100/80 px-1.5 py-0.5 rounded">
+                                    {item.producto.sku}
+                                  </span>
+                                )}
+                                <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded uppercase border border-blue-100">
+                                  U.M.: {getUnidadMedida(item.producto)}
                                 </span>
-                              ) : (
-                                <span className="text-slate-400 font-medium italic">General</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              {item.vinculoLaboralId && !vinculos.some(v => v.id === item.vinculoLaboralId) && (
+                                <div className="mb-1 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded flex items-center gap-1 w-fit">
+                                  <AlertCircle className="w-3 h-3 text-amber-500 shrink-0" />
+                                  <span>Inactivo / Cesado</span>
+                                </div>
                               )}
+                              <select
+                                value={item.vinculoLaboralId || ""}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  handleUpdateCartItemAssignment(item.id, val ? Number(val) : null);
+                                }}
+                                className={`w-full max-w-[190px] text-xs p-1.5 border rounded-lg font-medium focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white ${
+                                  item.vinculoLaboralId && !vinculos.some(v => v.id === item.vinculoLaboralId)
+                                    ? "border-amber-300 bg-amber-50/60 text-amber-900 font-bold"
+                                    : item.vinculoLaboralId
+                                    ? "border-slate-250 text-slate-800 font-semibold"
+                                    : "border-slate-200 text-slate-400 italic"
+                                }`}
+                                title="Cambiar colaborador asignado o pasar a General"
+                              >
+                                <option value="">General (Insumo Sede)</option>
+                                {item.vinculoLaboralId && !vinculos.some(v => v.id === item.vinculoLaboralId) && item.personaNombre && (
+                                  <option value={item.vinculoLaboralId} disabled>
+                                    ⚠️ {item.personaNombre} (Cesado)
+                                  </option>
+                                )}
+                                {vinculos.map(v => (
+                                  <option key={v.id} value={v.id}>
+                                    👤 {v.personas?.apellidos}, {v.personas?.nombres}
+                                  </option>
+                                ))}
+                              </select>
                             </td>
                             <td className="px-4 py-3 text-center font-bold text-slate-700">
                               {item.tallaValor || "—"}
                             </td>
-                            <td className="px-4 py-3 text-center font-black text-slate-800 text-sm">
-                              {item.cantidad}
+                            <td className="px-4 py-3 text-center">
+                              <div className="inline-flex items-center border border-slate-250 rounded-lg bg-white shadow-xs overflow-hidden">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const curr = Math.max(1, parseInt(String(item.cantidad)) || 1);
+                                    handleUpdateCartItemQuantity(item.id, Math.max(1, curr - 1));
+                                  }}
+                                  disabled={Number(item.cantidad) <= 1}
+                                  className="w-7 h-7 flex items-center justify-center text-slate-500 hover:text-blue-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-slate-500 transition-colors text-sm font-black select-none"
+                                  title="Disminuir cantidad"
+                                >
+                                  −
+                                </button>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  value={item.cantidad}
+                                  onFocus={(e) => e.target.select()}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    handleUpdateCartItemQuantity(item.id, val === "" ? "" : (parseInt(val) || ""));
+                                  }}
+                                  onBlur={() => {
+                                    if (item.cantidad === "" || Number(item.cantidad) < 1) {
+                                      handleUpdateCartItemQuantity(item.id, 1);
+                                    }
+                                  }}
+                                  className="w-11 text-center font-black text-slate-850 text-xs py-1 border-x border-slate-200 focus:outline-none focus:bg-blue-50/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                  title="Editar cantidad directamente"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const curr = Math.max(0, parseInt(String(item.cantidad)) || 0);
+                                    handleUpdateCartItemQuantity(item.id, curr + 1);
+                                  }}
+                                  className="w-7 h-7 flex items-center justify-center text-slate-500 hover:text-blue-600 hover:bg-slate-100 transition-colors text-sm font-black select-none"
+                                  title="Aumentar cantidad"
+                                >
+                                  +
+                                </button>
+                              </div>
                             </td>
-                            <td className="px-4 py-3 text-slate-600 italic max-w-[120px] truncate">
-                              {item.observacion || <span className="text-slate-350">—</span>}
+                            <td className="px-4 py-3 text-slate-600">
+                              <input
+                                type="text"
+                                placeholder="Marca, color, aroma..."
+                                value={item.observacion || ""}
+                                onChange={(e) => handleUpdateCartItemObservation(item.id, e.target.value)}
+                                className="w-full text-xs px-2 py-1 border border-slate-200 hover:border-slate-300 focus:border-blue-400 rounded-md bg-slate-50/50 focus:bg-white focus:outline-none transition-all placeholder:text-slate-350"
+                                title="Haz clic para modificar la observación si es necesario"
+                              />
                             </td>
                             <td className="px-4 py-3 text-center">
                               <button

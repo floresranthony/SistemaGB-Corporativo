@@ -77,6 +77,17 @@ export function Sidebar({
             return item.path === "/rrhh/tareo" || item.path === "/rrhh/fichas" || item.path === "/rrhh/vacaciones";
           }
 
+          // Reclutamiento / Reclutador permissions
+          if (currentRole === "reclutador" || currentRole === "reclutamiento") {
+            if (group.name === "Dashboards") return false;
+            if (group.name === "Recursos Humanos" && item.path !== "/rrhh/pizarra" && item.path !== "/rrhh/fichas" && item.path !== "/rrhh/vacaciones") return false;
+            if (group.name === "Almacén") return false;
+            if (group.name === "Reportes") return false;
+            if (group.name === "Configuración") return false;
+            if (group.name === "Requerimientos" && item.path !== "/requerimientos/uniformes") return false;
+            return true;
+          }
+
           return true;
         });
 
