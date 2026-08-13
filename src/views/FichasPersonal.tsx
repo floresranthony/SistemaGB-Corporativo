@@ -308,6 +308,7 @@ export function FichasPersonal() {
             regimen_laboral_id,
             sueldo_basico,
             bono,
+            bono_secundario,
             asignacion_familiar,
             vencimiento_asignacion_familiar,
             tipo_trabajador_id,
@@ -399,6 +400,8 @@ export function FichasPersonal() {
       tipo_trabajador_id: tiposTrab[0]?.id || "",
       regimen_laboral_id: regimenes[0]?.id || "",
       sueldo_basico: 1130.00,
+      bono: 0.00,
+      bono_secundario: 0.00,
       lugar_especifico_trabajo: "",
       asignacion_familiar: false,
       contrato_modalidad_id: modalidades[0]?.id || "",
@@ -455,6 +458,7 @@ export function FichasPersonal() {
       "regimen_laboral_id",
       "sueldo_basico",
       "bono",
+      "bono_secundario",
       "lugar_especifico_trabajo",
       "asignacion_familiar",
       "vencimiento_asignacion_familiar",
@@ -493,6 +497,7 @@ export function FichasPersonal() {
             regimen_laboral_id: parseInt(personaForm.regimen_laboral_id),
             sueldo_basico: parseFloat(personaForm.sueldo_basico) || 1130.00,
             bono: parseFloat(personaForm.bono) || 0.00,
+            bono_secundario: parseFloat(personaForm.bono_secundario) || 0.00,
             lugar_especifico_trabajo: personaForm.lugar_especifico_trabajo || "",
             asignacion_familiar: !!personaForm.asignacion_familiar,
             vencimiento_asignacion_familiar: personaForm.asignacion_familiar ? (personaForm.vencimiento_asignacion_familiar || null) : null,
@@ -636,7 +641,7 @@ export function FichasPersonal() {
       "fecha_ultimo_emo", "talla_polo", "talla_pantalon", "talla_calzado",
       "fecha_ingreso", "fecha_primer_contrato",
       "empresa_interna_ruc", "cliente_nombre", "sede_nombre", "cargo_nombre", "tipo_trabajador_nombre",
-      "lugar_especifico_trabajo", "regimen_laboral_nombre", "asignacion_familiar", "vencimiento_asignacion_familiar", "sueldo_basico", "bono",
+      "lugar_especifico_trabajo", "regimen_laboral_nombre", "asignacion_familiar", "vencimiento_asignacion_familiar", "sueldo_basico", "bono", "bono_secundario",
       "modalidad_contrato_nombre", "contrato_fecha_inicio", "contrato_fecha_fin"
     ];
 
@@ -647,7 +652,7 @@ export function FichasPersonal() {
       "15-02-2026", "M", "32", "41",
       "01-06-2026", "30-05-2026",
       "20601234567", "BCP", "Sede Central San Isidro", "Operario", "Obrero",
-      "Almacén Central", "Régimen General", "SI", "18-12-2035", "1200.00", "150.00",
+      "Almacén Central", "Régimen General", "SI", "18-12-2035", "1200.00", "150.00", "50.00",
       "Plazo Fijo", "01-06-2026", "30-11-2026"
     ];
 
@@ -658,7 +663,7 @@ export function FichasPersonal() {
       "", "", "S", "",
       "", "",
       "20609876543", "Minera Las Bambas", "Sede Mina Apurímac", "Supervisor", "Empleado",
-      "Operaciones Apurímac", "Régimen General", "NO", "", "2500.00", "0.00",
+      "Operaciones Apurímac", "Régimen General", "NO", "", "2500.00", "0.00", "0.00",
       "Plazo Fijo", "15-06-2026", ""
     ];
 
@@ -917,7 +922,13 @@ export function FichasPersonal() {
           const bonoStr = rowData.bono !== undefined && rowData.bono !== null ? String(rowData.bono).trim() : "";
           const bonoNum = parseFloat(bonoStr) || 0.00;
           if (!isUpdateOnly && bonoStr && (isNaN(bonoNum) || bonoNum < 0)) {
-            errors.push("Bono debe ser un número positivo");
+            errors.push("Bono 1 debe ser un número positivo");
+          }
+
+          const bonoSecStr = rowData.bono_secundario !== undefined && rowData.bono_secundario !== null ? String(rowData.bono_secundario).trim() : "";
+          const bonoSecNum = parseFloat(bonoSecStr) || 0.00;
+          if (!isUpdateOnly && bonoSecStr && (isNaN(bonoSecNum) || bonoSecNum < 0)) {
+            errors.push("Bono 2 debe ser un número positivo");
           }
 
           const asigFamStr = String(rowData.asignacion_familiar || "").trim().toUpperCase();
@@ -1003,6 +1014,7 @@ export function FichasPersonal() {
             if (rowData.lugar_especifico_trabajo) vinculoPayload.lugar_especifico_trabajo = String(rowData.lugar_especifico_trabajo).trim();
             if (rowData.sueldo_basico) vinculoPayload.sueldo_basico = sueldoNum;
             if (rowData.bono !== undefined && rowData.bono !== null) vinculoPayload.bono = bonoNum;
+            if (rowData.bono_secundario !== undefined && rowData.bono_secundario !== null) vinculoPayload.bono_secundario = bonoSecNum;
             if (rowData.asignacion_familiar) vinculoPayload.asignacion_familiar = asigFam;
             vinculoPayload.vencimiento_asignacion_familiar = asigFam ? (parsedVencimientoAsigFam || null) : null;
             vinculoPayload.fecha_ingreso = importFechaIngreso;
@@ -1369,6 +1381,7 @@ export function FichasPersonal() {
       regimen_laboral_id: regimenes[0]?.id || "",
       sueldo_basico: 1130.00,
       bono: 0.00,
+      bono_secundario: 0.00,
       asignacion_familiar: false,
       vencimiento_asignacion_familiar: "",
       fecha_ingreso: "",
@@ -1398,6 +1411,7 @@ export function FichasPersonal() {
       regimen_laboral_id: v.regimen_laboral_id,
       sueldo_basico: v.sueldo_basico,
       bono: v.bono || 0.00,
+      bono_secundario: v.bono_secundario || 0.00,
       lugar_especifico_trabajo: v.lugar_especifico_trabajo || "",
       fecha_ingreso: v.fecha_ingreso || "",
       fecha_primer_contrato: v.fecha_primer_contrato || "",
@@ -1442,7 +1456,14 @@ export function FichasPersonal() {
       delete vinculoPayload.contrato_fecha_fin;
       delete vinculoPayload.cliente_id;
       vinculoPayload.bono = parseFloat(vinculoPayload.bono) || 0.00;
+      vinculoPayload.bono_secundario = parseFloat(vinculoPayload.bono_secundario) || 0.00;
       vinculoPayload.vencimiento_asignacion_familiar = vinculoPayload.asignacion_familiar ? (vinculoPayload.vencimiento_asignacion_familiar || null) : null;
+      
+      // Corregir valores de fecha vacíos para evitar errores de sintaxis en Postgres
+      vinculoPayload.fecha_cese = vinculoPayload.estado === "Activo" ? null : (vinculoPayload.fecha_cese || null);
+      vinculoPayload.motivo_cese = vinculoPayload.estado === "Activo" ? null : (vinculoPayload.motivo_cese || null);
+      vinculoPayload.fecha_ingreso = vinculoPayload.fecha_ingreso || null;
+      vinculoPayload.fecha_primer_contrato = vinculoPayload.fecha_primer_contrato || null;
 
       if (editingVinculoId) {
         const { error: dbError } = await supabase
@@ -1957,7 +1978,7 @@ export function FichasPersonal() {
     const headers = [
       "Tipo Documento", "Número Documento", "Apellidos", "Nombres", "Sexo",
       "Empresa Planilla", "Cliente", "Sede Operativa", "Cargo", "Régimen Laboral",
-      "Sueldo Básico", "Bono", "Asignación Familiar", "Venc. Asig. Familiar", "F. Ingreso",
+      "Sueldo Básico", "Bono 1", "Bono 2", "Asignación Familiar", "Venc. Asig. Familiar", "F. Ingreso",
       "Inicio Contrato", "Fin Contrato", "Estado Contrato",
       "Régimen Pensionario", "CUSSP", "Banco Sueldo", "Cuenta Sueldo",
       "Banco CTS", "Cuenta CTS",
@@ -2003,6 +2024,7 @@ export function FichasPersonal() {
         v?.regimenes_laborales?.nombre || "-",
         v ? (v.sueldo_basico !== undefined && v.sueldo_basico !== null ? parseFloat(v.sueldo_basico) : 0) : "-",
         v ? (v.bono !== undefined && v.bono !== null ? parseFloat(v.bono) : 0) : "-",
+        v ? (v.bono_secundario !== undefined && v.bono_secundario !== null ? parseFloat(v.bono_secundario) : 0) : "-",
         v ? (v.asignacion_familiar ? "Sí" : "No") : "-",
         v ? (v.vencimiento_asignacion_familiar ? v.vencimiento_asignacion_familiar.split("-").reverse().join("-") : "-") : "-",
         fIng ? fIng.split("-").reverse().join("-") : "-",
@@ -3798,7 +3820,7 @@ export function FichasPersonal() {
                   </div>
 
                   <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Bono (S/.)</label>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Bono 1 (S/.)</label>
                     <input
                       type="number"
                       step="0.01"
@@ -3806,6 +3828,20 @@ export function FichasPersonal() {
                       onChange={(e) => {
                         const val = e.target.value;
                         setPersonaForm({ ...personaForm, bono: val === "" ? "" : parseFloat(val) || 0 });
+                      }}
+                      className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none font-semibold text-indigo-700"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Bono 2 (S/.)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={personaForm.bono_secundario || ""}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setPersonaForm({ ...personaForm, bono_secundario: val === "" ? "" : parseFloat(val) || 0 });
                       }}
                       className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none font-semibold text-indigo-700"
                     />
@@ -4093,8 +4129,14 @@ export function FichasPersonal() {
                             </div>
                             {v.bono > 0 && (
                               <div className="text-[10px] text-emerald-750 font-bold flex items-center">
-                                <span className="font-semibold text-slate-400 mr-0.5">Bono: S/</span>
+                                <span className="font-semibold text-slate-400 mr-0.5">Bono 1: S/</span>
                                 {parseFloat(v.bono).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
+                              </div>
+                            )}
+                            {v.bono_secundario > 0 && (
+                              <div className="text-[10px] text-emerald-750 font-bold flex items-center mt-0.5">
+                                <span className="font-semibold text-slate-400 mr-0.5">Bono 2: S/</span>
+                                {parseFloat(v.bono_secundario).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
                               </div>
                             )}
                           </div>
@@ -4420,7 +4462,7 @@ export function FichasPersonal() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div>
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Sueldo Básico (S/.)</label>
                     <input
@@ -4434,7 +4476,7 @@ export function FichasPersonal() {
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Bono (S/.)</label>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Bono 1 (S/.)</label>
                     <input
                       type="number"
                       step="0.01"
@@ -4443,6 +4485,20 @@ export function FichasPersonal() {
                       onChange={(e) => {
                         const val = e.target.value;
                         setVinculoForm({ ...vinculoForm, bono: val === "" ? "" : parseFloat(val) || 0 });
+                      }}
+                      className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none font-semibold text-indigo-750"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Bono 2 (S/.)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min={0}
+                      value={vinculoForm.bono_secundario || ""}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setVinculoForm({ ...vinculoForm, bono_secundario: val === "" ? "" : parseFloat(val) || 0 });
                       }}
                       className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none font-semibold text-indigo-750"
                     />

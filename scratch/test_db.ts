@@ -14,26 +14,20 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 async function checkTables() {
   try {
-    const { data: roles, error: rolesError } = await supabase
-      .from("roles")
+    const { data, error } = await supabase
+      .from("vinculos_laborales")
       .select("*")
-      .limit(5);
+      .limit(1);
 
-    if (rolesError) {
-      console.error("Error reading roles table:", rolesError);
+    if (error) {
+      console.error("Error reading vinculos_laborales table:", error);
     } else {
-      console.log("Roles table works. Sample roles:", roles);
-    }
-
-    const { data: usuarios, error: usersError } = await supabase
-      .from("usuarios")
-      .select("*")
-      .limit(5);
-
-    if (usersError) {
-      console.error("Error reading usuarios table:", usersError);
-    } else {
-      console.log("Usuarios table works. Sample usuarios:", usuarios);
+      console.log("vinculos_laborales table sample row:", data);
+      if (data && data.length > 0) {
+        console.log("Columns:", Object.keys(data[0]));
+      } else {
+        console.log("No rows in vinculos_laborales to inspect columns.");
+      }
     }
   } catch (err) {
     console.error("Unexpected error:", err);
