@@ -30,6 +30,7 @@ import {
   Table,
   AlertCircle
 } from "lucide-react";
+import { SearchableMultiSelect } from "../components/SearchableMultiSelect";
 
 type FormViewMode = "list" | "form" | "view" | "import";
 
@@ -43,11 +44,11 @@ export function FichasPersonal() {
   const [searchQuery, setSearchQuery] = useState("");
 
   // Filters state
-  const [filterSede, setFilterSede] = useState("");
-  const [filterEmpresa, setFilterEmpresa] = useState("");
+  const [filterSede, setFilterSede] = useState<string[]>([]);
+  const [filterEmpresa, setFilterEmpresa] = useState<string[]>([]);
   const [filterFechaDesde, setFilterFechaDesde] = useState("");
   const [filterFechaHasta, setFilterFechaHasta] = useState("");
-  const [filterCliente, setFilterCliente] = useState("");
+  const [filterCliente, setFilterCliente] = useState<string[]>([]);
   const [filterVacacionesAlerta, setFilterVacacionesAlerta] = useState("");
   const [filterInconsistencia, setFilterInconsistencia] = useState(false);
 
@@ -198,6 +199,27 @@ export function FichasPersonal() {
   useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery, filterSede, filterEmpresa, filterFechaDesde, filterFechaHasta, filterEstadoContrato, filterFechaVencimiento, filterTab, filterCliente, filterVacacionesAlerta, filterInconsistencia, filterCuentaSueldo]);
+
+  // Reactively prune selected clients/sedes when their parent filters change
+  useEffect(() => {
+    if (filterEmpresa.length > 0) {
+      setFilterCliente(prev => prev.filter(clientId => 
+        sedes.some(s => String(s.cliente_id) === clientId && s.clientes && filterEmpresa.includes(String(s.clientes.empresa_interna_id)))
+      ));
+    }
+  }, [filterEmpresa, sedes]);
+
+  useEffect(() => {
+    if (filterCliente.length > 0) {
+      setFilterSede(prev => prev.filter(sedeId => 
+        sedes.some(s => String(s.id) === sedeId && filterCliente.includes(String(s.cliente_id)))
+      ));
+    } else if (filterEmpresa.length > 0) {
+      setFilterSede(prev => prev.filter(sedeId => 
+        sedes.some(s => String(s.id) === sedeId && s.clientes && filterEmpresa.includes(String(s.clientes.empresa_interna_id)))
+      ));
+    }
+  }, [filterCliente, filterEmpresa, sedes]);
 
   // Contract history modal per collaborator
   const [isContractHistoryModalOpen, setIsContractHistoryModalOpen] = useState(false);
@@ -1706,7 +1728,7 @@ export function FichasPersonal() {
     const map = new Map<number, string>();
     sedes.forEach(s => {
       if (s.clientes) {
-        if (!filterEmpresa || String(s.clientes.empresa_interna_id) === filterEmpresa) {
+        if (filterEmpresa.length === 0 || filterEmpresa.includes(String(s.clientes.empresa_interna_id))) {
           map.set(s.clientes.id, s.clientes.razon_social);
         }
       }
@@ -1716,10 +1738,10 @@ export function FichasPersonal() {
 
   const filteredSedesForDropdown = React.useMemo(() => {
     return sedes.filter(s => {
-      if (filterEmpresa && s.clientes && String(s.clientes.empresa_interna_id) !== filterEmpresa) {
+      if (filterEmpresa.length > 0 && s.clientes && !filterEmpresa.includes(String(s.clientes.empresa_interna_id))) {
         return false;
       }
-      if (filterCliente && String(s.cliente_id) !== filterCliente) {
+      if (filterCliente.length > 0 && !filterCliente.includes(String(s.cliente_id))) {
         return false;
       }
       return true;
@@ -1848,13 +1870,13 @@ export function FichasPersonal() {
     }
 
     // 3. Sede filter
-    if (filterSede) {
-      if (!v || String(v.sede_id) !== filterSede) return false;
+    if (filterSede.length > 0) {
+      if (!v || !filterSede.includes(String(v.sede_id))) return false;
     }
 
     // 4. Empresa filter
-    if (filterEmpresa) {
-      if (!v || String(v.empresa_interna_id) !== filterEmpresa) return false;
+    if (filterEmpresa.length > 0) {
+      if (!v || !filterEmpresa.includes(String(v.empresa_interna_id))) return false;
     }
 
     // 5. Date ranges
@@ -1914,8 +1936,8 @@ export function FichasPersonal() {
       }
     }
 
-    if (filterCliente) {
-      if (!v || !v.sedes || String(v.sedes.cliente_id) !== filterCliente) return false;
+    if (filterCliente.length > 0) {
+      if (!v || !v.sedes || !filterCliente.includes(String(v.sedes.cliente_id))) return false;
     }
 
     if (filterVacacionesAlerta) {
@@ -1976,7 +1998,7 @@ export function FichasPersonal() {
   // New Export function for Excel
   const exportPersonasToExcel = () => {
     const headers = [
-      "Tipo Documento", "Número Documento", "Apellidos", "Nombres", "Sexo",
+      "Tipo Documento", "Número Documento", "Apellidos", "Nombres", "Sexo", "Fecha de Nacimiento",
       "Empresa Planilla", "Cliente", "Sede Operativa", "Cargo", "Régimen Laboral",
       "Sueldo Básico", "Bono 1", "Bono 2", "Asignación Familiar", "Venc. Asig. Familiar", "F. Ingreso",
       "Inicio Contrato", "Fin Contrato", "Estado Contrato",
@@ -2017,6 +2039,7 @@ export function FichasPersonal() {
         p.apellidos,
         p.nombres,
         p.sexo,
+        p.fecha_nacimiento ? p.fecha_nacimiento.split("-").reverse().join("-") : "-",
         v?.empresas_internas?.razon_social || "Sin Puesto Activo",
         v?.sedes?.clientes?.razon_social || "-",
         v?.sedes?.nombre || "-",
@@ -2409,16 +2432,16 @@ export function FichasPersonal() {
                     <FileDown className="w-4 h-4" />
                     Exportar Excel
                   </button>
-                  {(filterSede || filterEmpresa || filterFechaDesde || filterFechaHasta || filterEstadoContrato || filterFechaVencimiento || filterCliente || filterVacacionesAlerta || filterInconsistencia || filterCuentaSueldo) && (
+                  {(filterSede.length > 0 || filterEmpresa.length > 0 || filterFechaDesde || filterFechaHasta || filterEstadoContrato || filterFechaVencimiento || filterCliente.length > 0 || filterVacacionesAlerta || filterInconsistencia || filterCuentaSueldo) && (
                     <button
                       onClick={() => {
-                        setFilterSede("");
-                        setFilterEmpresa("");
+                        setFilterSede([]);
+                        setFilterEmpresa([]);
                         setFilterFechaDesde("");
                         setFilterFechaHasta("");
                         setFilterEstadoContrato("");
                         setFilterFechaVencimiento("");
-                        setFilterCliente("");
+                        setFilterCliente([]);
                         setFilterVacacionesAlerta("");
                         setFilterInconsistencia(false);
                         setFilterCuentaSueldo("");
@@ -2435,68 +2458,40 @@ export function FichasPersonal() {
                 {/* Empresa Select */}
                 <div>
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Filtrar por Empresa</label>
-                  <select
+                  <SearchableMultiSelect
                     value={filterEmpresa}
-                    onChange={(e) => {
-                      const nextEmp = e.target.value;
-                      setFilterEmpresa(nextEmp);
-                      if (nextEmp) {
-                        const belongs = sedes.some(s => s.clientes && String(s.clientes.id) === filterCliente && String(s.clientes.empresa_interna_id) === nextEmp);
-                        if (!belongs) {
-                          setFilterCliente("");
-                        }
-                        const SedeBelongs = sedes.some(s => String(s.id) === filterSede && s.clientes && String(s.clientes.empresa_interna_id) === nextEmp);
-                        if (!SedeBelongs) {
-                          setFilterSede("");
-                        }
-                      }
-                    }}
-                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none text-slate-600 cursor-pointer"
-                  >
-                    <option value="">Todas las Empresas</option>
-                    {empresas.map(e => (
-                      <option key={e.id} value={e.id}>{e.razon_social}</option>
-                    ))}
-                  </select>
+                    options={empresas.map(e => ({ value: String(e.id), label: e.razon_social }))}
+                    onChange={setFilterEmpresa}
+                    placeholder="Todas las Empresas"
+                    allLabel="Todas las Empresas"
+                    compact={true}
+                  />
                 </div>
 
                 {/* Cliente Select */}
                 <div>
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Filtrar por Cliente</label>
-                  <select
+                  <SearchableMultiSelect
                     value={filterCliente}
-                    onChange={(e) => {
-                      const nextCli = e.target.value;
-                      setFilterCliente(nextCli);
-                      if (nextCli) {
-                        const belongs = sedes.some(s => String(s.id) === filterSede && String(s.cliente_id) === nextCli);
-                        if (!belongs) {
-                          setFilterSede("");
-                        }
-                      }
-                    }}
-                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none text-slate-600 cursor-pointer"
-                  >
-                    <option value="">Todos los Clientes</option>
-                    {uniqueClientes.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
+                    options={uniqueClientes.map(c => ({ value: String(c.id), label: c.name }))}
+                    onChange={setFilterCliente}
+                    placeholder="Todos los Clientes"
+                    allLabel="Todos los Clientes"
+                    compact={true}
+                  />
                 </div>
 
                 {/* Sede Select */}
                 <div>
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Filtrar por Sede</label>
-                  <select
+                  <SearchableMultiSelect
                     value={filterSede}
-                    onChange={(e) => setFilterSede(e.target.value)}
-                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none text-slate-600 cursor-pointer"
-                  >
-                    <option value="">Todas las Sedes</option>
-                    {filteredSedesForDropdown.map(s => (
-                      <option key={s.id} value={s.id}>{s.nombre}</option>
-                    ))}
-                  </select>
+                    options={filteredSedesForDropdown.map(s => ({ value: String(s.id), label: s.nombre }))}
+                    onChange={setFilterSede}
+                    placeholder="Todas las Sedes"
+                    allLabel="Todas las Sedes"
+                    compact={true}
+                  />
                 </div>
 
                 {/* Estado Contrato Select */}
