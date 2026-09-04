@@ -1347,6 +1347,100 @@ export function ControlVacaciones() {
     }
   };
 
+  // Export filtered vacations to Excel
+  const exportFilteredVacationsToExcel = () => {
+    if (filteredRows.length === 0) {
+      alert("No hay registros que coincidan con los filtros seleccionados para descargar.");
+      return;
+    }
+
+    const rows = filteredRows.map((row, index) => {
+      const p = row.persona;
+      const v = row.vinculo;
+      const m = row.metrics;
+
+      const estadoAlerta = 
+        m.status === "critico" 
+          ? "CRÍTICO (2+ Periodos)" 
+          : m.status === "proximo" 
+            ? "PRÓXIMO A LÍMITE" 
+            : "ÓPTIMO";
+
+      return {
+        "N°": index + 1,
+        "DNI": p.numero_documento || "-",
+        "Apellidos": p.apellidos || "",
+        "Nombres": p.nombres || "",
+        "Colaborador": `${p.apellidos || ""}, ${p.nombres || ""}`.trim(),
+        "Empresa Facturadora": v.empresas_internas?.razon_social || "Grupo Bax",
+        "Cliente": v.sedes?.clientes?.razon_social || "Sin Cliente",
+        "Sede / Unidad": v.sedes?.nombre || "Sin Sede",
+        "Cargo / Puesto": v.cargos?.nombre || "Sin Puesto",
+        "Fecha de Ingreso": formatDMY(m.startDateStr),
+        "Régimen Laboral": v.regimenes_laborales?.nombre || "Régimen General",
+        "Días Vacaciones / Año": m.daysPerYear || 30,
+        "Años de Servicio": m.years,
+        "Días Ganados": m.earned,
+        "Días Gozados": m.taken,
+        "Días Pendientes (Saldo)": m.balance,
+        "Periodos Acumulados": m.periodos,
+        "Alerta Legal": estadoAlerta,
+        "Estado Laboral": v.estado || "Activo",
+        "Fecha de Cese": v.estado === "Inactivo" && v.fecha_cese ? formatDMY(v.fecha_cese) : "-"
+      };
+    });
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(rows);
+
+    // Auto-fit column widths
+    ws["!cols"] = [
+      { wch: 6 },  // N°
+      { wch: 13 }, // DNI
+      { wch: 22 }, // Apellidos
+      { wch: 22 }, // Nombres
+      { wch: 35 }, // Colaborador
+      { wch: 28 }, // Empresa Facturadora
+      { wch: 28 }, // Cliente
+      { wch: 28 }, // Sede / Unidad
+      { wch: 28 }, // Cargo / Puesto
+      { wch: 16 }, // Fecha de Ingreso
+      { wch: 20 }, // Régimen Laboral
+      { wch: 22 }, // Días Vacaciones / Año
+      { wch: 16 }, // Años de Servicio
+      { wch: 14 }, // Días Ganados
+      { wch: 14 }, // Días Gozados
+      { wch: 22 }, // Días Pendientes (Saldo)
+      { wch: 20 }, // Periodos Acumulados
+      { wch: 24 }, // Alerta Legal
+      { wch: 15 }, // Estado Laboral
+      { wch: 15 }  // Fecha de Cese
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, "Control de Vacaciones");
+
+    const dateStr = new Date().toISOString().split("T")[0];
+    let filterTag = "";
+    if (filterStatus !== "todos") {
+      filterTag += `_${filterStatus}`;
+    }
+    if (filterSede !== "todas") {
+      const sedeObj = sedes.find(s => String(s.id) === filterSede);
+      if (sedeObj) {
+        filterTag += `_${sedeObj.nombre.replace(/[^a-zA-Z0-9]/g, "_")}`;
+      }
+    }
+    if (filterEmpresa !== "todas") {
+      const empObj = empresas.find(e => String(e.id) === filterEmpresa);
+      if (empObj) {
+        filterTag += `_${empObj.razon_social.replace(/[^a-zA-Z0-9]/g, "_")}`;
+      }
+    }
+    const fileName = `control_vacaciones${filterTag}_${dateStr}.xlsx`;
+
+    XLSX.writeFile(wb, fileName);
+  };
+
   const handlePrintRequest = () => {
     setPrintingRequest(true);
     setTimeout(() => {
@@ -1374,13 +1468,24 @@ export function ControlVacaciones() {
           </p>
         </div>
         
-        <div className="flex items-center gap-2 self-start md:self-auto">
+        <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+          {/* Download Filtered Data Button */}
+          <button
+            onClick={exportFilteredVacationsToExcel}
+            disabled={loading || filteredRows.length === 0}
+            className="inline-flex items-center gap-1.5 bg-emerald-600 border border-emerald-700 text-white px-3.5 py-2 rounded-lg text-xs font-semibold hover:bg-emerald-700 active:scale-95 transition-all cursor-pointer shadow-md shadow-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Descargar datos del personal filtrado en formato Excel (.xlsx)"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Descargar Data ({filteredRows.length})
+          </button>
+
           {(localStorage.getItem("bax_role") || "admin") === "admin" && (
             <button
               onClick={() => setIsImportModalOpen(true)}
-              className="inline-flex items-center gap-1.5 bg-emerald-600 border border-emerald-700 text-white px-3.5 py-2 rounded-lg text-xs font-semibold hover:bg-emerald-700 active:scale-95 transition-all cursor-pointer shadow-md shadow-emerald-100"
+              className="inline-flex items-center gap-1.5 bg-slate-100 border border-slate-200 text-slate-700 px-3.5 py-2 rounded-lg text-xs font-semibold hover:bg-slate-200 active:scale-95 transition-all cursor-pointer"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <FileSpreadsheet className="w-3.5 h-3.5 text-slate-500" />
               Carga Masiva
             </button>
           )}
@@ -1400,35 +1505,61 @@ export function ControlVacaciones() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 print:hidden">
         
         {/* KPI 1 */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center space-x-4">
+        <div 
+          onClick={() => {
+            setFilterStatus("todos");
+            setFilterVinculoEstado("Activo");
+          }}
+          className={`bg-white p-5 rounded-2xl border transition-all cursor-pointer hover:shadow-md hover:border-emerald-200 flex items-center space-x-4 ${
+            filterStatus === "todos" && filterVinculoEstado === "Activo" ? "border-emerald-500 ring-2 ring-emerald-100 shadow-sm" : "border-slate-100 shadow-sm"
+          }`}
+          title="Click para ver todos los activos"
+        >
           <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
             <User className="w-6 h-6" />
           </div>
           <div>
-            <span className="text-[10px] font-bold text-slate-455 uppercase tracking-wider block">Monitoreados Activos</span>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Monitoreados Activos</span>
             <span className="text-2xl font-black text-slate-800">{stats.total}</span>
           </div>
         </div>
 
-        {/* / */}
         {/* KPI 2 */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center space-x-4">
-          <div className="p-3 bg-red-50 text-red-655 text-red-600 rounded-xl">
+        <div 
+          onClick={() => {
+            setFilterStatus(filterStatus === "critico" ? "todos" : "critico");
+            setFilterVinculoEstado("Activo");
+          }}
+          className={`bg-white p-5 rounded-2xl border transition-all cursor-pointer hover:shadow-md hover:border-red-200 flex items-center space-x-4 ${
+            filterStatus === "critico" ? "border-red-500 ring-2 ring-red-100 shadow-sm" : "border-slate-100 shadow-sm"
+          }`}
+          title="Click para filtrar únicamente personal en estado crítico"
+        >
+          <div className="p-3 bg-red-50 text-red-600 rounded-xl">
             <AlertCircle className="w-6 h-6 text-red-600 animate-pulse" />
           </div>
           <div>
-            <span className="text-[10px] font-bold text-slate-455 uppercase tracking-wider block">Estado Crítico (2+ Per.)</span>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Estado Crítico (2+ Per.)</span>
             <span className="text-2xl font-black text-red-600">{stats.criticos}</span>
           </div>
         </div>
 
         {/* KPI 3 */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center space-x-4">
+        <div 
+          onClick={() => {
+            setFilterStatus(filterStatus === "proximo" ? "todos" : "proximo");
+            setFilterVinculoEstado("Activo");
+          }}
+          className={`bg-white p-5 rounded-2xl border transition-all cursor-pointer hover:shadow-md hover:border-amber-200 flex items-center space-x-4 ${
+            filterStatus === "proximo" ? "border-amber-500 ring-2 ring-amber-100 shadow-sm" : "border-slate-100 shadow-sm"
+          }`}
+          title="Click para filtrar personal próximo al límite"
+        >
           <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
             <Clock className="w-6 h-6 text-amber-500" />
           </div>
           <div>
-            <span className="text-[10px] font-bold text-slate-455 uppercase tracking-wider block">Próximos a 2 Periodos</span>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Próximos a 2 Periodos</span>
             <span className="text-2xl font-black text-amber-600">{stats.proximos}</span>
           </div>
         </div>
@@ -1721,8 +1852,16 @@ export function ControlVacaciones() {
         </div>
 
         {/* Count footer */}
-        <div className="p-4 border-t border-slate-100 bg-slate-55 bg-slate-50/30 text-xs text-slate-450 font-semibold flex items-center justify-between">
-          <span>Mostrando {filteredRows.length} de {processedRows.length} registros laborales.</span>
+        <div className="p-4 border-t border-slate-100 bg-slate-50/50 text-xs text-slate-500 font-semibold flex flex-col sm:flex-row items-center justify-between gap-3">
+          <span>Mostrando <strong className="text-slate-700">{filteredRows.length}</strong> de <strong className="text-slate-700">{processedRows.length}</strong> registros laborales.</span>
+          <button
+            onClick={exportFilteredVacationsToExcel}
+            disabled={filteredRows.length === 0}
+            className="inline-flex items-center gap-1.5 bg-white border border-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-slate-50 hover:text-emerald-700 hover:border-emerald-300 active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-xs"
+          >
+            <Download className="w-3.5 h-3.5 text-emerald-600" />
+            Descargar listado filtrado ({filteredRows.length})
+          </button>
         </div>
       </div>
       </div>
