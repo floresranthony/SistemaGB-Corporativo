@@ -15,17 +15,33 @@ import {
   Info,
   Calendar,
   AlertCircle,
+  AlertTriangle,
   Search,
   Edit,
-  Trash2
+  Trash2,
+  Clock,
+  UserCheck,
+  Send,
+  Building2,
+  FileCheck,
+  Filter,
+  UserX,
+  Sparkles,
+  Phone,
+  Mail,
+  ArrowRight,
+  ShieldCheck,
+  Tag
 } from "lucide-react";
 
 export function PizarraDigital() {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any[]>([]);
+  const [candidatos, setCandidatos] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeVinculos, setActiveVinculos] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<"pizarra" | "altas_pendientes">("pizarra");
 
   // Lookups
   const [sedes, setSedes] = useState<any[]>([]);
@@ -34,26 +50,146 @@ export function PizarraDigital() {
   const [regimenes, setRegimenes] = useState<any[]>([]);
   const [documentTypes, setDocumentTypes] = useState<any[]>([]);
   const [clientes, setClientes] = useState<any[]>([]);
+  const [empresas, setEmpresas] = useState<any[]>([]);
+  const [tiposTrabajador, setTiposTrabajador] = useState<any[]>([]);
+  const [modalidadesContrato, setModalidadesContrato] = useState<any[]>([]);
+  const [sistemasPension, setSistemasPension] = useState<any[]>([]);
+  const [bancos, setBancos] = useState<any[]>([]);
 
   // Modals state
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
-  const [isIngresoModalOpen, setIsIngresoModalOpen] = useState(false);
-  const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
-  const [showQuickPersona, setShowQuickPersona] = useState(false);
-  const [candidateSearchQuery, setCandidateSearchQuery] = useState("");
-  const [showCandidateDropdown, setShowCandidateDropdown] = useState(false);
-  const [cargoSearchQuery, setCargoSearchQuery] = useState("");
-  const [showCargoDropdown, setShowCargoDropdown] = useState(false);
-  const [clienteSearchQuery, setClienteSearchQuery] = useState("");
-  const [showClienteDropdown, setShowClienteDropdown] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedDetailRequest, setSelectedDetailRequest] = useState<any | null>(null);
   const [editingRequestId, setEditingRequestId] = useState<number | null>(null);
 
+  // Candidates Modal State (Per Vacancy)
+  const [isCandidatosModalOpen, setIsCandidatosModalOpen] = useState(false);
+  const [selectedRequestForCandidatos, setSelectedRequestForCandidatos] = useState<any | null>(null);
+  const [candidatoFilterStatus, setCandidatoFilterStatus] = useState<string>("todos");
+  const [showAddCandidatoForm, setShowAddCandidatoForm] = useState(false);
+
+  // Official Alta Modal State (For RRHH / Admin)
+  const [isAltaModalOpen, setIsAltaModalOpen] = useState(false);
+  const [selectedCandidatoForAlta, setSelectedCandidatoForAlta] = useState<any | null>(null);
+  const [selectedRequestForAlta, setSelectedRequestForAlta] = useState<any | null>(null);
+
+  // System Feedback Modal State (Replaces native alerts)
+  const [feedbackModal, setFeedbackModal] = useState<{
+    isOpen: boolean;
+    type: "success" | "error" | "warning" | "info";
+    title: string;
+    message: string;
+    confirmText?: string;
+    onConfirm?: () => void;
+  }>({
+    isOpen: false,
+    type: "success",
+    title: "",
+    message: "",
+    confirmText: "Entendido"
+  });
+
+  const showSystemMessage = (
+    type: "success" | "error" | "warning" | "info",
+    title: string,
+    message: string,
+    confirmText: string = "Entendido",
+    onConfirm?: () => void
+  ) => {
+    setFeedbackModal({
+      isOpen: true,
+      type,
+      title,
+      message,
+      confirmText,
+      onConfirm
+    });
+  };
+
+  // Confirmation Modal State (Replaces native confirm)
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    isDestructive?: boolean;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    confirmText: "Confirmar",
+    cancelText: "Cancelar",
+    isDestructive: false,
+    onConfirm: () => {}
+  });
+
+  const showConfirmDialog = (
+    title: string,
+    message: string,
+    onConfirm: () => void,
+    options?: { confirmText?: string; cancelText?: string; isDestructive?: boolean }
+  ) => {
+    setConfirmModal({
+      isOpen: true,
+      title,
+      message,
+      confirmText: options?.confirmText || "Confirmar",
+      cancelText: options?.cancelText || "Cancelar",
+      isDestructive: options?.isDestructive ?? false,
+      onConfirm
+    });
+  };
+
+  // Send to RRHH Modal State (Replaces prompt for date/notes)
+  const [sendRRHHModal, setSendRRHHModal] = useState<{
+    isOpen: boolean;
+    candidato: any | null;
+    fechaIngreso: string;
+    notas: string;
+  }>({
+    isOpen: false,
+    candidato: null,
+    fechaIngreso: "",
+    notas: ""
+  });
+
+  // Discard Candidate Modal State (Replaces prompt/confirm for discard)
+  const [discardModal, setDiscardModal] = useState<{
+    isOpen: boolean;
+    candidato: any | null;
+    tipo: "No se presento" | "Descartado";
+    motivo: string;
+  }>({
+    isOpen: false,
+    candidato: null,
+    tipo: "No se presento",
+    motivo: ""
+  });
+
+  // Cese Worker Modal State (Replaces prompt for worker removal)
+  const [ceseModal, setCeseModal] = useState<{
+    isOpen: boolean;
+    vinculo: any | null;
+    request: any | null;
+    motivo: string;
+  }>({
+    isOpen: false,
+    vinculo: null,
+    request: null,
+    motivo: "Deserción / Retiro voluntario"
+  });
+
+  // Autocomplete search states for Request Modal
+  const [cargoSearchQuery, setCargoSearchQuery] = useState("");
+  const [showCargoDropdown, setShowCargoDropdown] = useState(false);
+  const [clienteSearchQuery, setClienteSearchQuery] = useState("");
+  const [showClienteDropdown, setShowClienteDropdown] = useState(false);
+
   // Forms
   const [requestForm, setRequestForm] = useState<Record<string, any>>({});
-  const [ingresoForm, setIngresoForm] = useState<Record<string, any>>({});
-  const [quickPersonaForm, setQuickPersonaForm] = useState<Record<string, any>>({
+  const [newCandidatoForm, setNewCandidatoForm] = useState<Record<string, any>>({
     nombres: "",
     apellidos: "",
     tipo_documento_id: "",
@@ -62,22 +198,30 @@ export function PizarraDigital() {
     fecha_nacimiento: "",
     telefono: "",
     correo: "",
-    fecha_ingreso: new Date().toISOString().split("T")[0],
-    fecha_primer_contrato: new Date().toISOString().split("T")[0]
+    direccion: "",
+    fuente_reclutamiento: "Directo",
+    notas_reclutamiento: ""
   });
+  const [altaForm, setAltaForm] = useState<Record<string, any>>({});
 
-  // Current user role for client-side visibility simulation
+  // Current user role
   const currentRole = localStorage.getItem("bax_role") || "admin";
+  const isRRHHOrAdmin = currentRole === "admin" || currentRole === "rrhh";
 
   const loadLookups = async () => {
     try {
-      const [s, c, p, r, d, cl] = await Promise.all([
+      const [s, c, p, r, d, cl, emp, tt, mc, sp, b] = await Promise.all([
         supabase.from("sedes").select("*").eq("activo", true),
         supabase.from("cargos").select("*").eq("activo", true),
         supabase.from("personas").select("id, nombres, apellidos, numero_documento"),
         supabase.from("regimenes_laborales").select("id, nombre"),
-        supabase.from("tipos_documento").select("id, nombre"),
-        supabase.from("clientes").select("*").eq("activo", true).order("razon_social", { ascending: true })
+        supabase.from("tipos_documento").select("id, nombre, codigo"),
+        supabase.from("clientes").select("*").eq("activo", true).order("razon_social", { ascending: true }),
+        supabase.from("empresas_internas").select("id, razon_social, ruc").eq("activo", true),
+        supabase.from("tipos_trabajador").select("id, nombre"),
+        supabase.from("modalidades_contrato").select("id, nombre"),
+        supabase.from("sistemas_pension").select("id, nombre, tipo"),
+        supabase.from("bancos").select("id, nombre")
       ]);
       setSedes(s.data || []);
       setCargos(c.data || []);
@@ -85,6 +229,11 @@ export function PizarraDigital() {
       setRegimenes(r.data || []);
       setDocumentTypes(d.data || []);
       setClientes(cl.data || []);
+      setEmpresas(emp.data || []);
+      setTiposTrabajador(tt.data || []);
+      setModalidadesContrato(mc.data || []);
+      setSistemasPension(sp.data || []);
+      setBancos(b.data || []);
     } catch (e) {
       console.error("Error loading lookups for recruitment board:", e);
     }
@@ -125,6 +274,36 @@ export function PizarraDigital() {
 
       setData(solRes.data || []);
       setActiveVinculos(vincRes.data || []);
+
+      // Load candidates from the dedicated candidatos table
+      try {
+        const { data: candData, error: candError } = await supabase
+          .from("candidatos")
+          .select(`
+            *,
+            tipos_documento (id, codigo, nombre),
+            cargos (id, nombre),
+            sedes (id, nombre, cliente_id, clientes (id, razon_social, empresa_interna_id)),
+            solicitudes_personal (
+              id,
+              sede_id,
+              cargo_id,
+              turno,
+              plazas_solicitadas,
+              plazas_cubiertas,
+              estado,
+              sedes (id, nombre, cliente_id, clientes (id, razon_social, empresa_interna_id)),
+              cargos (id, nombre)
+            )
+          `)
+          .order("creado_en", { ascending: false });
+
+        if (!candError && candData) {
+          setCandidatos(candData);
+        }
+      } catch (cErr) {
+        console.warn("Tabla candidatos no lista aún:", cErr);
+      }
     } catch (e: any) {
       setError(e.message || "Error al cargar la pizarra digital.");
     } finally {
@@ -136,6 +315,9 @@ export function PizarraDigital() {
     loadLookups();
     loadSolicitudes();
   }, []);
+
+  // Candidates waiting for official RRHH approval
+  const pendingAltas = candidatos.filter(c => c.estado === "Pendiente de Alta");
 
   // Open Create Vacancy Modal
   const handleOpenRequest = () => {
@@ -193,15 +375,15 @@ export function PizarraDigital() {
   const handleSaveRequest = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!requestForm.cliente_id) {
-      alert("Por favor, seleccione un Cliente.");
+      showSystemMessage("warning", "Cliente Requerido", "Por favor, seleccione un Cliente para la vacante.");
       return;
     }
     if (!requestForm.sede_id) {
-      alert("Por favor, seleccione una Sede / Centro Trabajo.");
+      showSystemMessage("warning", "Sede Requerida", "Por favor, seleccione una Sede / Centro de Trabajo.");
       return;
     }
     if (!requestForm.cargo_id) {
-      alert("Por favor, seleccione un Cargo Requerido.");
+      showSystemMessage("warning", "Cargo Requerido", "Por favor, seleccione un Cargo Requerido.");
       return;
     }
     setLoading(true);
@@ -224,223 +406,424 @@ export function PizarraDigital() {
 
       setIsRequestModalOpen(false);
       setEditingRequestId(null);
+      showSystemMessage(
+        "success",
+        editingRequestId ? "Vacante Actualizada" : "Vacante Publicada",
+        editingRequestId ? "La solicitud de vacante ha sido actualizada con éxito." : "La nueva vacante ha sido registrada en la pizarra digital."
+      );
       loadSolicitudes();
     } catch (err: any) {
       console.error("Error saving vacancy request:", err);
-      setError(err.message || "Error al guardar solicitud.");
+      showSystemMessage("error", "Error al Guardar", err.message || "Error al guardar solicitud de vacante.");
     } finally {
       setLoading(false);
     }
   };
 
   // Delete Vacancy Request
-  const handleDeleteRequest = async (id: number) => {
-    if (!confirm("¿Está seguro de eliminar esta solicitud de la pizarra? Esta acción no se puede deshacer y desvinculará a los colaboradores.")) {
-      return;
-    }
-    setLoading(true);
-    try {
-      const { error: dbErr } = await supabase
-        .from("solicitudes_personal")
-        .delete()
-        .eq("id", id);
+  const handleDeleteRequest = (id: number) => {
+    showConfirmDialog(
+      "¿Eliminar Solicitud de Vacante?",
+      "Esta acción no se puede deshacer y desvinculará a los colaboradores asociados a esta vacante en la pizarra.",
+      async () => {
+        setLoading(true);
+        try {
+          const { error: dbErr } = await supabase
+            .from("solicitudes_personal")
+            .delete()
+            .eq("id", id);
 
-      if (dbErr) throw dbErr;
-      loadSolicitudes();
-    } catch (err: any) {
-      console.error("Error deleting vacancy request:", err);
-      alert("Error al eliminar solicitud: " + err.message);
-    } finally {
-      setLoading(false);
-    }
+          if (dbErr) throw dbErr;
+          showSystemMessage("success", "Vacante Eliminada", "La solicitud fue eliminada correctamente de la pizarra.");
+          loadSolicitudes();
+        } catch (err: any) {
+          console.error("Error deleting vacancy request:", err);
+          showSystemMessage("error", "Error al Eliminar", err.message || "No se pudo eliminar la solicitud.");
+        } finally {
+          setLoading(false);
+        }
+      },
+      { confirmText: "Sí, Eliminar", isDestructive: true }
+    );
   };
 
-  // Open Register Onboarding (Ingreso) Modal
-  const handleOpenIngreso = (request: any) => {
-    setSelectedRequest(request);
-    setShowQuickPersona(false); // reset view to standard candidate selection
-    
-    // Find the target company for the request
-    const targetEmpresaId = request.sedes?.clientes?.empresa_interna_id;
+  // ==========================================
+  // CANDIDATES MANAGEMENT (RECLUTAMIENTO)
+  // ==========================================
 
-    setIngresoForm({
-      persona_id: "",
-      empresa_interna_id: targetEmpresaId || "", // dynamic from the request
-      sueldo_basico: 1130.00,
-      bono: 0.00,
-      regimen_laboral_id: regimenes[0]?.id || "",
-      fecha_inicio: new Date().toISOString().split("T")[0],
-      fecha_fin: ""
+  const handleOpenCandidatosModal = (req: any) => {
+    setSelectedRequestForCandidatos(req);
+    setCandidatoFilterStatus("todos");
+    setShowAddCandidatoForm(false);
+    setNewCandidatoForm({
+      nombres: "",
+      apellidos: "",
+      tipo_documento_id: documentTypes[0]?.id || 1,
+      numero_documento: "",
+      sexo: "Masculino",
+      fecha_nacimiento: "",
+      telefono: "",
+      correo: "",
+      direccion: "",
+      fuente_reclutamiento: "Directo",
+      notas_reclutamiento: ""
     });
-    setCandidateSearchQuery("");
-    setShowCandidateDropdown(false);
-    setIsIngresoModalOpen(true);
+    setIsCandidatosModalOpen(true);
   };
 
-  // Save Onboarding
-  const handleSaveIngreso = async (e: React.FormEvent) => {
+  // Save new candidate into 'candidatos'
+  const handleSaveCandidato = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!ingresoForm.persona_id) {
-      alert("Por favor seleccione un candidato válido.");
+    if (!selectedRequestForCandidatos) return;
+    if (!newCandidatoForm.nombres?.trim() || !newCandidatoForm.apellidos?.trim() || !newCandidatoForm.numero_documento?.trim()) {
+      showSystemMessage("warning", "Campos Requeridos", "Por favor completa los nombres, apellidos y número de documento del postulante.");
       return;
     }
+
     setLoading(true);
     try {
-      const targetEmpresaId = selectedRequest.sedes?.clientes?.empresa_interna_id;
-      if (!targetEmpresaId) {
-        alert("La sede seleccionada no tiene una empresa facturadora configurada a través de su cliente.");
-        setLoading(false);
-        return;
-      }
-
-      // 1. Get first worker type to link the new employee to
-      const { data: firstType } = await supabase.from("tipos_trabajador").select("id").limit(1).single();
-
-      if (!firstType) {
-        alert("Primero debes configurar Tipos de Trabajador en la Base de Datos.");
-        setLoading(false);
-        return;
-      }
-
-      // Get first contract modality to link the contract to
-      const { data: firstModality } = await supabase.from("modalidades_contrato").select("id").limit(1).single();
-
-      if (!firstModality) {
-        alert("Primero debes configurar Modalidades de Contrato en la Base de Datos.");
-        setLoading(false);
-        return;
-      }
-
-      // 2. Create the Vínculo Laboral (Job Connection) for the person
-      const startJobDate = ingresoForm.fecha_inicio || new Date().toISOString().split("T")[0];
-      const { error: jobErr } = await supabase
-        .from("vinculos_laborales")
-        .insert([{
-          persona_id: ingresoForm.persona_id,
-          empresa_interna_id: targetEmpresaId, // Use the correct company!
-          sede_id: selectedRequest.sede_id,
-          cargo_id: selectedRequest.cargo_id,
-          tipo_trabajador_id: firstType.id,
-          regimen_laboral_id: ingresoForm.regimen_laboral_id || regimenes[0]?.id || 1,
-          sueldo_basico: ingresoForm.sueldo_basico || 1130.00,
-          bono: parseFloat(ingresoForm.bono) || 0.00,
-          fecha_ingreso: startJobDate,
-          fecha_primer_contrato: startJobDate,
-          estado: "Activo",
-          solicitud_id: selectedRequest.id
-        }]);
-
-      if (jobErr) throw jobErr;
-
-      // 3. Get the ID of the newly created vínculo
-      const { data: newVinc, error: vincFetchErr } = await supabase
-        .from("vinculos_laborales")
-        .select("id")
-        .eq("persona_id", ingresoForm.persona_id)
-        .eq("estado", "Activo")
-        .order("id", { ascending: false })
-        .limit(1)
-        .single();
-      
-      if (vincFetchErr) throw vincFetchErr;
-
-      // 4. Create the Vigente contract
-      const { error: contractErr } = await supabase
-        .from("contratos")
-        .insert([{
-          vinculo_laboral_id: newVinc.id,
-          modalidad_contrato_id: firstModality.id,
-          fecha_inicio: startJobDate,
-          fecha_fin: ingresoForm.fecha_fin || null,
-          estado: "Vigente"
-        }]);
-      
-      if (contractErr) throw contractErr;
-
-      // 6. Increment plazas_cubiertas and update status
-      const newCovered = selectedRequest.plazas_cubiertas + 1;
-      const newEstado = newCovered >= selectedRequest.plazas_solicitadas ? "Completado" : "Parcial";
-
-      const { error: reqErr } = await supabase
-        .from("solicitudes_personal")
-        .update({
-          plazas_cubiertas: newCovered,
-          estado: newEstado
-        })
-        .eq("id", selectedRequest.id);
-
-      if (reqErr) throw reqErr;
-
-      setIsIngresoModalOpen(false);
-      loadSolicitudes();
-    } catch (err: any) {
-      alert("Error al registrar ingreso: " + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Create Quick Candidate Master Profile
-  const handleSaveQuickPersona = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const { data: firstPension } = await supabase.from("sistemas_pension").select("id").limit(1).single();
-      const { data: firstDoc } = await supabase.from("tipos_documento").select("id").limit(1).single();
-
+      const firstDoc = documentTypes[0]?.id || 1;
       const payload = {
-        ...quickPersonaForm,
-        tipo_documento_id: quickPersonaForm.tipo_documento_id || firstDoc?.id || 1,
-        sistema_pension_id: firstPension?.id || 1
+        solicitud_id: selectedRequestForCandidatos.id,
+        cargo_postula_id: selectedRequestForCandidatos.cargo_id,
+        sede_interes_id: selectedRequestForCandidatos.sede_id,
+        tipo_documento_id: newCandidatoForm.tipo_documento_id ? parseInt(newCandidatoForm.tipo_documento_id) : firstDoc,
+        numero_documento: newCandidatoForm.numero_documento.trim(),
+        nombres: newCandidatoForm.nombres.trim(),
+        apellidos: newCandidatoForm.apellidos.trim(),
+        sexo: newCandidatoForm.sexo || "Masculino",
+        fecha_nacimiento: newCandidatoForm.fecha_nacimiento || null,
+        telefono: newCandidatoForm.telefono?.trim() || null,
+        correo: newCandidatoForm.correo?.trim() || null,
+        direccion: newCandidatoForm.direccion?.trim() || null,
+        fuente_reclutamiento: newCandidatoForm.fuente_reclutamiento || "Directo",
+        notas_reclutamiento: newCandidatoForm.notas_reclutamiento?.trim() || null,
+        estado: "Postulante"
       };
 
-      const { data: resPers, error: persErr } = await supabase
-        .from("personas")
-        .insert([payload])
-        .select("id, nombres, apellidos, numero_documento")
-        .single();
+      const { error: insErr } = await supabase.from("candidatos").insert([payload]);
+      if (insErr) throw insErr;
 
-      if (persErr) throw persErr;
-
-      // Refresh lookups to include the new persona
-      await loadLookups();
-      
-      // Select the new persona in the onboarding form
-      setIngresoForm((prev) => ({ ...prev, persona_id: resPers.id }));
-      setCandidateSearchQuery(`${resPers.apellidos}, ${resPers.nombres} - DNI: ${resPers.numero_documento}`);
-      setShowQuickPersona(false);
-      
-      // Reset quick persona form
-      setQuickPersonaForm({
+      setShowAddCandidatoForm(false);
+      setNewCandidatoForm({
         nombres: "",
         apellidos: "",
-        tipo_documento_id: firstDoc?.id || "",
+        tipo_documento_id: firstDoc,
         numero_documento: "",
         sexo: "Masculino",
         fecha_nacimiento: "",
         telefono: "",
         correo: "",
-        fecha_ingreso: new Date().toISOString().split("T")[0],
-        fecha_primer_contrato: new Date().toISOString().split("T")[0]
+        direccion: "",
+        fuente_reclutamiento: "Directo",
+        notas_reclutamiento: ""
       });
-
-      alert("Candidato creado con éxito y seleccionado.");
+      showSystemMessage(
+        "success",
+        "¡Postulante Registrado!",
+        "El candidato fue registrado con éxito en la vacante. Ahora puedes gestionar su evaluación o enviarlo a RRHH cuando asista."
+      );
+      await loadSolicitudes();
     } catch (err: any) {
-      alert("Error al crear candidato: " + err.message);
+      console.error("Error saving candidate:", err);
+      showSystemMessage("error", "Error al Registrar Candidato", err.message || "No se pudo registrar el postulante.");
     } finally {
       setLoading(false);
     }
   };
 
-  // Remove worker (cese/deserción dirigida)
-  const handleRemoveWorker = async (vinculo: any, request: any) => {
-    const workerName = `${vinculo.personas?.apellidos}, ${vinculo.personas?.nombres}`;
-    if (!confirm(`¿Está seguro de cesar al colaborador ${workerName}? Esto registrará su cese y liberará su vacante en la pizarra.`)) {
+  // Recruiter action: Open Send to RRHH dialog
+  const handleOpenSendRRHH = (cand: any) => {
+    setSendRRHHModal({
+      isOpen: true,
+      candidato: cand,
+      fechaIngreso: cand.fecha_posible_ingreso || new Date().toISOString().split("T")[0],
+      notas: cand.notas_reclutamiento || "Candidato seleccionado y confirmado para ingreso"
+    });
+  };
+
+  // Recruiter action: Confirm attendance / Send to RRHH for Contract
+  const handleConfirmSendRRHH = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cand = sendRRHHModal.candidato;
+    if (!cand) return;
+
+    if (!sendRRHHModal.fechaIngreso) {
+      showSystemMessage("warning", "Fecha Requerida", "Por favor ingresa la fecha confirmada o tentativa de ingreso laboral.");
       return;
     }
 
-    const motivo = prompt("Ingrese el motivo del cese:", "Deserción / Retiro temprano");
-    if (motivo === null) return; // User cancelled prompt
+    setLoading(true);
+    try {
+      const { error: updErr } = await supabase
+        .from("candidatos")
+        .update({
+          estado: "Pendiente de Alta",
+          fecha_posible_ingreso: sendRRHHModal.fechaIngreso,
+          notas_reclutamiento: sendRRHHModal.notas || "Candidato seleccionado y confirmado"
+        })
+        .eq("id", cand.id);
+
+      if (updErr) throw updErr;
+
+      setSendRRHHModal({ isOpen: false, candidato: null, fechaIngreso: "", notas: "" });
+      showSystemMessage(
+        "success",
+        "¡Pase a RRHH Confirmado!",
+        `El candidato ${cand.apellidos}, ${cand.nombres} fue enviado exitosamente a la Bandeja de RRHH para la formalización de contrato.`
+      );
+      await loadSolicitudes();
+    } catch (err: any) {
+      showSystemMessage("error", "Error al Enviar a RRHH", err.message || "Ocurrió un error inesperado.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Recruiter action: Open Discard dialog
+  const handleOpenDiscard = (cand: any) => {
+    setDiscardModal({
+      isOpen: true,
+      candidato: cand,
+      tipo: "No se presento",
+      motivo: "No se presentó a la fecha pactada / Desistió del puesto"
+    });
+  };
+
+  // Recruiter action: Discard or mark as didn't show up
+  const handleConfirmDiscard = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cand = discardModal.candidato;
+    if (!cand) return;
+
+    const finalMotivo = discardModal.motivo.trim() || (discardModal.tipo === "No se presento" ? "No se presentó a laborar" : "Descartado en proceso");
+
+    setLoading(true);
+    try {
+      const { error: updErr } = await supabase
+        .from("candidatos")
+        .update({
+          estado: discardModal.tipo,
+          motivo_descarte: finalMotivo
+        })
+        .eq("id", cand.id);
+
+      if (updErr) throw updErr;
+
+      setDiscardModal({ isOpen: false, candidato: null, tipo: "No se presento", motivo: "" });
+      showSystemMessage(
+        "info",
+        "Candidato Actualizado",
+        `El candidato quedó registrado como '${discardModal.tipo}'. Las Fichas de Personal no fueron afectadas.`
+      );
+      await loadSolicitudes();
+    } catch (err: any) {
+      showSystemMessage("error", "Error al Descartar", err.message || "Ocurrió un error inesperado.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Change candidate state (Postulante -> En Evaluacion -> Aprobado)
+  const handleCambiarEstadoCandidato = async (candId: number, nuevoEstado: string) => {
+    setLoading(true);
+    try {
+      const { error: updErr } = await supabase
+        .from("candidatos")
+        .update({ estado: nuevoEstado })
+        .eq("id", candId);
+      if (updErr) throw updErr;
+      await loadSolicitudes();
+    } catch (err: any) {
+      showSystemMessage("error", "Error al Actualizar Estado", err.message || "No se pudo actualizar el estado.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ==========================================
+  // OFFICIAL ONBOARDING & CONTRACT (RRHH)
+  // ==========================================
+
+  const handleOpenAltaModal = (cand: any, req?: any) => {
+    setSelectedCandidatoForAlta(cand);
+    const targetRequest = req || cand.solicitudes_personal || data.find(s => s.id === cand.solicitud_id);
+    setSelectedRequestForAlta(targetRequest || null);
+
+    const targetEmpresaId = targetRequest?.sedes?.clientes?.empresa_interna_id || empresas[0]?.id || "";
+
+    setAltaForm({
+      empresa_interna_id: targetEmpresaId,
+      sede_id: targetRequest?.sede_id || cand.sede_interes_id || "",
+      cargo_id: targetRequest?.cargo_id || cand.cargo_postula_id || "",
+      sueldo_basico: 1130.00,
+      bono: 0.00,
+      asignacion_familiar: false,
+      regimen_laboral_id: regimenes[0]?.id || 1,
+      tipo_trabajador_id: tiposTrabajador[0]?.id || 1,
+      modalidad_contrato_id: modalidadesContrato[0]?.id || 1,
+      fecha_ingreso: cand.fecha_posible_ingreso || new Date().toISOString().split("T")[0],
+      fecha_fin: "",
+      sistema_pension_id: sistemasPension[0]?.id || 1,
+      banco_sueldo_id: "",
+      cuenta_sueldo: ""
+    });
+
+    setIsAltaModalOpen(true);
+  };
+
+  // Submit official contract by RRHH (Creates persona + vinculo + contrato + updates candidate)
+  const handleSaveAltaOficial = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedCandidatoForAlta) return;
+
+    if (!altaForm.empresa_interna_id || !altaForm.sede_id || !altaForm.cargo_id) {
+      showSystemMessage("warning", "Datos Requeridos", "Por favor complete los datos obligatorios de Empresa, Sede y Cargo.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // 1. Check if persona already exists by DNI (for former workers re-entering)
+      const docNum = selectedCandidatoForAlta.numero_documento.trim();
+      const { data: existingPers } = await supabase
+        .from("personas")
+        .select("id")
+        .eq("numero_documento", docNum)
+        .maybeSingle();
+
+      let finalPersonaId: number;
+
+      if (existingPers) {
+        finalPersonaId = existingPers.id;
+        // Optionally update contact fields in persona
+        await supabase
+          .from("personas")
+          .update({
+            telefono: selectedCandidatoForAlta.telefono || undefined,
+            correo: selectedCandidatoForAlta.correo || undefined,
+            sistema_pension_id: altaForm.sistema_pension_id ? parseInt(altaForm.sistema_pension_id) : undefined
+          })
+          .eq("id", finalPersonaId);
+      } else {
+        // Create new persona
+        const { data: newPers, error: pErr } = await supabase
+          .from("personas")
+          .insert([{
+            tipo_documento_id: selectedCandidatoForAlta.tipo_documento_id || 1,
+            numero_documento: docNum,
+            nombres: selectedCandidatoForAlta.nombres.trim(),
+            apellidos: selectedCandidatoForAlta.apellidos.trim(),
+            sexo: selectedCandidatoForAlta.sexo || "Masculino",
+            fecha_nacimiento: selectedCandidatoForAlta.fecha_nacimiento || null,
+            telefono: selectedCandidatoForAlta.telefono?.trim() || null,
+            correo: selectedCandidatoForAlta.correo?.trim() || null,
+            direccion: selectedCandidatoForAlta.direccion?.trim() || null,
+            sistema_pension_id: altaForm.sistema_pension_id ? parseInt(altaForm.sistema_pension_id) : (sistemasPension[0]?.id || 1),
+            banco_sueldo_id: altaForm.banco_sueldo_id ? parseInt(altaForm.banco_sueldo_id) : null,
+            cuenta_sueldo: altaForm.cuenta_sueldo?.trim() || null
+          }])
+          .select("id")
+          .single();
+
+        if (pErr) throw pErr;
+        finalPersonaId = newPers.id;
+      }
+
+      // 2. Create active Vínculo Laboral
+      const startDate = altaForm.fecha_ingreso || new Date().toISOString().split("T")[0];
+      const { data: newVinc, error: vErr } = await supabase
+        .from("vinculos_laborales")
+        .insert([{
+          persona_id: finalPersonaId,
+          empresa_interna_id: parseInt(altaForm.empresa_interna_id),
+          sede_id: parseInt(altaForm.sede_id),
+          cargo_id: parseInt(altaForm.cargo_id),
+          tipo_trabajador_id: parseInt(altaForm.tipo_trabajador_id) || (tiposTrabajador[0]?.id || 1),
+          regimen_laboral_id: parseInt(altaForm.regimen_laboral_id) || (regimenes[0]?.id || 1),
+          sueldo_basico: parseFloat(altaForm.sueldo_basico) || 1130.00,
+          bono: parseFloat(altaForm.bono) || 0.00,
+          asignacion_familiar: !!altaForm.asignacion_familiar,
+          fecha_ingreso: startDate,
+          fecha_primer_contrato: startDate,
+          estado: "Activo",
+          solicitud_id: selectedRequestForAlta?.id || selectedCandidatoForAlta.solicitud_id || null
+        }])
+        .select("id")
+        .single();
+
+      if (vErr) throw vErr;
+
+      // 3. Create Vigente Contract
+      const { error: cErr } = await supabase
+        .from("contratos")
+        .insert([{
+          vinculo_laboral_id: newVinc.id,
+          modalidad_contrato_id: parseInt(altaForm.modalidad_contrato_id) || (modalidadesContrato[0]?.id || 1),
+          fecha_inicio: startDate,
+          fecha_fin: altaForm.fecha_fin || null,
+          estado: "Vigente"
+        }]);
+
+      if (cErr) throw cErr;
+
+      // 4. Update Candidato record to 'Contratado'
+      await supabase
+        .from("candidatos")
+        .update({
+          estado: "Contratado",
+          persona_id: finalPersonaId
+        })
+        .eq("id", selectedCandidatoForAlta.id);
+
+      // 5. Update Solicitud plazas cubiertas if associated
+      const targetReqId = selectedRequestForAlta?.id || selectedCandidatoForAlta.solicitud_id;
+      if (targetReqId) {
+        const reqObj = data.find(s => s.id === targetReqId);
+        if (reqObj) {
+          const newCovered = (reqObj.plazas_cubiertas || 0) + 1;
+          const newEstado = newCovered >= reqObj.plazas_solicitadas ? "Completado" : "Parcial";
+          await supabase
+            .from("solicitudes_personal")
+            .update({
+              plazas_cubiertas: newCovered,
+              estado: newEstado
+            })
+            .eq("id", targetReqId);
+        }
+      }
+
+      setIsAltaModalOpen(false);
+      setIsCandidatosModalOpen(false);
+      showSystemMessage(
+        "success",
+        "¡Alta Oficial Exitosa!",
+        `El colaborador ${selectedCandidatoForAlta.apellidos}, ${selectedCandidatoForAlta.nombres} ha sido dado de alta exitosamente en Planilla Activa y Fichas de Personal.`
+      );
+      await loadSolicitudes();
+    } catch (err: any) {
+      console.error("Error en alta oficial:", err);
+      showSystemMessage("error", "Error en Alta Laboral", err.message || "No se pudo completar el alta en planilla.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Open Cese worker dialog
+  const handleOpenCeseModal = (vinculo: any, request: any) => {
+    setCeseModal({
+      isOpen: true,
+      vinculo,
+      request,
+      motivo: "Deserción / Retiro voluntario"
+    });
+  };
+
+  // Confirm worker removal / cese
+  const handleConfirmCeseWorker = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const { vinculo, request, motivo } = ceseModal;
+    if (!vinculo || !request) return;
 
     setLoading(true);
     try {
@@ -452,22 +835,13 @@ export function PizarraDigital() {
         .update({
           estado: "Inactivo",
           fecha_cese: today,
-          motivo_cese: motivo || "Deserción / Retiro temprano"
+          motivo_cese: motivo.trim() || "Deserción / Retiro temprano"
         })
         .eq("id", vinculo.id);
 
       if (vinculoErr) throw vinculoErr;
 
-      // 2. Update Vigente contracts to Vencido
-      const { error: contratoErr } = await supabase
-        .from("contratos")
-        .update({ estado: "Vencido" })
-        .eq("vinculo_laboral_id", vinculo.id)
-        .eq("estado", "Vigente");
-
-      if (contratoErr) throw contratoErr;
-
-      // 3. Decrement plazas_cubiertas and update status of solicitudes_personal
+      // 2. Decrement plazas_cubiertas and update status
       const newCovered = Math.max(0, request.plazas_cubiertas - 1);
       const newEstado = newCovered === 0 ? "Pendiente" : "Parcial";
 
@@ -481,15 +855,21 @@ export function PizarraDigital() {
 
       if (reqErr) throw reqErr;
 
-      await loadSolicitudes();
-    } catch (e: any) {
-      alert("Error al remover colaborador: " + e.message);
+      setCeseModal({ isOpen: false, vinculo: null, request: null, motivo: "Deserción / Retiro voluntario" });
+      showSystemMessage(
+        "success",
+        "Cese Laboral Registrado",
+        "El cese fue registrado exitosamente y la plaza ha quedado libre en la pizarra digital."
+      );
+      loadSolicitudes();
+    } catch (err: any) {
+      showSystemMessage("error", "Error al Cesar Colaborador", err.message || "No se pudo registrar el cese.");
     } finally {
       setLoading(false);
     }
   };
 
-  // Seed Vacancies if empty
+  // Quick Seed Demo Vacancies
   const [seeding, setSeeding] = useState(false);
   const handleSeedVacancies = async () => {
     setSeeding(true);
@@ -498,7 +878,7 @@ export function PizarraDigital() {
       const { data: activeCargos } = await supabase.from("cargos").select("id").limit(2);
 
       if (!activeSedes || activeSedes.length === 0 || !activeCargos || activeCargos.length === 0) {
-        alert("Primero debes registrar Sedes y Cargos en la Fase 1.");
+        showSystemMessage("warning", "Configuración Requerida", "Primero debes registrar Sedes y Cargos en el sistema.");
         return;
       }
 
@@ -527,38 +907,34 @@ export function PizarraDigital() {
         }] : [])
       ]);
 
+      showSystemMessage("success", "Pizarra Demo Precargada", "Se precargaron las vacantes de prueba exitosamente.");
       loadSolicitudes();
     } catch (err: any) {
-      alert("Error al precargar vacantes: " + err.message);
+      showSystemMessage("error", "Error al Precargar Vacantes", err.message || "Ocurrió un error.");
     } finally {
       setSeeding(false);
     }
   };
 
-  // Filter list
+  // Filter lists
   const filteredData = data.filter((s) => {
     const q = searchQuery.toLowerCase();
     if (!q) return true;
     const sedeName = s.sedes?.nombre?.toLowerCase() || "";
     const cargoName = s.cargos?.nombre?.toLowerCase() || "";
-    return sedeName.includes(q) || cargoName.includes(q);
+    const clientName = s.sedes?.clientes?.razon_social?.toLowerCase() || "";
+    return sedeName.includes(q) || cargoName.includes(q) || clientName.includes(q);
   });
 
-  // Filter candidates for autocomplete
-  const filteredCandidates = personas
-    .filter((p) => {
-      // Excluir si ya tiene un vínculo laboral activo en cualquier empresa
-      return !activeVinculos.some(
-        (v) => v.estado === "Activo" && v.persona_id === p.id
-      );
-    })
-    .filter((p) => {
-      const q = candidateSearchQuery.toLowerCase();
-      if (!q) return true;
-      const fullName = `${p.apellidos} ${p.nombres}`.toLowerCase();
-      const document = p.numero_documento.toLowerCase();
-      return fullName.includes(q) || document.includes(q);
-    });
+  const filteredPendingAltas = pendingAltas.filter((c) => {
+    const q = searchQuery.toLowerCase();
+    if (!q) return true;
+    const fullName = `${c.apellidos} ${c.nombres}`.toLowerCase();
+    const dni = c.numero_documento?.toLowerCase() || "";
+    const cargo = c.cargos?.nombre?.toLowerCase() || c.solicitudes_personal?.cargos?.nombre?.toLowerCase() || "";
+    const sede = c.sedes?.nombre?.toLowerCase() || c.solicitudes_personal?.sedes?.nombre?.toLowerCase() || "";
+    return fullName.includes(q) || dni.includes(q) || cargo.includes(q) || sede.includes(q);
+  });
 
   // Filter cargos for autocomplete
   const filteredCargos = cargos.filter((c) => {
@@ -574,29 +950,43 @@ export function PizarraDigital() {
     return c.razon_social.toLowerCase().includes(q) || (c.ruc && c.ruc.toLowerCase().includes(q));
   });
 
-  // Get reactive live details of the selected request
+  // Reactive live details of the selected request
   const liveDetailRequest = selectedDetailRequest
     ? data.find((r) => r.id === selectedDetailRequest.id)
     : null;
 
+  // Candidates for selected request modal
+  const candidatesForModal = selectedRequestForCandidatos
+    ? candidatos.filter(c => {
+        if (c.solicitud_id !== selectedRequestForCandidatos.id) return false;
+        if (candidatoFilterStatus === "todos") return true;
+        if (candidatoFilterStatus === "proceso") return c.estado === "Postulante" || c.estado === "En Evaluacion" || c.estado === "Aprobado";
+        if (candidatoFilterStatus === "altas") return c.estado === "Pendiente de Alta";
+        if (candidatoFilterStatus === "contratados") return c.estado === "Contratado";
+        if (candidatoFilterStatus === "descartados") return c.estado === "Descartado" || c.estado === "No se presento";
+        return true;
+      })
+    : [];
+
   return (
-    <div className="flex flex-col h-full space-y-6 overflow-y-auto pr-1">
+    <div className="flex flex-col h-full space-y-5 overflow-y-auto pr-1">
 
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-2 flex-shrink-0 gap-4">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-1 flex-shrink-0 gap-4">
         <div className="space-y-1">
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
-            Recursos Humanos / Planificación de Personal
+            Recursos Humanos / Reclutamiento & Onboarding
           </span>
           <h1 className="font-heading text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
             <LayoutDashboard className="w-8 h-8 text-blue-600" />
             Pizarra Digital de Personal
           </h1>
-          <p className="text-sm text-slate-500 max-w-xl">
-            Reemplaza las pizarras físicas de contratación. Monitoriza los requerimientos de personal por sede y registra ingresos de candidatos de forma directa.
+          <p className="text-sm text-slate-500 max-w-2xl">
+            Flujo en 2 etapas: Reclutamiento capta postulantes sin contaminar la nómina, y RRHH formaliza los contratos y altas laborales.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        
+        <div className="flex items-center gap-2 self-start md:self-auto flex-wrap">
           {data.length === 0 && !loading && (
             <button
               onClick={handleSeedVacancies}
@@ -608,10 +998,20 @@ export function PizarraDigital() {
             </button>
           )}
 
-          {(currentRole === "admin" || currentRole === "supervisor") && (
+          <button
+            onClick={loadSolicitudes}
+            disabled={loading}
+            className="inline-flex items-center gap-1.5 bg-slate-100 border border-slate-200 text-slate-700 px-3.5 py-2.5 rounded-lg text-xs font-semibold hover:bg-slate-200 active:scale-95 transition-all cursor-pointer"
+            title="Recargar datos de la pizarra"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+            Recargar
+          </button>
+
+          {(currentRole === "admin" || currentRole === "supervisor" || currentRole === "rrhh") && (
             <button
               onClick={handleOpenRequest}
-              className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all"
+              className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all cursor-pointer"
             >
               <Plus className="w-4 h-4 stroke-[3]" />
               Nueva Vacante
@@ -620,328 +1020,896 @@ export function PizarraDigital() {
         </div>
       </div>
 
-      {/* Search and filter */}
+      {/* Main Navigation Tabs */}
+      <div className="flex items-center border-b border-slate-200 gap-2">
+        <button
+          onClick={() => setActiveTab("pizarra")}
+          className={`flex items-center gap-2 py-3 px-4 font-bold text-sm border-b-2 transition-all cursor-pointer ${
+            activeTab === "pizarra"
+              ? "border-blue-600 text-blue-600"
+              : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+          }`}
+        >
+          <LayoutDashboard className="w-4 h-4" />
+          Pizarra de Vacantes
+          <span className="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-600 font-mono">
+            {data.length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab("altas_pendientes")}
+          className={`flex items-center gap-2 py-3 px-4 font-bold text-sm border-b-2 transition-all cursor-pointer relative ${
+            activeTab === "altas_pendientes"
+              ? "border-amber-600 text-amber-600"
+              : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+          }`}
+        >
+          <ShieldCheck className="w-4 h-4 text-amber-500" />
+          Bandeja de Altas Pendientes (RRHH)
+          {pendingAltas.length > 0 ? (
+            <span className="px-2 py-0.5 rounded-full text-xs bg-amber-500 text-white font-black animate-pulse font-mono">
+              {pendingAltas.length}
+            </span>
+          ) : (
+            <span className="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-500 font-mono">
+              0
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* Search and filter toolbar */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="relative w-full max-w-sm">
+        <div className="relative w-full max-w-md">
           <Search className="absolute left-3 top-2.5 h-4.5 w-4.5 text-slate-400" />
           <input
             type="text"
-            placeholder="Buscar por Sede o Cargo..."
+            placeholder={activeTab === "pizarra" ? "Buscar por Sede, Cliente o Cargo..." : "Buscar postulante por Nombre, DNI, Cargo o Sede..."}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none"
+            className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 font-medium text-slate-700"
           />
         </div>
+
         {error && (
-          <div className="bg-red-50 text-red-700 border border-red-100 px-3 py-1 text-xs rounded-lg">
+          <div className="bg-red-50 text-red-700 border border-red-100 px-3 py-1.5 text-xs rounded-lg flex items-center gap-1.5 font-medium">
+            <AlertCircle className="w-4 h-4" />
             {error}
           </div>
         )}
       </div>
 
-      {/* Main Table view of vacancy requests */}
-      {loading && data.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-slate-400 space-y-3 bg-white rounded-2xl border border-slate-100 shadow-sm">
-          <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
-          <p className="text-sm">Sincronizando pizarra de reclutamiento...</p>
-        </div>
-      ) : filteredData.length === 0 ? (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 py-16 text-center space-y-4">
-          <div className="p-4 bg-slate-50 text-slate-400 rounded-2xl border border-slate-100 max-w-max mx-auto">
-            <LayoutDashboard className="w-8 h-8" />
+      {/* TAB 1: Pizarra de Vacantes */}
+      {activeTab === "pizarra" && (
+        <>
+          {loading && data.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-slate-400 space-y-3 bg-white rounded-2xl border border-slate-100 shadow-sm">
+              <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
+              <p className="text-sm font-semibold text-slate-600">Sincronizando pizarra de reclutamiento...</p>
+            </div>
+          ) : filteredData.length === 0 ? (
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 py-16 text-center space-y-4">
+              <div className="p-4 bg-slate-50 text-slate-400 rounded-2xl border border-slate-100 max-w-max mx-auto">
+                <LayoutDashboard className="w-8 h-8" />
+              </div>
+              <h3 className="text-sm font-bold text-slate-700">No hay vacantes activas en la pizarra</h3>
+              <p className="text-xs text-slate-500 max-w-xs mx-auto">Verifica tus filtros o solicita personal para agregar vacantes.</p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col overflow-hidden min-h-[400px]">
+              <div className="flex-1 overflow-auto max-h-[60vh] relative">
+                <table className="w-full text-left border-collapse min-w-[950px]">
+                  <thead>
+                    <tr className="border-b border-slate-100 bg-slate-50/20 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                      <th className="px-6 py-4 sticky top-0 bg-slate-100/95 backdrop-blur-sm z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.05)]">ID</th>
+                      <th className="px-6 py-4 sticky top-0 bg-slate-100/95 backdrop-blur-sm z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.05)]">Fecha</th>
+                      <th className="px-6 py-4 sticky top-0 bg-slate-100/95 backdrop-blur-sm z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.05)]">Cliente / Sede</th>
+                      <th className="px-6 py-4 sticky top-0 bg-slate-100/95 backdrop-blur-sm z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.05)]">Cargo Requerido</th>
+                      <th className="px-6 py-4 sticky top-0 bg-slate-100/95 backdrop-blur-sm z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.05)]">Turno</th>
+                      <th className="px-6 py-4 sticky top-0 bg-slate-100/95 backdrop-blur-sm z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.05)] text-center">Plazas Cubiertas</th>
+                      <th className="px-6 py-4 sticky top-0 bg-slate-100/95 backdrop-blur-sm z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.05)] text-center">Candidatos / Proceso</th>
+                      <th className="px-6 py-4 sticky top-0 bg-slate-100/95 backdrop-blur-sm z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.05)] text-center">Estado</th>
+                      <th className="px-6 py-4 sticky top-0 bg-slate-100/95 backdrop-blur-sm z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.05)] text-right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredData.map((req) => {
+                      const isCompleted = req.estado === "Completado";
+                      const pct = Math.min(100, Math.floor((req.plazas_cubiertas / req.plazas_solicitadas) * 100));
+                      
+                      const reqCandidatos = candidatos.filter(c => c.solicitud_id === req.id);
+                      const reqPendingAltas = reqCandidatos.filter(c => c.estado === "Pendiente de Alta");
+
+                      return (
+                        <tr key={req.id} className="hover:bg-slate-50/40 transition-colors">
+                          <td className="px-6 py-4 font-mono text-xs text-slate-600 font-semibold">
+                            #{req.id}
+                          </td>
+                          <td className="px-6 py-4 text-xs font-semibold text-slate-500 font-mono">
+                            {new Date(req.fecha_solicitud).toLocaleDateString("es-PE")}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="font-semibold text-slate-800 text-sm">
+                              {req.sedes?.clientes?.razon_social || "No asignado"}
+                            </div>
+                            <div className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
+                              <MapPin className="w-3 h-3 text-slate-400" />
+                              {req.sedes?.nombre || "Sede Desconocida"}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-slate-800 font-bold">
+                            {req.cargos?.nombre || "Cargo Desconocido"}
+                          </td>
+                          <td className="px-6 py-4 text-xs text-slate-600 font-semibold">
+                            {req.turno}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex flex-col items-center justify-center space-y-1">
+                              <span className={`text-xs font-bold ${isCompleted ? "text-emerald-600" : "text-slate-700"}`}>
+                                {req.plazas_cubiertas} de {req.plazas_solicitadas}
+                              </span>
+                              <div className="w-24 bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full transition-all duration-500 ${isCompleted ? "bg-emerald-500" : "bg-blue-500"}`}
+                                  style={{ width: `${pct}%` }}
+                                />
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            <div className="flex flex-col items-center gap-1">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                                <Users className="w-3 h-3 text-slate-500" />
+                                {reqCandidatos.length} postulante(s)
+                              </span>
+                              {reqPendingAltas.length > 0 && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 animate-pulse">
+                                  <Clock className="w-2.5 h-2.5 text-amber-600" />
+                                  {reqPendingAltas.length} por validar RRHH
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            <span className={`inline-flex px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
+                              isCompleted ? "bg-emerald-100 text-emerald-800" :
+                              req.estado === "Parcial" ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-800 animate-pulse"
+                            }`}>
+                              {req.estado}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                              {/* Manage Candidates Button */}
+                              <button
+                                onClick={() => handleOpenCandidatosModal(req)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-all cursor-pointer shadow-xs"
+                                title="Gestionar Postulantes y Reclutamiento"
+                              >
+                                <Users className="w-3.5 h-3.5 text-blue-600" />
+                                Candidatos ({reqCandidatos.length})
+                              </button>
+
+                              <button
+                                onClick={() => {
+                                  setSelectedDetailRequest(req);
+                                  setIsDetailModalOpen(true);
+                                }}
+                                className="inline-flex items-center gap-1 px-2 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                                title="Ver Historial de Ingresos y Deserciones"
+                              >
+                                Historial
+                              </button>
+
+                              {currentRole === "admin" && (
+                                <>
+                                  <button
+                                    onClick={() => handleOpenEditRequest(req)}
+                                    className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                                    title="Editar Solicitud"
+                                  >
+                                    <Edit className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteRequest(req.id)}
+                                    className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                                    title="Eliminar Solicitud"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* TAB 2: Bandeja de Altas Pendientes (RRHH) */}
+      {activeTab === "altas_pendientes" && (
+        <div className="space-y-4">
+          <div className="bg-amber-50/60 border border-amber-200 p-4 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-amber-100 text-amber-700 rounded-xl">
+                <ShieldCheck className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-800">
+                  Bandeja de Formalización de Contratos & Planilla (Exclusivo RRHH)
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Candidatos enviados por el equipo de Reclutamiento que asistieron o fueron aprobados. Solo RRHH formaliza el ingreso a planilla y genera el contrato.
+                </p>
+              </div>
+            </div>
+            <div className="text-right">
+              <span className="text-xs font-bold text-amber-800 bg-amber-100 px-3 py-1 rounded-full border border-amber-200">
+                {pendingAltas.length} expediente(s) en espera
+              </span>
+            </div>
           </div>
-          <h3 className="text-sm font-bold text-slate-700">No hay vacantes activas en la pizarra</h3>
-          <p className="text-xs text-slate-500 max-w-xs mx-auto">Verifica tus filtros o solicita personal para agregar vacantes.</p>
+
+          {filteredPendingAltas.length === 0 ? (
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 py-16 text-center space-y-3">
+              <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl border border-emerald-100 max-w-max mx-auto">
+                <CheckCircle2 className="w-8 h-8" />
+              </div>
+              <h3 className="text-sm font-bold text-slate-700">¡Al día! No hay altas laborales pendientes</h3>
+              <p className="text-xs text-slate-500 max-w-md mx-auto">
+                Cuando las reclutadoras confirmen la asistencia de un candidato, aparecerá automáticamente en esta bandeja para la formalización del contrato.
+              </p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse min-w-[900px]">
+                  <thead>
+                    <tr className="border-b border-slate-100 bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                      <th className="px-6 py-4">Postulante Seleccionado</th>
+                      <th className="px-6 py-4">Vacante Destino</th>
+                      <th className="px-6 py-4">Fuente Captación</th>
+                      <th className="px-6 py-4">Fecha Tentativa Ingreso</th>
+                      <th className="px-6 py-4">Notas Reclutamiento</th>
+                      <th className="px-6 py-4 text-right">Acción RRHH</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+                    {filteredPendingAltas.map((cand) => {
+                      const req = cand.solicitudes_personal;
+                      return (
+                        <tr key={cand.id} className="hover:bg-slate-50/50 transition-colors">
+                          <td className="px-6 py-4">
+                            <div className="font-bold text-slate-900 text-sm">{cand.apellidos}, {cand.nombres}</div>
+                            <div className="text-[11px] text-slate-400 font-mono mt-0.5 flex items-center gap-2">
+                              <span>DNI: {cand.numero_documento}</span>
+                              {cand.telefono && (
+                                <span className="flex items-center gap-0.5 text-slate-500">
+                                  <Phone className="w-3 h-3 text-slate-400" />
+                                  {cand.telefono}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="font-bold text-slate-800">{req?.cargos?.nombre || cand.cargos?.nombre || "Cargo Solicitado"}</div>
+                            <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                              <Building2 className="w-3 h-3 text-slate-400" />
+                              <span>{req?.sedes?.clientes?.razon_social || "Cliente"}</span>
+                              <span>&bull;</span>
+                              <span className="font-semibold text-slate-700">{req?.sedes?.nombre || cand.sedes?.nombre || "Sede"}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-100">
+                              <Tag className="w-3 h-3" />
+                              {cand.fuente_reclutamiento || "Directo"}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 font-mono font-bold text-slate-800">
+                            {cand.fecha_posible_ingreso ? new Date(cand.fecha_posible_ingreso + "T12:00:00").toLocaleDateString("es-PE") : "-"}
+                          </td>
+                          <td className="px-6 py-4 text-slate-600 italic max-w-xs">
+                            "{cand.notas_reclutamiento || "Sin observaciones específicas"}"
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              {isRRHHOrAdmin ? (
+                                <button
+                                  onClick={() => handleOpenAltaModal(cand, req)}
+                                  className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-md shadow-emerald-100 cursor-pointer"
+                                >
+                                  <FileCheck className="w-4 h-4" />
+                                  Completar Alta y Contrato
+                                </button>
+                              ) : (
+                                <span className="text-[11px] text-slate-400 italic">Requiere rol RRHH</span>
+                              )}
+
+                              <button
+                                onClick={() => handleOpenDiscard(cand)}
+                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                                title="Rechazar / Descartar candidato"
+                              >
+                                <UserX className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
-      ) : (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col overflow-hidden min-h-[400px]">
-          <div className="flex-1 overflow-auto max-h-[60vh] relative">
-            <table className="w-full text-left border-collapse min-w-[900px]">
-              <thead>
-                <tr className="border-b border-slate-100 bg-slate-50/20 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                  <th className="px-6 py-4 sticky top-0 bg-slate-100/95 backdrop-blur-sm z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.05)]">ID</th>
-                  <th className="px-6 py-4 sticky top-0 bg-slate-100/95 backdrop-blur-sm z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.05)]">Fecha Solicitud</th>
-                  <th className="px-6 py-4 sticky top-0 bg-slate-100/95 backdrop-blur-sm z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.05)]">Cliente</th>
-                  <th className="px-6 py-4 sticky top-0 bg-slate-100/95 backdrop-blur-sm z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.05)]">Sede / Centro Trabajo</th>
-                  <th className="px-6 py-4 sticky top-0 bg-slate-100/95 backdrop-blur-sm z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.05)]">Cargo Requerido</th>
-                  <th className="px-6 py-4 sticky top-0 bg-slate-100/95 backdrop-blur-sm z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.05)]">Turno</th>
-                  <th className="px-6 py-4 sticky top-0 bg-slate-100/95 backdrop-blur-sm z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.05)] text-center">Plazas Cubiertas / Requeridas</th>
-                  <th className="px-6 py-4 sticky top-0 bg-slate-100/95 backdrop-blur-sm z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.05)] text-center">Estado</th>
-                  <th className="px-6 py-4 sticky top-0 bg-slate-100/95 backdrop-blur-sm z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.05)] text-right">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredData.map((req) => {
-                  const isCompleted = req.estado === "Completado";
-                  const pct = Math.min(100, Math.floor((req.plazas_cubiertas / req.plazas_solicitadas) * 100));
+      )}
+
+      {/* ==================================================== */}
+      {/* MODAL: GESTIÓN DE CANDIDATOS POR VACANTE (RECLUTAMIENTO) */}
+      {/* ==================================================== */}
+      {isCandidatosModalOpen && selectedRequestForCandidatos && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-fade-in p-3">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto animate-slide-in border border-slate-100 flex flex-col">
+            
+            {/* Modal Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-100 gap-3">
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
+                  Proceso de Reclutamiento & Selección
+                </span>
+                <h3 className="font-heading text-lg font-black text-slate-900 flex items-center gap-2">
+                  <Users className="w-5 h-5 text-blue-600" />
+                  {selectedRequestForCandidatos.cargos?.nombre} &bull; {selectedRequestForCandidatos.sedes?.nombre}
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Cliente: <strong>{selectedRequestForCandidatos.sedes?.clientes?.razon_social}</strong> &bull; Plazas: {selectedRequestForCandidatos.plazas_cubiertas} de {selectedRequestForCandidatos.plazas_solicitadas} cubiertas
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowAddCandidatoForm(!showAddCandidatoForm)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    showAddCandidatoForm
+                      ? "bg-slate-100 text-slate-700"
+                      : "bg-blue-600 text-white hover:bg-blue-700 shadow-md shadow-blue-100"
+                  }`}
+                >
+                  {showAddCandidatoForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4 stroke-[3]" />}
+                  {showAddCandidatoForm ? "Ocultar Formulario" : "+ Registrar Postulante"}
+                </button>
+                <button
+                  onClick={() => setIsCandidatosModalOpen(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Sub-form: Add New Candidate */}
+            {showAddCandidatoForm && (
+              <form onSubmit={handleSaveCandidato} className="bg-slate-50/80 p-5 rounded-2xl border border-slate-200 mt-4 space-y-4 animate-fade-in">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                  <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <UserPlus className="w-4 h-4 text-blue-600" />
+                    Nuevo Postulante para esta Vacante
+                  </h4>
+                  <span className="text-[10px] text-slate-400">
+                    Solo se guardará en la tabla de candidatos (no afectará la nómina de personal)
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Nombres *</label>
+                    <input
+                      type="text"
+                      required
+                      value={newCandidatoForm.nombres}
+                      onChange={(e) => setNewCandidatoForm({ ...newCandidatoForm, nombres: e.target.value })}
+                      placeholder="Ej. Juan Carlos"
+                      className="w-full p-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Apellidos *</label>
+                    <input
+                      type="text"
+                      required
+                      value={newCandidatoForm.apellidos}
+                      onChange={(e) => setNewCandidatoForm({ ...newCandidatoForm, apellidos: e.target.value })}
+                      placeholder="Ej. Perez Ramos"
+                      className="w-full p-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">N° Documento (DNI) *</label>
+                    <input
+                      type="text"
+                      required
+                      value={newCandidatoForm.numero_documento}
+                      onChange={(e) => setNewCandidatoForm({ ...newCandidatoForm, numero_documento: e.target.value })}
+                      placeholder="8 dígitos"
+                      className="w-full p-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Sexo</label>
+                    <select
+                      value={newCandidatoForm.sexo}
+                      onChange={(e) => setNewCandidatoForm({ ...newCandidatoForm, sexo: e.target.value })}
+                      className="w-full p-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none"
+                    >
+                      <option value="Masculino">Masculino</option>
+                      <option value="Femenino">Femenino</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Fec. Nacimiento</label>
+                    <input
+                      type="date"
+                      value={newCandidatoForm.fecha_nacimiento}
+                      onChange={(e) => setNewCandidatoForm({ ...newCandidatoForm, fecha_nacimiento: e.target.value })}
+                      className="w-full p-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Fuente de Reclutamiento</label>
+                    <select
+                      value={newCandidatoForm.fuente_reclutamiento}
+                      onChange={(e) => setNewCandidatoForm({ ...newCandidatoForm, fuente_reclutamiento: e.target.value })}
+                      className="w-full p-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none font-semibold text-blue-700"
+                    >
+                      <option value="Computrabajo">Computrabajo</option>
+                      <option value="Bumeran">Bumeran</option>
+                      <option value="LinkedIn">LinkedIn</option>
+                      <option value="Facebook">Facebook / Redes</option>
+                      <option value="Referido">Referido</option>
+                      <option value="Bolsa Municipal">Bolsa Municipal</option>
+                      <option value="Directo">Directo / Puerta</option>
+                      <option value="Otro">Otro</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Teléfono / WhatsApp</label>
+                    <input
+                      type="text"
+                      value={newCandidatoForm.telefono}
+                      onChange={(e) => setNewCandidatoForm({ ...newCandidatoForm, telefono: e.target.value })}
+                      placeholder="Ej. 987654321"
+                      className="w-full p-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Correo Electrónico</label>
+                    <input
+                      type="email"
+                      value={newCandidatoForm.correo}
+                      onChange={(e) => setNewCandidatoForm({ ...newCandidatoForm, correo: e.target.value })}
+                      placeholder="correo@ejemplo.com"
+                      className="w-full p-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Notas / Perfil</label>
+                    <input
+                      type="text"
+                      value={newCandidatoForm.notas_reclutamiento}
+                      onChange={(e) => setNewCandidatoForm({ ...newCandidatoForm, notas_reclutamiento: e.target.value })}
+                      placeholder="Ej. Experiencia en plantas, vive cerca..."
+                      className="w-full p-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddCandidatoForm(false)}
+                    className="px-3.5 py-1.5 border border-slate-200 text-slate-600 rounded-lg text-xs font-semibold hover:bg-slate-100"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="px-4 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700 shadow-md shadow-blue-100 cursor-pointer"
+                  >
+                    Guardar Postulante
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* Filters Bar inside modal */}
+            <div className="flex items-center gap-1.5 my-4 overflow-x-auto pb-1">
+              {[
+                { id: "todos", label: "Todos los Postulantes" },
+                { id: "proceso", label: "En Proceso / Evaluación" },
+                { id: "altas", label: "🟡 Pendientes de Alta" },
+                { id: "contratados", label: "🟢 Contratados" },
+                { id: "descartados", label: "Descartados / No asistieron" }
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setCandidatoFilterStatus(tab.id)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+                    candidatoFilterStatus === tab.id
+                      ? "bg-slate-900 text-white shadow-sm"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Candidates List */}
+            <div className="flex-1 overflow-y-auto space-y-3 pr-1 min-h-[250px]">
+              {candidatesForModal.length === 0 ? (
+                <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200 space-y-2">
+                  <Users className="w-8 h-8 text-slate-400 mx-auto" />
+                  <p className="text-xs font-bold text-slate-700">No hay postulantes con el filtro seleccionado</p>
+                  <p className="text-[11px] text-slate-400">Presiona "+ Registrar Postulante" para agregar candidatos a esta vacante.</p>
+                </div>
+              ) : (
+                candidatesForModal.map(cand => {
+                  const isPendingAlta = cand.estado === "Pendiente de Alta";
+                  const isHired = cand.estado === "Contratado";
+                  const isDiscarded = cand.estado === "Descartado" || cand.estado === "No se presento";
 
                   return (
-                    <tr key={req.id} className="hover:bg-slate-50/40 transition-colors">
-                      <td className="px-6 py-4 font-mono text-xs text-slate-600 font-semibold">
-                        #{req.id}
-                      </td>
-                      <td className="px-6 py-4 text-xs font-semibold text-slate-500 font-mono">
-                        {new Date(req.fecha_solicitud).toLocaleDateString("es-PE")}
-                      </td>
-                      <td className="px-6 py-4 text-sm font-semibold text-slate-800">
-                        {req.sedes?.clientes?.razon_social || "No asignado"}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-slate-600">
-                        {req.sedes?.nombre || "Sede Desconocida"}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-slate-800 font-semibold">
-                        {req.cargos?.nombre || "Cargo Desconocido"}
-                      </td>
-                      <td className="px-6 py-4 text-xs text-slate-600 font-semibold">
-                        {req.turno}
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col items-center justify-center space-y-1">
-                          <span className={`text-xs font-bold ${isCompleted ? "text-emerald-600" : "text-slate-700"}`}>
-                            {req.plazas_cubiertas} de {req.plazas_solicitadas}
+                    <div
+                      key={cand.id}
+                      className={`p-4 rounded-2xl border transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 ${
+                        isHired ? "bg-emerald-50/40 border-emerald-200" :
+                        isPendingAlta ? "bg-amber-50/50 border-amber-300 ring-2 ring-amber-100" :
+                        isDiscarded ? "bg-slate-50/60 border-slate-200 opacity-70" :
+                        "bg-white border-slate-200 hover:border-blue-200 shadow-xs"
+                      }`}
+                    >
+                      <div className="space-y-1 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-black text-slate-900 text-sm">
+                            {cand.apellidos}, {cand.nombres}
                           </span>
-                          <div className="w-24 bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                            <div
-                              className={`h-full transition-all duration-500 ${isCompleted ? "bg-emerald-500" : "bg-blue-500"}`}
-                              style={{ width: `${pct}%` }}
-                            />
+                          
+                          {/* State badge */}
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider ${
+                            isHired ? "bg-emerald-100 text-emerald-800" :
+                            isPendingAlta ? "bg-amber-100 text-amber-900 animate-pulse" :
+                            cand.estado === "Aprobado" ? "bg-blue-100 text-blue-800" :
+                            cand.estado === "En Evaluacion" ? "bg-indigo-100 text-indigo-800" :
+                            isDiscarded ? "bg-red-100 text-red-800" :
+                            "bg-slate-100 text-slate-700"
+                          }`}>
+                            {cand.estado}
+                          </span>
+
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600">
+                            <Tag className="w-2.5 h-2.5" />
+                            {cand.fuente_reclutamiento || "Directo"}
+                          </span>
+                        </div>
+
+                        <div className="text-xs text-slate-500 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono">
+                          <span>DNI: <strong className="text-slate-700">{cand.numero_documento}</strong></span>
+                          {cand.telefono && <span>Tel: <strong className="text-slate-700">{cand.telefono}</strong></span>}
+                          {cand.correo && <span>Correo: <strong className="text-slate-700">{cand.correo}</strong></span>}
+                        </div>
+
+                        {cand.notas_reclutamiento && (
+                          <div className="text-xs text-slate-600 bg-white/70 p-2 rounded-lg border border-slate-200/60 italic mt-1">
+                            Notas: "{cand.notas_reclutamiento}"
                           </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <span className={`inline-flex px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
-                          isCompleted ? "bg-emerald-100 text-emerald-800" :
-                          req.estado === "Parcial" ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-800 animate-pulse"
-                        }`}>
-                          {req.estado}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            onClick={() => {
-                              setSelectedDetailRequest(req);
-                              setIsDetailModalOpen(true);
-                            }}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer"
-                            title="Ver Detalle"
-                          >
-                            Ver Detalle
-                          </button>
-                          {currentRole !== "supervisor" && currentRole !== "gerencia" && !isCompleted && (
-                            <button
-                              onClick={() => handleOpenIngreso(req)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors cursor-pointer"
-                              title="Registrar Ingreso"
+                        )}
+
+                        {cand.motivo_descarte && (
+                          <div className="text-xs text-red-700 bg-red-50 p-2 rounded-lg border border-red-100 mt-1">
+                            Motivo descarte: "{cand.motivo_descarte}"
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Candidate Actions */}
+                      <div className="flex items-center gap-1.5 flex-wrap self-end md:self-center">
+                        {!isHired && !isDiscarded && (
+                          <>
+                            {/* Step 1 for Recruiters: Send to RRHH */}
+                            {!isPendingAlta && (
+                              <button
+                                onClick={() => handleOpenSendRRHH(cand)}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer"
+                                title="Candidato asistió / Confirmar para pase a RRHH"
+                              >
+                                <Send className="w-3.5 h-3.5" />
+                                Confirmar Asistencia (Pase a RRHH)
+                              </button>
+                            )}
+
+                            {/* Direct button for RRHH / Admin */}
+                            {isRRHHOrAdmin && (
+                              <button
+                                onClick={() => handleOpenAltaModal(cand, selectedRequestForCandidatos)}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-md shadow-emerald-100 cursor-pointer"
+                                title="Formalizar Contrato y Alta en Planilla"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                Alta RRHH
+                              </button>
+                            )}
+
+                            {/* Dropdown status changer */}
+                            <select
+                              value={cand.estado}
+                              onChange={(e) => handleCambiarEstadoCandidato(cand.id, e.target.value)}
+                              className="text-[11px] font-semibold border border-slate-200 rounded-lg p-1.5 bg-white text-slate-700 cursor-pointer"
                             >
-                              <UserPlus className="w-3.5 h-3.5" />
-                              Ingreso
+                              <option value="Postulante">Postulante</option>
+                              <option value="En Evaluacion">En Evaluación</option>
+                              <option value="Aprobado">Aprobado</option>
+                            </select>
+
+                            <button
+                              onClick={() => handleOpenDiscard(cand)}
+                              className="px-2.5 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200 rounded-lg transition-colors cursor-pointer"
+                              title="Descartar o marcar como no asistió"
+                            >
+                              Descartar
                             </button>
-                          )}
-                          {currentRole === "admin" && (
-                            <>
-                              <button
-                                onClick={() => handleOpenEditRequest(req)}
-                                className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer flex items-center justify-center"
-                                title="Editar Solicitud"
-                              >
-                                <Edit className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteRequest(req.id)}
-                                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer flex items-center justify-center"
-                                title="Eliminar Solicitud"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
+                          </>
+                        )}
+
+                        {isHired && (
+                          <span className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-black text-emerald-800 bg-emerald-100/80 rounded-lg border border-emerald-200">
+                            <Check className="w-4 h-4 stroke-[3]" />
+                            En Planilla Activa
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   );
-                })}
-              </tbody>
-            </table>
+                })
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="border-t border-slate-100 pt-4 mt-4 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setIsCandidatosModalOpen(false)}
+                className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+              >
+                Cerrar
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Vacancy Detail Modal */}
-      {isDetailModalOpen && liveDetailRequest && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-4xl border border-slate-100 animate-slide-in flex flex-col max-h-[85vh]">
+      {/* ==================================================== */}
+      {/* MODAL: FORMALIZACIÓN CONTRACTUAL & ALTA RRHH */}
+      {/* ==================================================== */}
+      {isAltaModalOpen && selectedCandidatoForAlta && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-fade-in p-3">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-slide-in border border-slate-100 flex flex-col">
+            
             {/* Modal Header */}
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5 flex-shrink-0">
-              <div>
-                <h3 className="font-heading text-lg font-bold text-slate-800 flex items-center gap-2">
-                  <Info className="w-5 h-5 text-blue-600" />
-                  Detalle de Vacante #{liveDetailRequest.id}
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5 font-medium">
-                  {liveDetailRequest.cargos?.nombre || "Cargo Desconocido"} en {liveDetailRequest.sedes?.nombre || "Sede Desconocida"}
-                </p>
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl">
+                  <ShieldCheck className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-heading text-lg font-black text-slate-900">
+                    Formalización de Contrato & Alta Laboral (RRHH)
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Define las condiciones legales oficiales. Al aprobar, se creará el colaborador en Planilla Activa y se generará su contrato vigente.
+                  </p>
+                </div>
               </div>
               <button
-                onClick={() => setIsDetailModalOpen(false)}
-                className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg"
+                onClick={() => setIsAltaModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Modal Body */}
-            <div className="flex-1 overflow-y-auto pr-1 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                
-                {/* Column 1: Info General */}
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-4 h-fit">
-                  <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Información General</h4>
-                  
-                  <div className="space-y-3 text-xs">
-                    <div>
-                      <span className="text-slate-500 block font-medium">Fecha de Solicitud</span>
-                      <span className="text-slate-800 font-bold">
-                        {new Date(liveDetailRequest.fecha_solicitud).toLocaleDateString("es-PE")}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500 block font-medium">Turno</span>
-                      <span className="text-slate-800 font-bold">{liveDetailRequest.turno}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500 block font-medium">Género Requerido</span>
-                      <span className="text-slate-800 font-bold">{liveDetailRequest.genero_requerido || "Indistinto"}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500 block font-medium">Plazas Cubiertas / Solicitadas</span>
-                      <span className={`font-bold ${liveDetailRequest.estado === "Completado" ? "text-emerald-600" : "text-slate-800"}`}>
-                        {liveDetailRequest.plazas_cubiertas} de {liveDetailRequest.plazas_solicitadas}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500 block font-medium">Estado</span>
-                      <span className={`inline-flex px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider mt-1 ${
-                        liveDetailRequest.estado === "Completado" ? "bg-emerald-100 text-emerald-800" :
-                        liveDetailRequest.estado === "Parcial" ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-800"
-                      }`}>
-                        {liveDetailRequest.estado}
-                      </span>
-                    </div>
-                    {liveDetailRequest.motivo_vacante && (
-                      <div>
-                        <span className="text-slate-500 block font-medium">Motivo / Requerimientos</span>
-                        <p className="text-slate-600 bg-white p-2.5 rounded-lg border border-slate-200/60 mt-1 italic leading-relaxed">
-                          "{liveDetailRequest.motivo_vacante}"
-                        </p>
-                      </div>
-                    )}
-                  </div>
+            {/* Candidate & Request Preview Card */}
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 mb-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Colaborador Seleccionado</span>
+                  <span className="text-base font-black text-slate-900">
+                    {selectedCandidatoForAlta.apellidos}, {selectedCandidatoForAlta.nombres}
+                  </span>
+                  <span className="text-xs text-slate-500 font-mono ml-2">DNI: {selectedCandidatoForAlta.numero_documento}</span>
                 </div>
-
-                {/* Column 2: Colaboradores Asignados ("Quienes han entrado") */}
-                <div className="space-y-4">
-                  <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <Users className="w-4 h-4 text-emerald-600" />
-                    Quienes han ingresado ({activeVinculos.filter(v => v.solicitud_id === liveDetailRequest.id && v.estado === "Activo").length})
-                  </h4>
-
-                  <div className="space-y-2 max-h-[45vh] overflow-y-auto pr-1">
-                    {(() => {
-                      const activeList = activeVinculos.filter(
-                        (v) => v.solicitud_id === liveDetailRequest.id && v.estado === "Activo"
-                      );
-                      if (activeList.length === 0) {
-                        return <div className="text-xs text-slate-400 italic py-6 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">Ningún colaborador asignado aún</div>;
-                      }
-                      return activeList.map((v) => (
-                        <div key={v.id} className="flex items-center justify-between text-xs bg-white px-3.5 py-3 rounded-xl border border-slate-100 shadow-sm hover:border-slate-200 transition-all">
-                          <div>
-                            <span className="text-slate-800 font-bold block">
-                              {v.personas?.apellidos}, {v.personas?.nombres}
-                            </span>
-                            <span className="text-[9px] text-slate-400 font-mono">DNI: {v.personas?.numero_documento}</span>
-                          </div>
-                          {currentRole !== "supervisor" && currentRole !== "gerencia" && (
-                            <button
-                              onClick={() => handleRemoveWorker(v, liveDetailRequest)}
-                              className="text-red-500 hover:text-red-700 p-1.5 rounded-lg hover:bg-red-50 transition-colors shrink-0 flex items-center justify-center cursor-pointer"
-                              title="Registrar deserción / cese"
-                            >
-                              <UserMinus className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      ));
-                    })()}
-                  </div>
-                </div>
-
-                {/* Column 3: Deserciones / Retiros ("Quienes desistieron") */}
-                <div className="space-y-4">
-                  <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <UserMinus className="w-4 h-4 text-red-500" />
-                    Quienes desistieron ({activeVinculos.filter(v => v.solicitud_id === liveDetailRequest.id && v.estado === "Inactivo").length})
-                  </h4>
-
-                  <div className="space-y-2 max-h-[45vh] overflow-y-auto pr-1">
-                    {(() => {
-                      const inactiveList = activeVinculos.filter(
-                        (v) => v.solicitud_id === liveDetailRequest.id && v.estado === "Inactivo"
-                      );
-                      if (inactiveList.length === 0) {
-                        return <div className="text-xs text-slate-400 italic py-6 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">No se registran desistimientos</div>;
-                      }
-                      return inactiveList.map((v) => (
-                        <div key={v.id} className="text-xs bg-red-50/20 text-red-950 p-3 rounded-xl border border-red-100/50 shadow-sm space-y-1.5">
-                          <div className="font-bold truncate" title={`${v.personas?.apellidos}, ${v.personas?.nombres}`}>
-                            {v.personas?.apellidos}, {v.personas?.nombres}
-                          </div>
-                          <div className="text-[9px] text-slate-500 font-mono">
-                            Cese: {new Date(v.fecha_cese).toLocaleDateString("es-PE")}
-                          </div>
-                          <div className="text-[10px] text-slate-600 bg-white/75 p-2 rounded border border-red-100/30 italic">
-                            Motivo: "{v.motivo_cese}"
-                          </div>
-                        </div>
-                      ));
-                    })()}
-                  </div>
-                </div>
-
+                <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800">
+                  Fuente: {selectedCandidatoForAlta.fuente_reclutamiento || "Directo"}
+                </span>
               </div>
-            </div>
 
-            {/* Modal Footer */}
-            <div className="border-t border-slate-100 pt-4 mt-5 flex gap-2 justify-end flex-shrink-0">
-              <button
-                type="button"
-                onClick={() => setIsDetailModalOpen(false)}
-                className="px-4 py-2 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-sm font-semibold transition-colors cursor-pointer"
-              >
-                Cerrar
-              </button>
-              {currentRole !== "supervisor" && currentRole !== "gerencia" && liveDetailRequest.estado !== "Completado" && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsDetailModalOpen(false);
-                    handleOpenIngreso(liveDetailRequest);
-                  }}
-                  className="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg text-sm font-semibold shadow-md flex items-center gap-1.5 transition-colors cursor-pointer"
-                >
-                  <UserPlus className="w-4 h-4" />
-                  Registrar Ingreso
-                </button>
+              {selectedRequestForAlta && (
+                <div className="text-xs text-slate-600 flex flex-wrap items-center gap-x-3 gap-y-1 pt-2 border-t border-slate-200/60">
+                  <span>Puesto: <strong>{selectedRequestForAlta.cargos?.nombre}</strong></span>
+                  <span>&bull;</span>
+                  <span>Sede: <strong>{selectedRequestForAlta.sedes?.nombre}</strong></span>
+                  <span>&bull;</span>
+                  <span>Cliente: <strong>{selectedRequestForAlta.sedes?.clientes?.razon_social}</strong></span>
+                </div>
               )}
             </div>
+
+            {/* Official HR Contract Form */}
+            <form onSubmit={handleSaveAltaOficial} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                    Empresa Facturadora *
+                  </label>
+                  <select
+                    required
+                    value={altaForm.empresa_interna_id}
+                    onChange={(e) => setAltaForm({ ...altaForm, empresa_interna_id: e.target.value })}
+                    className="w-full p-2.5 border border-slate-200 rounded-lg text-sm bg-white font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-100 cursor-pointer"
+                  >
+                    <option value="">Seleccione Empresa...</option>
+                    {empresas.map(emp => (
+                      <option key={emp.id} value={emp.id}>{emp.razon_social}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                    Régimen Laboral *
+                  </label>
+                  <select
+                    required
+                    value={altaForm.regimen_laboral_id}
+                    onChange={(e) => setAltaForm({ ...altaForm, regimen_laboral_id: e.target.value })}
+                    className="w-full p-2.5 border border-slate-200 rounded-lg text-sm bg-white font-semibold text-slate-800 focus:outline-none cursor-pointer"
+                  >
+                    {regimenes.map(r => (
+                      <option key={r.id} value={r.id}>{r.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                    Sueldo Básico (S/.) *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min={0}
+                    required
+                    value={altaForm.sueldo_basico}
+                    onChange={(e) => setAltaForm({ ...altaForm, sueldo_basico: parseFloat(e.target.value) || 0 })}
+                    className="w-full p-2.5 border border-slate-200 rounded-lg text-sm font-bold text-slate-900 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                    Bono Adicional (S/.)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min={0}
+                    value={altaForm.bono}
+                    onChange={(e) => setAltaForm({ ...altaForm, bono: parseFloat(e.target.value) || 0 })}
+                    className="w-full p-2.5 border border-slate-200 rounded-lg text-sm font-semibold text-slate-900 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                    Modalidad Contrato *
+                  </label>
+                  <select
+                    required
+                    value={altaForm.modalidad_contrato_id}
+                    onChange={(e) => setAltaForm({ ...altaForm, modalidad_contrato_id: e.target.value })}
+                    className="w-full p-2.5 border border-slate-200 rounded-lg text-sm bg-white font-medium text-slate-800 focus:outline-none cursor-pointer"
+                  >
+                    {modalidadesContrato.map(m => (
+                      <option key={m.id} value={m.id}>{m.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                    Fecha de Ingreso / Inicio Contrato *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={altaForm.fecha_ingreso}
+                    onChange={(e) => setAltaForm({ ...altaForm, fecha_ingreso: e.target.value })}
+                    className="w-full p-2.5 border border-slate-200 rounded-lg text-sm font-mono font-bold text-slate-900 bg-white focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                    Fecha Fin de Contrato (Opcional)
+                  </label>
+                  <input
+                    type="date"
+                    value={altaForm.fecha_fin}
+                    onChange={(e) => setAltaForm({ ...altaForm, fecha_fin: e.target.value })}
+                    className="w-full p-2.5 border border-slate-200 rounded-lg text-sm font-mono text-slate-900 bg-white focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="asignacion_familiar"
+                  checked={altaForm.asignacion_familiar}
+                  onChange={(e) => setAltaForm({ ...altaForm, asignacion_familiar: e.target.checked })}
+                  className="w-4 h-4 text-emerald-600 rounded cursor-pointer"
+                />
+                <label htmlFor="asignacion_familiar" className="text-xs font-bold text-slate-700 cursor-pointer">
+                  Aplica Asignación Familiar (Ley N° 25129)
+                </label>
+              </div>
+
+              <div className="border-t border-slate-100 pt-4 flex gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsAltaModalOpen(false)}
+                  className="px-4 py-2 border border-slate-200 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-5 py-2 bg-emerald-600 text-white rounded-lg text-xs font-black hover:bg-emerald-700 shadow-md shadow-emerald-100 flex items-center gap-1.5 cursor-pointer"
+                >
+                  {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                  Aprobar y Dar de Alta en Planilla
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
 
-      {/* Supervisor: Create Request Modal */}
+      {/* ==================================================== */}
+      {/* MODAL: CREAR / EDITAR SOLICITUD DE PERSONAL */}
+      {/* ==================================================== */}
       {isRequestModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-fade-in p-3">
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md border border-slate-100 animate-slide-in">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
               <h3 className="font-heading text-lg font-bold text-slate-800 flex items-center gap-2">
@@ -950,7 +1918,7 @@ export function PizarraDigital() {
               </h3>
               <button
                 onClick={() => setIsRequestModalOpen(false)}
-                className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg"
+                className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -958,7 +1926,7 @@ export function PizarraDigital() {
 
             <form onSubmit={handleSaveRequest} className="space-y-4">
               <div className="relative">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Cliente</label>
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Cliente *</label>
                 <input
                   type="text"
                   required
@@ -1010,13 +1978,13 @@ export function PizarraDigital() {
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Sede / Centro Trabajo</label>
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Sede / Centro Trabajo *</label>
                 <select
                   required
                   value={requestForm.sede_id || ""}
                   disabled={!requestForm.cliente_id}
                   onChange={(e) => setRequestForm({ ...requestForm, sede_id: e.target.value ? parseInt(e.target.value) : "" })}
-                  className="w-full p-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all disabled:bg-slate-50 disabled:text-slate-400"
+                  className="w-full p-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all disabled:bg-slate-50 disabled:text-slate-400 cursor-pointer"
                 >
                   <option value="">
                     {requestForm.cliente_id ? "Seleccione Sede..." : "Primero seleccione un Cliente"}
@@ -1032,7 +2000,7 @@ export function PizarraDigital() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="relative">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Cargo Requerido</label>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Cargo Requerido *</label>
                   <input
                     type="text"
                     required
@@ -1087,7 +2055,7 @@ export function PizarraDigital() {
                   <select
                     value={requestForm.turno || "Rotativo"}
                     onChange={(e) => setRequestForm({ ...requestForm, turno: e.target.value })}
-                    className="w-full p-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all"
+                    className="w-full p-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all cursor-pointer"
                   >
                     <option value="Día">Día (Fijo)</option>
                     <option value="Noche">Noche (Fijo)</option>
@@ -1102,7 +2070,7 @@ export function PizarraDigital() {
                   <select
                     value={requestForm.genero_requerido || "Indistinto"}
                     onChange={(e) => setRequestForm({ ...requestForm, genero_requerido: e.target.value })}
-                    className="w-full p-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none"
+                    className="w-full p-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none cursor-pointer"
                   >
                     <option value="Indistinto">Indistinto</option>
                     <option value="Masculino">Masculino</option>
@@ -1139,14 +2107,14 @@ export function PizarraDigital() {
                 <button
                   type="button"
                   onClick={() => setIsRequestModalOpen(false)}
-                  className="px-4 py-2 border border-slate-200 text-slate-600 rounded-lg text-sm font-semibold"
+                  className="px-4 py-2 border border-slate-200 text-slate-600 rounded-lg text-sm font-semibold hover:bg-slate-50 cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 shadow-md flex items-center gap-2"
+                  className="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 shadow-md flex items-center gap-2 cursor-pointer"
                 >
                   {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4 stroke-[3]" />}
                   Enviar Solicitud
@@ -1157,301 +2125,477 @@ export function PizarraDigital() {
         </div>
       )}
 
-      {/* RRHH: Onboarding Candidate Modal */}
-      {isIngresoModalOpen && selectedRequest && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md border border-slate-100 animate-slide-in">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
-              <h3 className="font-heading text-lg font-bold text-slate-800 flex items-center gap-2">
-                <UserPlus className="w-5 h-5 text-blue-600" />
-                Registrar Onboarding / Candidato
-              </h3>
+      {/* ==================================================== */}
+      {/* MODAL: CONFIRMAR ASISTENCIA & ENVIAR A RRHH */}
+      {/* ==================================================== */}
+      {sendRRHHModal.isOpen && sendRRHHModal.candidato && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs animate-fade-in p-3">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg border border-slate-100 animate-slide-in">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl">
+                  <Send className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-heading text-base font-black text-slate-900">
+                    Confirmar Asistencia (Pase a RRHH)
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    El postulante pasará a la bandeja de RRHH para formalizar su contrato.
+                  </p>
+                </div>
+              </div>
               <button
-                onClick={() => setIsIngresoModalOpen(false)}
-                className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg"
+                onClick={() => setSendRRHHModal({ isOpen: false, candidato: null, fechaIngreso: "", notas: "" })}
+                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {showQuickPersona ? (
-              <form onSubmit={handleSaveQuickPersona} className="space-y-4">
-                <div className="bg-blue-50 text-blue-700 p-3 rounded-xl text-xs">
-                  Creando ficha maestra rápida. Una vez creada, se seleccionará automáticamente.
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Nombres</label>
-                    <input
-                      type="text"
-                      required
-                      value={quickPersonaForm.nombres || ""}
-                      onChange={(e) => setQuickPersonaForm({ ...quickPersonaForm, nombres: e.target.value })}
-                      className="w-full p-2 border border-slate-200 rounded-lg text-sm focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Apellidos</label>
-                    <input
-                      type="text"
-                      required
-                      value={quickPersonaForm.apellidos || ""}
-                      onChange={(e) => setQuickPersonaForm({ ...quickPersonaForm, apellidos: e.target.value })}
-                      className="w-full p-2 border border-slate-200 rounded-lg text-sm focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Tipo Doc.</label>
-                    <select
-                      required
-                      value={quickPersonaForm.tipo_documento_id || ""}
-                      onChange={(e) => setQuickPersonaForm({ ...quickPersonaForm, tipo_documento_id: parseInt(e.target.value) })}
-                      className="w-full p-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none"
-                    >
-                      <option value="">Seleccionar...</option>
-                      {documentTypes.map((dt) => (
-                        <option key={dt.id} value={dt.id}>{dt.nombre}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Nro. Documento</label>
-                    <input
-                      type="text"
-                      required
-                      value={quickPersonaForm.numero_documento || ""}
-                      onChange={(e) => setQuickPersonaForm({ ...quickPersonaForm, numero_documento: e.target.value })}
-                      className="w-full p-2 border border-slate-200 rounded-lg text-sm focus:outline-none font-mono"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Sexo</label>
-                    <select
-                      value={quickPersonaForm.sexo || "Masculino"}
-                      onChange={(e) => setQuickPersonaForm({ ...quickPersonaForm, sexo: e.target.value })}
-                      className="w-full p-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none"
-                    >
-                      <option value="Masculino">Masculino</option>
-                      <option value="Femenino">Femenino</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Fec. Nacimiento</label>
-                    <input
-                      type="date"
-                      required
-                      value={quickPersonaForm.fecha_nacimiento || ""}
-                      onChange={(e) => setQuickPersonaForm({ ...quickPersonaForm, fecha_nacimiento: e.target.value })}
-                      className="w-full p-2 border border-slate-200 rounded-lg text-sm focus:outline-none font-mono"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Teléfono</label>
-                    <input
-                      type="text"
-                      value={quickPersonaForm.telefono || ""}
-                      onChange={(e) => setQuickPersonaForm({ ...quickPersonaForm, telefono: e.target.value })}
-                      className="w-full p-2 border border-slate-200 rounded-lg text-sm focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Correo</label>
-                    <input
-                      type="email"
-                      value={quickPersonaForm.correo || ""}
-                      onChange={(e) => setQuickPersonaForm({ ...quickPersonaForm, correo: e.target.value })}
-                      className="w-full p-2 border border-slate-200 rounded-lg text-sm focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="border-t border-slate-100 pt-4 flex gap-2 justify-end">
-                  <button
-                    type="button"
-                    onClick={() => setShowQuickPersona(false)}
-                    className="px-4 py-2 border border-slate-200 text-slate-600 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-all"
-                  >
-                    Regresar
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 shadow-md flex items-center gap-2"
-                  >
-                    {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4 stroke-[3]" />}
-                    Crear Candidato
-                  </button>
-                </div>
-              </form>
-            ) : (
-              <form onSubmit={handleSaveIngreso} className="space-y-4">
-                <div className="bg-blue-50 text-blue-700 p-3 rounded-xl text-xs space-y-1">
-                  <div><strong>Sede Destino:</strong> {selectedRequest.sedes?.nombre}</div>
-                  <div><strong>Cargo:</strong> {selectedRequest.cargos?.nombre}</div>
-                </div>
-
-                <div className="relative">
-                  <div className="flex justify-between items-center mb-1">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Candidato (Ficha Maestra)</label>
-                    <button
-                      type="button"
-                      onClick={() => setShowQuickPersona(true)}
-                      className="text-[11px] font-bold text-blue-600 hover:text-blue-800 transition-colors"
-                    >
-                      + Crear Ficha Rápida
-                    </button>
-                  </div>
-                  
-                  <input
-                    type="text"
-                    required
-                    placeholder="Buscar por nombre o DNI..."
-                    value={candidateSearchQuery}
-                    onChange={(e) => {
-                      setCandidateSearchQuery(e.target.value);
-                      setShowCandidateDropdown(true);
-                      setIngresoForm((prev) => ({ ...prev, persona_id: "" }));
-                    }}
-                    onFocus={() => setShowCandidateDropdown(true)}
-                    onBlur={() => {
-                      setTimeout(() => {
-                        setShowCandidateDropdown(false);
-                        const selected = personas.find(p => p.id === ingresoForm.persona_id);
-                        if (selected) {
-                          setCandidateSearchQuery(`${selected.apellidos}, ${selected.nombres} - DNI: ${selected.numero_documento}`);
-                        } else {
-                          setCandidateSearchQuery("");
-                        }
-                      }, 200);
-                    }}
-                    className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all bg-white"
-                  />
-
-                  {showCandidateDropdown && (
-                    <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-30 max-h-48 overflow-y-auto divide-y divide-slate-100 font-sans">
-                      {filteredCandidates.length === 0 ? (
-                        <div className="p-3 text-xs text-slate-400 italic text-center font-medium">No se encontraron candidatos</div>
-                      ) : (
-                        filteredCandidates.map((p) => (
-                          <button
-                            key={p.id}
-                            type="button"
-                            onMouseDown={() => {
-                              setIngresoForm((prev) => ({ ...prev, persona_id: p.id }));
-                              setCandidateSearchQuery(`${p.apellidos}, ${p.nombres} - DNI: ${p.numero_documento}`);
-                              setShowCandidateDropdown(false);
-                            }}
-                            className={`w-full text-left px-3 py-2.5 text-xs font-medium hover:bg-slate-50 transition-colors ${
-                              ingresoForm.persona_id === p.id ? "bg-blue-50 text-blue-700 font-bold" : "text-slate-700"
-                            }`}
-                          >
-                            {p.apellidos}, {p.nombres} - DNI: {p.numero_documento}
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  )}
-                  <span className="text-[10px] text-slate-400 block mt-1">Busca y selecciona al postulante de su Ficha Maestra o usa el formulario rápido.</span>
-                </div>
-
-                {currentRole !== "reclutador" && currentRole !== "reclutamiento" && (
-                  <>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div>
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Sueldo Básico (S/.)</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min={0}
-                          required
-                          value={ingresoForm.sueldo_basico || ""}
-                          onChange={(e) => setIngresoForm({ ...ingresoForm, sueldo_basico: parseFloat(e.target.value) || 0 })}
-                          className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none font-semibold text-indigo-750"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Bono (S/.)</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min={0}
-                          value={ingresoForm.bono ?? 0.00}
-                          onChange={(e) => setIngresoForm({ ...ingresoForm, bono: parseFloat(e.target.value) || 0 })}
-                          className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none font-semibold text-indigo-750"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Régimen Laboral</label>
-                        <select
-                          required
-                          value={ingresoForm.regimen_laboral_id || ""}
-                          onChange={(e) => setIngresoForm({ ...ingresoForm, regimen_laboral_id: parseInt(e.target.value) })}
-                          className="w-full p-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none"
-                        >
-                          <option value="">Seleccione...</option>
-                          {regimenes.map((r) => (
-                            <option key={r.id} value={r.id}>{r.nombre}</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Fecha Inicio Contrato</label>
-                        <input
-                          type="date"
-                          required
-                          value={ingresoForm.fecha_inicio || ""}
-                          onChange={(e) => setIngresoForm({ ...ingresoForm, fecha_inicio: e.target.value })}
-                          className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none font-mono"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Fecha Fin (Opcional)</label>
-                        <input
-                          type="date"
-                          value={ingresoForm.fecha_fin || ""}
-                          onChange={(e) => setIngresoForm({ ...ingresoForm, fecha_fin: e.target.value })}
-                          className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none font-mono"
-                        />
-                      </div>
-                    </div>
-                  </>
+            {/* Candidate summary */}
+            <div className="bg-amber-50/50 border border-amber-200/60 rounded-xl p-3 mb-4 space-y-1 text-xs">
+              <div className="font-bold text-slate-900 text-sm">
+                {sendRRHHModal.candidato.apellidos}, {sendRRHHModal.candidato.nombres}
+              </div>
+              <div className="text-slate-500 flex items-center gap-3 font-mono">
+                <span>DNI: <strong className="text-slate-700">{sendRRHHModal.candidato.numero_documento}</strong></span>
+                {sendRRHHModal.candidato.telefono && (
+                  <span>Tel: <strong className="text-slate-700">{sendRRHHModal.candidato.telefono}</strong></span>
                 )}
+              </div>
+            </div>
 
-                <div className="border-t border-slate-100 pt-4 flex gap-2 justify-end">
-                  <button
-                    type="button"
-                    onClick={() => setIsIngresoModalOpen(false)}
-                    className="px-4 py-2 border border-slate-200 text-slate-600 rounded-lg text-sm font-semibold"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 shadow-md flex items-center gap-2"
-                  >
-                    {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4 stroke-[3]" />}
-                    Registrar Onboarding
-                  </button>
-                </div>
-              </form>
-            )}
+            <form onSubmit={handleConfirmSendRRHH} className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                  Fecha Confirmada / Tentativa de Ingreso *
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={sendRRHHModal.fechaIngreso}
+                  onChange={(e) => setSendRRHHModal({ ...sendRRHHModal, fechaIngreso: e.target.value })}
+                  className="w-full p-2.5 border border-slate-200 rounded-lg text-sm font-mono font-bold text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-amber-200"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                  Observaciones / Notas para RRHH (Opcional)
+                </label>
+                <textarea
+                  rows={3}
+                  value={sendRRHHModal.notas}
+                  onChange={(e) => setSendRRHHModal({ ...sendRRHHModal, notas: e.target.value })}
+                  placeholder="Ej. Asistió a la entrevista preliminar, listo para firma de contrato..."
+                  className="w-full p-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-200"
+                />
+              </div>
+
+              <div className="border-t border-slate-100 pt-4 flex gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setSendRRHHModal({ isOpen: false, candidato: null, fechaIngreso: "", notas: "" })}
+                  className="px-4 py-2 border border-slate-200 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold shadow-md flex items-center gap-1.5 cursor-pointer"
+                >
+                  {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  Confirmar y Enviar a RRHH
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
+
+      {/* ==================================================== */}
+      {/* MODAL: DESCARTAR POSTULANTE / NO SE PRESENTÓ */}
+      {/* ==================================================== */}
+      {discardModal.isOpen && discardModal.candidato && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs animate-fade-in p-3">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md border border-slate-100 animate-slide-in">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 bg-red-50 text-red-600 rounded-xl">
+                  <UserX className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-heading text-base font-black text-slate-900">
+                    Descartar Postulante
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Registra el motivo por el cual no se concretó la contratación.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setDiscardModal({ isOpen: false, candidato: null, tipo: "No se presento", motivo: "" })}
+                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200/70 rounded-xl p-3 mb-4 text-xs">
+              <span className="font-bold text-slate-900 block text-sm">
+                {discardModal.candidato.apellidos}, {discardModal.candidato.nombres}
+              </span>
+              <span className="text-slate-500 font-mono">DNI: {discardModal.candidato.numero_documento}</span>
+            </div>
+
+            <form onSubmit={handleConfirmDiscard} className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">
+                  Tipo de Descarte *
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setDiscardModal({ ...discardModal, tipo: "No se presento" })}
+                    className={`p-2.5 rounded-xl text-xs font-bold border transition-all text-center cursor-pointer ${
+                      discardModal.tipo === "No se presento"
+                        ? "bg-amber-50 border-amber-300 text-amber-900 ring-2 ring-amber-100"
+                        : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    🟡 No se presentó
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDiscardModal({ ...discardModal, tipo: "Descartado" })}
+                    className={`p-2.5 rounded-xl text-xs font-bold border transition-all text-center cursor-pointer ${
+                      discardModal.tipo === "Descartado"
+                        ? "bg-red-50 border-red-300 text-red-900 ring-2 ring-red-100"
+                        : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    🔴 Descartado
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                  Motivo / Observación
+                </label>
+                <textarea
+                  rows={2}
+                  required
+                  value={discardModal.motivo}
+                  onChange={(e) => setDiscardModal({ ...discardModal, motivo: e.target.value })}
+                  placeholder="Ej. Desistió de la vacante / No cumple perfil requerido..."
+                  className="w-full p-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-red-100"
+                />
+              </div>
+
+              <div className="border-t border-slate-100 pt-4 flex gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setDiscardModal({ isOpen: false, candidato: null, tipo: "No se presento", motivo: "" })}
+                  className="px-4 py-2 border border-slate-200 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold shadow-md shadow-red-100 flex items-center gap-1.5 cursor-pointer"
+                >
+                  {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <UserX className="w-4 h-4" />}
+                  Guardar Descarte
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ==================================================== */}
+      {/* MODAL: REGISTRAR CESE / DESERCIÓN DE COLABORADOR */}
+      {/* ==================================================== */}
+      {ceseModal.isOpen && ceseModal.vinculo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs animate-fade-in p-3">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md border border-slate-100 animate-slide-in">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 bg-red-50 text-red-600 rounded-xl">
+                  <UserMinus className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-heading text-base font-black text-slate-900">
+                    Registrar Cese de Colaborador
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Esta acción liberará la vacante correspondiente en la pizarra.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setCeseModal({ isOpen: false, vinculo: null, request: null, motivo: "Deserción / Retiro voluntario" })}
+                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200/70 rounded-xl p-3 mb-4 text-xs">
+              <span className="font-bold text-slate-900 block text-sm">
+                {ceseModal.vinculo.personas?.apellidos}, {ceseModal.vinculo.personas?.nombres}
+              </span>
+              <span className="text-slate-500 font-mono">DNI: {ceseModal.vinculo.personas?.numero_documento}</span>
+            </div>
+
+            <form onSubmit={handleConfirmCeseWorker} className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                  Motivo del Cese *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={ceseModal.motivo}
+                  onChange={(e) => setCeseModal({ ...ceseModal, motivo: e.target.value })}
+                  placeholder="Ej. Deserción laboral / Renuncia voluntaria"
+                  className="w-full p-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-red-100"
+                />
+              </div>
+
+              <div className="border-t border-slate-100 pt-4 flex gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setCeseModal({ isOpen: false, vinculo: null, request: null, motivo: "Deserción / Retiro voluntario" })}
+                  className="px-4 py-2 border border-slate-200 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold shadow-md shadow-red-100 flex items-center gap-1.5 cursor-pointer"
+                >
+                  {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <UserMinus className="w-4 h-4" />}
+                  Confirmar Cese
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ==================================================== */}
+      {/* MODAL: HISTORIAL Y DETALLE DE LA VACANTE */}
+      {/* ==================================================== */}
+      {isDetailModalOpen && liveDetailRequest && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs animate-fade-in p-3">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto border border-slate-100 animate-slide-in flex flex-col">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
+                  Historial & Colaboradores de Vacante
+                </span>
+                <h3 className="font-heading text-lg font-black text-slate-900 flex items-center gap-2">
+                  <Briefcase className="w-5 h-5 text-blue-600" />
+                  {liveDetailRequest.cargos?.nombre} &bull; {liveDetailRequest.sedes?.nombre}
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Cliente: <strong>{liveDetailRequest.sedes?.clientes?.razon_social}</strong> &bull; Cubiertas: {liveDetailRequest.plazas_cubiertas} de {liveDetailRequest.plazas_solicitadas}
+                </p>
+              </div>
+              <button
+                onClick={() => setIsDetailModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Active workers currently in this request */}
+            <div className="space-y-4 flex-1">
+              <div>
+                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  <UserCheck className="w-4 h-4 text-emerald-600" />
+                  Colaboradores Activos Asignados ({activeVinculos.filter(v => v.solicitud_id === liveDetailRequest.id && v.estado === "Activo").length})
+                </h4>
+
+                {activeVinculos.filter(v => v.solicitud_id === liveDetailRequest.id && v.estado === "Activo").length === 0 ? (
+                  <div className="text-center py-6 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-xs text-slate-500">
+                    No hay colaboradores activos formalizados para esta vacante aún.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
+                    {activeVinculos
+                      .filter(v => v.solicitud_id === liveDetailRequest.id && v.estado === "Activo")
+                      .map(v => (
+                        <div key={v.id} className="p-3 bg-white flex items-center justify-between hover:bg-slate-50 transition-colors">
+                          <div className="space-y-0.5">
+                            <div className="font-bold text-slate-900 text-sm">{v.personas?.apellidos}, {v.personas?.nombres}</div>
+                            <div className="text-xs text-slate-500 font-mono flex items-center gap-3">
+                              <span>DNI: {v.personas?.numero_documento}</span>
+                              <span>Ingreso: {v.fecha_ingreso ? new Date(v.fecha_ingreso + "T12:00:00").toLocaleDateString("es-PE") : "-"}</span>
+                            </div>
+                          </div>
+                          {isRRHHOrAdmin && (
+                            <button
+                              onClick={() => handleOpenCeseModal(v, liveDetailRequest)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 border border-red-200 rounded-lg transition-colors cursor-pointer"
+                              title="Registrar cese y liberar cupo"
+                            >
+                              <UserMinus className="w-3.5 h-3.5" />
+                              Registrar Cese
+                            </button>
+                          )}
+                        </div>
+                      ))
+                    }
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="border-t border-slate-100 pt-4 mt-6 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setIsDetailModalOpen(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================================================== */}
+      {/* SYSTEM CONFIRMATION MODAL */}
+      {/* ==================================================== */}
+      {confirmModal.isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-xs animate-fade-in p-4">
+          <div className="bg-white rounded-3xl shadow-2xl p-6 sm:p-7 w-full max-w-md border border-slate-100 text-center transform animate-slide-in relative overflow-hidden">
+            <div className={`absolute top-0 left-0 right-0 h-1.5 ${
+              confirmModal.isDestructive ? "bg-gradient-to-r from-red-500 to-rose-600" : "bg-gradient-to-r from-blue-500 to-indigo-500"
+            }`} />
+
+            <div className="mt-2 mb-4 flex justify-center">
+              {confirmModal.isDestructive ? (
+                <div className="w-16 h-16 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center ring-8 ring-red-50/50 shadow-inner">
+                  <Trash2 className="w-8 h-8 stroke-[2.5]" />
+                </div>
+              ) : (
+                <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center ring-8 ring-blue-50/50 shadow-inner">
+                  <AlertCircle className="w-8 h-8 stroke-[2.5]" />
+                </div>
+              )}
+            </div>
+
+            <h3 className="font-heading text-lg font-black text-slate-900 mb-2">
+              {confirmModal.title}
+            </h3>
+
+            <p className="text-sm text-slate-600 mb-6 leading-relaxed">
+              {confirmModal.message}
+            </p>
+
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+                className="flex-1 py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm transition-colors cursor-pointer"
+              >
+                {confirmModal.cancelText || "Cancelar"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const action = confirmModal.onConfirm;
+                  setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                  if (action) action();
+                }}
+                className={`flex-1 py-2.5 px-4 rounded-xl font-bold text-sm text-white shadow-lg transition-all cursor-pointer ${
+                  confirmModal.isDestructive
+                    ? "bg-red-600 hover:bg-red-700 shadow-red-200"
+                    : "bg-blue-600 hover:bg-blue-700 shadow-blue-200"
+                }`}
+              >
+                {confirmModal.confirmText || "Confirmar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================================================== */}
+      {/* SYSTEM FEEDBACK MODAL (SUCCESS, ERROR, WARNING, INFO) */}
+      {/* ==================================================== */}
+      {feedbackModal.isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-xs animate-fade-in p-4">
+          <div className="bg-white rounded-3xl shadow-2xl p-6 sm:p-7 w-full max-w-md border border-slate-100 text-center transform animate-slide-in relative overflow-hidden">
+            {/* Top decorative accent bar */}
+            <div className={`absolute top-0 left-0 right-0 h-1.5 ${
+              feedbackModal.type === "success" ? "bg-gradient-to-r from-emerald-500 to-teal-500" :
+              feedbackModal.type === "error" ? "bg-gradient-to-r from-red-500 to-rose-600" :
+              feedbackModal.type === "warning" ? "bg-gradient-to-r from-amber-500 to-orange-500" :
+              "bg-gradient-to-r from-blue-500 to-indigo-500"
+            }`} />
+
+            <div className="mt-2 mb-4 flex justify-center">
+              {feedbackModal.type === "success" && (
+                <div className="w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center ring-8 ring-emerald-50/50 shadow-inner">
+                  <CheckCircle2 className="w-9 h-9 stroke-[2.5]" />
+                </div>
+              )}
+              {feedbackModal.type === "error" && (
+                <div className="w-16 h-16 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center ring-8 ring-red-50/50 shadow-inner">
+                  <AlertCircle className="w-9 h-9 stroke-[2.5]" />
+                </div>
+              )}
+              {feedbackModal.type === "warning" && (
+                <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center ring-8 ring-amber-50/50 shadow-inner">
+                  <AlertTriangle className="w-9 h-9 stroke-[2.5]" />
+                </div>
+              )}
+              {feedbackModal.type === "info" && (
+                <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center ring-8 ring-blue-50/50 shadow-inner">
+                  <Info className="w-9 h-9 stroke-[2.5]" />
+                </div>
+              )}
+            </div>
+
+            <h3 className="font-heading text-lg font-black text-slate-900 mb-2">
+              {feedbackModal.title}
+            </h3>
+
+            <p className="text-sm text-slate-600 mb-6 leading-relaxed">
+              {feedbackModal.message}
+            </p>
+
+            <button
+              type="button"
+              autoFocus
+              onClick={() => {
+                const cb = feedbackModal.onConfirm;
+                setFeedbackModal(prev => ({ ...prev, isOpen: false }));
+                if (cb) cb();
+              }}
+              className={`w-full py-2.5 px-5 rounded-xl font-bold text-sm text-white shadow-lg transition-all cursor-pointer ${
+                feedbackModal.type === "success" ? "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200" :
+                feedbackModal.type === "error" ? "bg-red-600 hover:bg-red-700 shadow-red-200" :
+                feedbackModal.type === "warning" ? "bg-amber-600 hover:bg-amber-700 shadow-amber-200" :
+                "bg-blue-600 hover:bg-blue-700 shadow-blue-200"
+              }`}
+            >
+              {feedbackModal.confirmText || "Entendido"}
+            </button>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

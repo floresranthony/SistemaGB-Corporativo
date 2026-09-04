@@ -39,6 +39,7 @@ export function Sidebar({
           // Logistica permissions
           if (currentRole === "logistica") {
             if (group.name === "Dashboards" && item.path !== "/dashboards/logistico") return false;
+            if (group.name === "Pizarra Digital") return false;
             if (group.name === "Recursos Humanos" && item.path !== "/rrhh/fichas") return false;
             if (group.name === "Configuración" && item.path === "/config/accesos") return false;
             return true;
@@ -56,6 +57,7 @@ export function Sidebar({
           // Almacen permissions
           if (currentRole === "almacen") {
             if (group.name === "Dashboards" && item.path !== "/dashboards/logistico") return false;
+            if (group.name === "Pizarra Digital") return false;
             if (group.name === "Recursos Humanos" && item.path !== "/rrhh/fichas") return false;
             if (group.name === "Requerimientos" && item.path !== "/requerimientos/uniformes") return false;
             if (group.name === "Reportes") return false;
@@ -66,7 +68,7 @@ export function Sidebar({
           // Supervisor permissions
           if (currentRole === "supervisor") {
             if (group.name === "Dashboards" && item.path !== "/dashboards/logistico") return false;
-            if (group.name === "Recursos Humanos" && item.path !== "/rrhh/pizarra" && item.path !== "/rrhh/fichas" && item.path !== "/rrhh/tareo") return false;
+            if (group.name === "Recursos Humanos" && item.path !== "/rrhh/fichas" && item.path !== "/rrhh/tareo") return false;
             if (group.name === "Almacén") return false;
             if (group.name === "Reportes") return false;
             if (group.name === "Configuración" && item.path !== "/config/estructura") return false;
@@ -74,13 +76,14 @@ export function Sidebar({
           }
 
           if (currentRole === "planilla") {
+            if (group.name === "Pizarra Digital") return false;
             return item.path === "/rrhh/tareo" || item.path === "/rrhh/fichas" || item.path === "/rrhh/vacaciones";
           }
 
           // Reclutamiento / Reclutador permissions
           if (currentRole === "reclutador" || currentRole === "reclutamiento") {
             if (group.name === "Dashboards") return false;
-            if (group.name === "Recursos Humanos" && item.path !== "/rrhh/pizarra" && item.path !== "/rrhh/fichas" && item.path !== "/rrhh/vacaciones") return false;
+            if (group.name === "Recursos Humanos" && item.path !== "/rrhh/fichas" && item.path !== "/rrhh/vacaciones") return false;
             if (group.name === "Almacén") return false;
             if (group.name === "Reportes") return false;
             if (group.name === "Configuración") return false;
@@ -159,9 +162,15 @@ export function Sidebar({
               title={isCollapsed ? group.name : undefined}
             >
               <button
-                onClick={() => toggleGroup(group.name)}
+                onClick={() => {
+                  toggleGroup(group.name);
+                  if (group.items.length === 1) {
+                    onNavigate(group.items[0].path);
+                    if (window.innerWidth < 1024) onClose();
+                  }
+                }}
                 className={classNames(
-                  "w-full flex items-center px-4 py-2 text-sm font-medium rounded-sm transition-colors",
+                  "w-full flex items-center px-4 py-2 text-sm font-medium rounded-sm transition-colors cursor-pointer",
                   isCollapsed ? "justify-center py-3" : "justify-between",
                   hasActiveItemInGroup
                     ? "bg-[#eff6ff] text-[#2563eb] border-r-[3px] border-[#2563eb]"

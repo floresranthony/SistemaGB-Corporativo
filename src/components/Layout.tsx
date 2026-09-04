@@ -44,6 +44,7 @@ const isPathAllowed = (path: string, currentRole: string): boolean => {
         // Logistica permissions
         if (currentRole === "logistica") {
           if (group.name === "Dashboards" && item.path !== "/dashboards/logistico") return false;
+          if (group.name === "Pizarra Digital") return false;
           if (group.name === "Recursos Humanos" && item.path !== "/rrhh/fichas") return false;
           if (group.name === "Configuración" && item.path === "/config/accesos") return false;
           return true;
@@ -61,6 +62,7 @@ const isPathAllowed = (path: string, currentRole: string): boolean => {
         // Almacen permissions
         if (currentRole === "almacen") {
           if (group.name === "Dashboards" && item.path !== "/dashboards/logistico") return false;
+          if (group.name === "Pizarra Digital") return false;
           if (group.name === "Recursos Humanos" && item.path !== "/rrhh/fichas") return false;
           if (group.name === "Requerimientos" && item.path !== "/requerimientos/uniformes") return false;
           if (group.name === "Reportes") return false;
@@ -71,7 +73,7 @@ const isPathAllowed = (path: string, currentRole: string): boolean => {
         // Supervisor permissions
         if (currentRole === "supervisor") {
           if (group.name === "Dashboards" && item.path !== "/dashboards/logistico") return false;
-          if (group.name === "Recursos Humanos" && item.path !== "/rrhh/pizarra" && item.path !== "/rrhh/fichas" && item.path !== "/rrhh/tareo") return false;
+          if (group.name === "Recursos Humanos" && item.path !== "/rrhh/fichas" && item.path !== "/rrhh/tareo") return false;
           if (group.name === "Almacén") return false;
           if (group.name === "Reportes") return false;
           if (group.name === "Configuración" && item.path !== "/config/estructura") return false;
@@ -79,7 +81,19 @@ const isPathAllowed = (path: string, currentRole: string): boolean => {
         }
 
         if (currentRole === "planilla") {
+          if (group.name === "Pizarra Digital") return false;
           return item.path === "/rrhh/tareo" || item.path === "/rrhh/fichas" || item.path === "/rrhh/vacaciones";
+        }
+
+        // Reclutamiento / Reclutador permissions
+        if (currentRole === "reclutador" || currentRole === "reclutamiento") {
+          if (group.name === "Dashboards") return false;
+          if (group.name === "Recursos Humanos" && item.path !== "/rrhh/fichas" && item.path !== "/rrhh/vacaciones") return false;
+          if (group.name === "Almacén") return false;
+          if (group.name === "Reportes") return false;
+          if (group.name === "Configuración") return false;
+          if (group.name === "Requerimientos" && item.path !== "/requerimientos/uniformes") return false;
+          return true;
         }
 
         return true;
@@ -92,6 +106,7 @@ const isPathAllowed = (path: string, currentRole: string): boolean => {
 
 const getDefaultPath = (currentRole: string): string => {
   if (currentRole === "rrhh") return "/dashboards/rrhh";
+  if (currentRole === "reclutador" || currentRole === "reclutamiento") return "/rrhh/pizarra";
   if (currentRole === "logistica") return "/dashboards/logistico";
   if (currentRole === "almacen") return "/almacen/catalogo";
   if (currentRole === "supervisor") return "/rrhh/tareo";

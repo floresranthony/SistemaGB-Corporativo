@@ -35,10 +35,16 @@ export const navigationStructure = [
     ],
   },
   {
+    name: "Pizarra Digital",
+    icon: LayoutDashboard,
+    items: [
+      { name: "Pizarra de Vacantes", path: "/rrhh/pizarra", icon: LayoutDashboard },
+    ],
+  },
+  {
     name: "Recursos Humanos",
     icon: Users,
     items: [
-      { name: "Pizarra Digital", path: "/rrhh/pizarra", icon: LayoutDashboard },
       { name: "Fichas de Personal", path: "/rrhh/fichas", icon: UserSquare },
       { name: "Control de Vacaciones", path: "/rrhh/vacaciones", icon: Calendar },
       { name: "Tareo por Sedes", path: "/rrhh/tareo", icon: ClipboardCheck },
