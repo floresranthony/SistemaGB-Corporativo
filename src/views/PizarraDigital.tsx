@@ -31,7 +31,9 @@ import {
   Mail,
   ArrowRight,
   ShieldCheck,
-  Tag
+  Tag,
+  MessageSquare,
+  FileText
 } from "lucide-react";
 
 export function PizarraDigital() {
@@ -1114,12 +1116,13 @@ export function PizarraDigital() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {filteredData.map((req) => {
+                    {filteredData.map((req, index) => {
                       const isCompleted = req.estado === "Completado";
                       const pct = Math.min(100, Math.floor((req.plazas_cubiertas / req.plazas_solicitadas) * 100));
                       
                       const reqCandidatos = candidatos.filter(c => c.solicitud_id === req.id);
                       const reqPendingAltas = reqCandidatos.filter(c => c.estado === "Pendiente de Alta");
+                      const isNearBottom = filteredData.length > 2 && index >= filteredData.length - 2;
 
                       return (
                         <tr key={req.id} className="hover:bg-slate-50/40 transition-colors">
@@ -1141,8 +1144,59 @@ export function PizarraDigital() {
                           <td className="px-6 py-4 text-sm text-slate-800 font-bold">
                             {req.cargos?.nombre || "Cargo Desconocido"}
                           </td>
-                          <td className="px-6 py-4 text-xs text-slate-600 font-semibold">
-                            {req.turno}
+                          <td className="px-6 py-4 text-xs font-semibold">
+                            <div className="relative group/turno inline-block">
+                              <div
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 border border-slate-200/80 transition-all cursor-help"
+                                title={req.motivo_vacante ? `Motivo: ${req.motivo_vacante}` : "Sin motivo registrado"}
+                              >
+                                <Clock className="w-3 h-3 text-slate-400 group-hover/turno:text-blue-500 transition-colors" />
+                                <span>{req.turno}</span>
+                                {req.motivo_vacante && (
+                                  <MessageSquare className="w-2.5 h-2.5 text-blue-500 opacity-80" />
+                                )}
+                              </div>
+
+                              {/* Rich Popover on Hover showing Motivo (Smart dynamic positioning) */}
+                              <div
+                                className={`absolute left-0 ${
+                                  isNearBottom ? "bottom-full mb-2" : "top-full mt-1.5"
+                                } hidden group-hover/turno:flex flex-col w-72 p-3 bg-slate-900/95 text-white text-xs rounded-xl shadow-2xl border border-slate-800 backdrop-blur-md z-50 animate-fade-in pointer-events-none`}
+                              >
+                                <div className="flex items-center justify-between gap-2 pb-1.5 mb-1.5 border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                  <span className="flex items-center gap-1 text-blue-400">
+                                    <MessageSquare className="w-3 h-3" /> Motivo del Requerimiento
+                                  </span>
+                                  <span>#{req.id}</span>
+                                </div>
+
+                                <div className="text-slate-200 text-xs font-normal leading-relaxed whitespace-pre-wrap bg-slate-800/80 p-2.5 rounded-lg border border-slate-700/60 mb-2">
+                                  {req.motivo_vacante ? (
+                                    <span>&ldquo;{req.motivo_vacante}&rdquo;</span>
+                                  ) : (
+                                    <span className="italic text-slate-400">Sin motivo registrado al crear la vacante.</span>
+                                  )}
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-1.5 text-[10px] text-slate-400 pt-1 border-t border-slate-800/80">
+                                  <div>
+                                    <span className="text-slate-500">Género:</span>{" "}
+                                    <span className="text-slate-300 font-semibold">{req.genero_requerido || "Indistinto"}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-slate-500">Plazas:</span>{" "}
+                                    <span className="text-slate-300 font-semibold">{req.plazas_solicitadas} vacante(s)</span>
+                                  </div>
+                                </div>
+
+                                {/* Arrow */}
+                                {isNearBottom ? (
+                                  <div className="absolute top-full left-4 -mt-1 border-4 border-transparent border-t-slate-900/95" />
+                                ) : (
+                                  <div className="absolute bottom-full left-4 -mb-1 border-4 border-transparent border-b-slate-900/95" />
+                                )}
+                              </div>
+                            </div>
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex flex-col items-center justify-center space-y-1">
@@ -1159,10 +1213,14 @@ export function PizarraDigital() {
                           </td>
                           <td className="px-6 py-4 text-center">
                             <div className="flex flex-col items-center gap-1">
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                              <button
+                                onClick={() => handleOpenCandidatosModal(req)}
+                                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 border border-slate-200 hover:border-blue-200 transition-colors cursor-pointer"
+                                title="Ver y gestionar postulantes"
+                              >
                                 <Users className="w-3 h-3 text-slate-500" />
                                 {reqCandidatos.length} postulante(s)
-                              </span>
+                              </button>
                               {reqPendingAltas.length > 0 && (
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 animate-pulse">
                                   <Clock className="w-2.5 h-2.5 text-amber-600" />
@@ -1181,14 +1239,13 @@ export function PizarraDigital() {
                           </td>
                           <td className="px-6 py-4 text-right">
                             <div className="flex items-center justify-end gap-1.5 flex-wrap">
-                              {/* Manage Candidates Button */}
+                              {/* Manage Candidates Button (Compact +) */}
                               <button
                                 onClick={() => handleOpenCandidatosModal(req)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-all cursor-pointer shadow-xs"
-                                title="Gestionar Postulantes y Reclutamiento"
+                                className="p-1.5 text-blue-700 bg-blue-50 hover:bg-blue-600 hover:text-white border border-blue-200 hover:border-blue-600 rounded-lg transition-all cursor-pointer shadow-xs flex items-center justify-center group/btn"
+                                title={`Gestionar Postulantes y Reclutamiento (${reqCandidatos.length} candidatos) · Añadir (+)`}
                               >
-                                <Users className="w-3.5 h-3.5 text-blue-600" />
-                                Candidatos ({reqCandidatos.length})
+                                <Plus className="w-3.5 h-3.5 stroke-[2.5] transition-transform group-hover/btn:scale-110" />
                               </button>
 
                               <button
@@ -2414,6 +2471,24 @@ export function PizarraDigital() {
               >
                 <X className="w-5 h-5" />
               </button>
+            </div>
+
+            {/* Motivo & Metadata Banner */}
+            <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3.5 mb-4 text-xs space-y-2">
+              <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider">
+                <MessageSquare className="w-3.5 h-3.5 text-blue-600" />
+                Motivo / Requerimientos Especiales:
+              </div>
+              <p className="text-slate-700 bg-white p-2.5 rounded-lg border border-slate-200/60 leading-relaxed font-normal">
+                {liveDetailRequest.motivo_vacante || (
+                  <span className="italic text-slate-400">Sin motivo registrado al crear la vacante.</span>
+                )}
+              </p>
+              <div className="flex flex-wrap items-center gap-4 text-[11px] text-slate-500 pt-1 font-medium">
+                <span>Turno: <strong className="text-slate-700">{liveDetailRequest.turno}</strong></span>
+                <span>Género Requerido: <strong className="text-slate-700">{liveDetailRequest.genero_requerido || "Indistinto"}</strong></span>
+                <span>Fecha Solicitud: <strong className="text-slate-700">{new Date(liveDetailRequest.fecha_solicitud).toLocaleDateString("es-PE")}</strong></span>
+              </div>
             </div>
 
             {/* Active workers currently in this request */}
