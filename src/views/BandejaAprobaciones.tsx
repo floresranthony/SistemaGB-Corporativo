@@ -468,7 +468,7 @@ export function BandejaAprobaciones() {
             </div>
 
             {/* Requisition Info Header */}
-            <div className="p-5 bg-slate-50/10 border-b border-slate-100 text-xs grid grid-cols-2 gap-4">
+            <div className="p-5 bg-slate-50/10 border-b border-slate-100 text-xs grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div>
                 <span className="text-slate-400 block uppercase font-semibold text-[10px]">Sede Destino:</span>
                 <span className="font-bold text-slate-800 mt-0.5 block">{selectedReq.sedes?.nombre}</span>
@@ -477,6 +477,18 @@ export function BandejaAprobaciones() {
                 <span className="text-slate-400 block uppercase font-semibold text-[10px]">Solicitante:</span>
                 <span className="font-bold text-slate-800 mt-0.5 block">
                   {selectedReq.usuario_solicitante?.nombres} {selectedReq.usuario_solicitante?.apellidos} (<span className="font-mono text-slate-500">{selectedReq.usuario_solicitante?.username}</span>)
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400 block uppercase font-semibold text-[10px]">Lugar de Despacho:</span>
+                <span className="font-bold text-slate-800 mt-0.5 block truncate" title={selectedReq.lugar_despacho || selectedReq.sedes?.direccion}>
+                  {selectedReq.lugar_despacho || selectedReq.sedes?.direccion || "Sede principal"}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400 block uppercase font-semibold text-[10px]">Contacto / Horario:</span>
+                <span className="font-bold text-slate-800 mt-0.5 block">
+                  {selectedReq.personal_contacto || "—"} {selectedReq.numero_contacto ? `(${selectedReq.numero_contacto})` : ""} {selectedReq.horario_atencion ? `· ${selectedReq.horario_atencion}` : ""}
                 </span>
               </div>
             </div>

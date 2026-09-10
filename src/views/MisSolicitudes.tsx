@@ -48,6 +48,10 @@ interface Requerimiento {
   afecta_stock: boolean;
   estado: string;
   apoyo_extraordinario: boolean;
+  horario_atencion?: string | null;
+  personal_contacto?: string | null;
+  numero_contacto?: string | null;
+  lugar_despacho?: string | null;
   fecha_solicitud: string;
   fecha_aprobacion: string | null;
   fecha_envio: string | null;
@@ -57,6 +61,9 @@ interface Requerimiento {
   sedes?: {
     id: number;
     nombre: string;
+    direccion?: string;
+    distrito?: string;
+    contacto_nombre?: string;
     contacto_telefono: string;
     presupuesto: string;
     clientes?: {
@@ -128,6 +135,10 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
   // Form Fields
   const [selectedSedeId, setSelectedSedeId] = useState<number | "">("");
   const [selectedClienteId, setSelectedClienteId] = useState<number | "">("");
+  const [lugarDespacho, setLugarDespacho] = useState("");
+  const [horarioAtencion, setHorarioAtencion] = useState("");
+  const [personalContacto, setPersonalContacto] = useState("");
+  const [numeroContacto, setNumeroContacto] = useState("");
   const preserveCartOnSedeChange = React.useRef(false);
 
   const uniqueClientes = React.useMemo(() => {
@@ -374,6 +385,9 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
           sedes (
             id,
             nombre,
+            direccion,
+            distrito,
+            contacto_nombre,
             contacto_telefono,
             presupuesto,
             clientes (
@@ -457,6 +471,9 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
         .select(`
           id,
           nombre,
+          direccion,
+          distrito,
+          contacto_nombre,
           contacto_telefono,
           clientes (id, razon_social)
         `)
@@ -517,30 +534,16 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
     const { data, error: detailErr } = await supabase
       .from("requerimiento_detalles")
       .select(`
-        id,
-        cantidad_solicitada,
-        cantidad_aprobada,
-        cantidad_entregada,
-        observacion,
-        motivo_modificacion,
-        producto_id,
-        producto_talla_id,
+        *,
         productos (
           id,
           nombre,
           sku,
           precio_unitario,
-          es_uniforme,
-          unidades_medida (
-            nombre,
-            codigo
-          )
+          unidades_medida (nombre, codigo),
+          categorias_producto (nombre)
         ),
-        producto_tallas (
-          id,
-          stock_actual,
-          tallas(valor)
-        ),
+        producto_tallas (id, tallas (valor)),
         vinculos_laborales (id, personas(nombres, apellidos))
       `)
       .eq("requerimiento_id", reqId);
@@ -558,6 +561,9 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
           sedes (
             id,
             nombre,
+            direccion,
+            distrito,
+            contacto_nombre,
             contacto_telefono,
             presupuesto,
             clientes (
@@ -633,6 +639,10 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
       preserveCartOnSedeChange.current = true;
       setSelectedSedeId(req.sede_id);
       setIsExtraordinarySupport(!!req.apoyo_extraordinario);
+      setLugarDespacho(req.lugar_despacho || "");
+      setHorarioAtencion(req.horario_atencion || "");
+      setPersonalContacto(req.personal_contacto || "");
+      setNumeroContacto(req.numero_contacto || "");
       setCart(details.map((det: any) => ({
         id: `draft-${det.id}`,
         producto: det.productos,
@@ -666,6 +676,10 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
       preserveCartOnSedeChange.current = true;
       setSelectedSedeId(req.sede_id);
       setIsExtraordinarySupport(!!req.apoyo_extraordinario);
+      setLugarDespacho(req.lugar_despacho || "");
+      setHorarioAtencion(req.horario_atencion || "");
+      setPersonalContacto(req.personal_contacto || "");
+      setNumeroContacto(req.numero_contacto || "");
       await loadWorkersForSede(req.sede_id);
 
       setCart(details.map((det: any) => ({
@@ -1399,7 +1413,18 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
         code = editingDraftCode || "Borrador";
         const { data: updatedDraft, error: draftErr } = await supabase
           .from("requerimientos")
-          .update({ sede_id: Number(selectedSedeId), tipo_solicitud: activeTab, afecta_stock: affectsStock, estado: finalState, apoyo_extraordinario: isExtraordinarySupport, actualizado_en: new Date().toISOString() })
+          .update({
+            sede_id: Number(selectedSedeId),
+            tipo_solicitud: activeTab,
+            afecta_stock: affectsStock,
+            estado: finalState,
+            apoyo_extraordinario: isExtraordinarySupport,
+            horario_atencion: horarioAtencion.trim() || null,
+            personal_contacto: personalContacto.trim() || null,
+            numero_contacto: numeroContacto.trim() || null,
+            lugar_despacho: lugarDespacho.trim() || null,
+            actualizado_en: new Date().toISOString()
+          })
           .eq("id", editingDraftId)
           .eq("estado", "Borrador")
           .eq("usuario_solicitante_id", user.id)
@@ -1417,7 +1442,19 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
         code = `REQ-${dateStr}-${randomId}-${activeTab === "Materiales_y_EPP" ? "EPP" : "UNI"}`;
         const { data: reqHead, error: headErr } = await supabase
           .from("requerimientos")
-          .insert({ codigo: code, sede_id: Number(selectedSedeId), usuario_solicitante_id: user.id, tipo_solicitud: activeTab, afecta_stock: affectsStock, estado: finalState, apoyo_extraordinario: isExtraordinarySupport })
+          .insert({
+            codigo: code,
+            sede_id: Number(selectedSedeId),
+            usuario_solicitante_id: user.id,
+            tipo_solicitud: activeTab,
+            afecta_stock: affectsStock,
+            estado: finalState,
+            apoyo_extraordinario: isExtraordinarySupport,
+            horario_atencion: horarioAtencion.trim() || null,
+            personal_contacto: personalContacto.trim() || null,
+            numero_contacto: numeroContacto.trim() || null,
+            lugar_despacho: lugarDespacho.trim() || null
+          })
           .select("id")
           .single();
         if (headErr) throw headErr;
@@ -1458,6 +1495,10 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
       setCart([]);
       setSelectedSedeId("");
       setSelectedClienteId("");
+      setLugarDespacho("");
+      setHorarioAtencion("");
+      setPersonalContacto("");
+      setNumeroContacto("");
       setIsExtraordinarySupport(false);
       setEditingDraftId(null);
       setEditingDraftCode(null);
@@ -1651,22 +1692,30 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
                 </table>
 
                 <!-- General Metadata Table -->
-                <table style="width: 100%; border-collapse: collapse; border: 1px solid black; margin-bottom: 12px; font-size: 10.5px; font-weight: bold; color: black;">
+                <table style="width: 100%; border-collapse: collapse; border: 1px solid black; margin-bottom: 10px; font-size: 10px; font-weight: bold; color: black;">
                   <tbody>
                     <tr>
-                      <td style="border: 1px solid black; padding: 6px 8px; width: 66.6%; text-transform: uppercase;">
+                      <td style="border: 1px solid black; padding: 4.5px 7px; width: 62%; text-transform: uppercase;">
                         SEDE O UNIDAD: ${selectedReq.sedes?.nombre} - ${selectedReq.sedes?.clientes?.razon_social}
                       </td>
-                      <td style="border: 1px solid black; padding: 6px 8px; width: 33.3%; text-transform: uppercase;">
-                        TELEFONO: 
+                      <td style="border: 1px solid black; padding: 4.5px 7px; width: 38%; text-transform: uppercase;">
+                        FECHA DE SOLICITUD: ${formattedDate}
                       </td>
                     </tr>
                     <tr>
-                      <td style="border: 1px solid black; padding: 6px 8px; width: 66.6%; text-transform: uppercase;">
+                      <td style="border: 1px solid black; padding: 4.5px 7px; width: 62%; text-transform: uppercase;">
                         SOLICITANTE: ${solicitanteName}
                       </td>
-                      <td style="border: 1px solid black; padding: 6px 8px; width: 33.3%; text-transform: uppercase;">
-                        FECHA DE SOLICITUD: ${formattedDate}
+                      <td style="border: 1px solid black; padding: 4.5px 7px; width: 38%; text-transform: uppercase;">
+                        HORARIO ATENCIÓN: ${selectedReq.horario_atencion || "—"}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="border: 1px solid black; padding: 4.5px 7px; width: 62%; text-transform: uppercase;">
+                        LUGAR DE DESPACHO: ${selectedReq.lugar_despacho || selectedReq.sedes?.direccion || "—"}
+                      </td>
+                      <td style="border: 1px solid black; padding: 4.5px 7px; width: 38%; text-transform: uppercase;">
+                        CONTACTO: ${selectedReq.personal_contacto ? `${selectedReq.personal_contacto} ${selectedReq.numero_contacto ? ' - ' + selectedReq.numero_contacto : ''}` : (selectedReq.numero_contacto || "—")}
                       </td>
                     </tr>
                   </tbody>
@@ -2393,9 +2442,21 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
                   </span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block font-semibold mb-1 uppercase tracking-wide text-[9px]">Lugar de Entrega</span>
-                  <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 font-bold px-2 py-0.5 rounded mt-0.5">
-                    ● Envío a Unidad Operativa (Por Defecto)
+                  <span className="text-slate-400 block font-semibold mb-1 uppercase tracking-wide text-[9px]">Lugar de Despacho</span>
+                  <span className="font-bold text-slate-800 text-xs block">
+                    {selectedReq.lugar_despacho || selectedReq.sedes?.direccion || "Dirección de la sede principal"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block font-semibold mb-1 uppercase tracking-wide text-[9px]">Horario de Atención</span>
+                  <span className="font-bold text-slate-800 text-xs block">
+                    {selectedReq.horario_atencion || "No especificado"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block font-semibold mb-1 uppercase tracking-wide text-[9px]">Personal / Teléfono de Contacto</span>
+                  <span className="font-bold text-slate-800 text-xs block">
+                    {selectedReq.personal_contacto ? `${selectedReq.personal_contacto} ${selectedReq.numero_contacto ? `(${selectedReq.numero_contacto})` : ''}` : (selectedReq.numero_contacto || "No especificado")}
                   </span>
                 </div>
                 <div>
@@ -2697,15 +2758,104 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
                 </div>
 
                 {selectedClienteId && (
-                  <div className="animate-fade-in">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Sede Operativa</label>
-                    <SearchableSelect
-                      value={selectedSedeId}
-                      placeholder="Seleccione una sede..."
-                      searchPlaceholder="Buscar sede..."
-                      options={sedes.filter((s) => s.clientes?.id === selectedClienteId).map((s) => ({ value: s.id, label: s.nombre }))}
-                      onChange={(value) => setSelectedSedeId(value === "" ? "" : Number(value))}
-                    />
+                  <div className="animate-fade-in space-y-4">
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Sede Operativa</label>
+                      <SearchableSelect
+                        value={selectedSedeId}
+                        placeholder="Seleccione una sede..."
+                        searchPlaceholder="Buscar sede..."
+                        options={sedes.filter((s) => s.clientes?.id === selectedClienteId).map((s) => ({ value: s.id, label: s.nombre }))}
+                        onChange={(value) => {
+                          const newSedeId = value === "" ? "" : Number(value);
+                          setSelectedSedeId(newSedeId);
+                          if (newSedeId) {
+                            const s = sedes.find((item) => item.id === newSedeId);
+                            if (s) {
+                              const defaultAddress = [s.direccion, s.distrito].filter(Boolean).join(" - ") || "";
+                              setLugarDespacho(defaultAddress);
+                              setPersonalContacto("");
+                              setNumeroContacto("");
+                              setHorarioAtencion((prev) => prev || "Lunes a Viernes 08:00 - 17:00");
+                            }
+                          } else {
+                            setLugarDespacho("");
+                            setPersonalContacto("");
+                            setNumeroContacto("");
+                            setHorarioAtencion("");
+                          }
+                        }}
+                      />
+                    </div>
+
+                    {selectedSedeId && (
+                      <div className="space-y-3 pt-3 border-t border-slate-150 animate-fade-in">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                            <Truck className="w-3.5 h-3.5 text-blue-600" />
+                            Datos de Entrega y Despacho
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-medium">Llenar según corresponda</span>
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                            Lugar de Despacho (Dirección / Puerta / Área)
+                          </label>
+                          <input
+                            type="text"
+                            value={lugarDespacho}
+                            onChange={(e) => setLugarDespacho(e.target.value)}
+                            placeholder="Ej: Av. Gambetta Km 15 - Puerta 2 / Almacén Central"
+                            className="w-full text-xs font-semibold text-slate-800 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all"
+                          />
+                          <span className="text-[10px] text-slate-400 mt-1 block">
+                            Inicializado con la dirección de la sede. Puedes modificarlo si la entrega es en otra ubicación o puerta.
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                              Horario de Atención
+                            </label>
+                            <input
+                              type="text"
+                              value={horarioAtencion}
+                              onChange={(e) => setHorarioAtencion(e.target.value)}
+                              placeholder="Ej: Lunes a Viernes 08:00 - 17:00"
+                              className="w-full text-xs font-semibold text-slate-800 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                              Personal de Contacto (Vigilancia / Nuestro Personal)
+                            </label>
+                            <input
+                              type="text"
+                              value={personalContacto}
+                              onChange={(e) => setPersonalContacto(e.target.value)}
+                              placeholder="Ej: Vigilancia Puerta 2 / Operario de Turno"
+                              className="w-full text-xs font-semibold text-slate-800 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                            Número / Celular de Contacto en Sede
+                          </label>
+                          <input
+                            type="text"
+                            value={numeroContacto}
+                            onChange={(e) => setNumeroContacto(e.target.value)}
+                            placeholder="Ej: 987654321"
+                            className="w-full text-xs font-semibold text-slate-800 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

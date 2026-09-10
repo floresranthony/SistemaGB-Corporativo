@@ -406,7 +406,7 @@ export function DespachosEntregas() {
                   </div>
 
                   {/* Metadata fields */}
-                  <div className="grid grid-cols-2 gap-x-6 gap-y-3 bg-slate-50 border border-slate-250 p-4 rounded-xl text-xs font-medium text-slate-700">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3 bg-slate-50 border border-slate-250 p-4 rounded-xl text-xs font-medium text-slate-700">
                     <div>
                       <span className="text-slate-400 font-bold block uppercase text-[9px] tracking-wider">Cliente / Cuenta:</span>
                       <span className="font-black text-slate-800 mt-0.5 block">{selectedReq.sedes?.clientes?.razon_social}</span>
@@ -416,13 +416,27 @@ export function DespachosEntregas() {
                       <span className="font-black text-slate-800 mt-0.5 block">{selectedReq.sedes?.nombre}</span>
                     </div>
                     <div>
-                      <span className="text-slate-400 font-bold block uppercase text-[9px] tracking-wider">Dirección Destino:</span>
-                      <span className="font-semibold block mt-0.5 text-slate-600 truncate">{selectedReq.sedes?.direccion || "Recojo en Almacén Principal"}</span>
-                    </div>
-                    <div>
                       <span className="text-slate-400 font-bold block uppercase text-[9px] tracking-wider font-heading">Solicitado por:</span>
                       <span className="font-bold text-slate-800 mt-0.5 block">
                         {selectedReq.usuario_solicitante?.nombres} {selectedReq.usuario_solicitante?.apellidos} (<span className="font-mono">{selectedReq.usuario_solicitante?.username}</span>)
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 font-bold block uppercase text-[9px] tracking-wider">Lugar de Despacho:</span>
+                      <span className="font-semibold block mt-0.5 text-slate-700 truncate" title={selectedReq.lugar_despacho || selectedReq.sedes?.direccion}>
+                        {selectedReq.lugar_despacho || selectedReq.sedes?.direccion || "Recojo en Almacén Principal"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 font-bold block uppercase text-[9px] tracking-wider">Horario de Atención:</span>
+                      <span className="font-semibold block mt-0.5 text-slate-700">
+                        {selectedReq.horario_atencion || "No especificado"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 font-bold block uppercase text-[9px] tracking-wider">Contacto de Recepción:</span>
+                      <span className="font-semibold block mt-0.5 text-slate-700">
+                        {selectedReq.personal_contacto ? `${selectedReq.personal_contacto} ${selectedReq.numero_contacto ? `(${selectedReq.numero_contacto})` : ''}` : (selectedReq.numero_contacto || "—")}
                       </span>
                     </div>
                   </div>
