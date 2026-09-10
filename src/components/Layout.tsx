@@ -9,6 +9,7 @@ import { EstructuraComercial } from "../views/EstructuraComercial";
 import { PlaceholderView } from "../views/PlaceholderView";
 import { DashboardRRHH } from "../views/DashboardRRHH";
 import { PizarraDigital } from "../views/PizarraDigital";
+import { DashboardPizarra } from "../views/DashboardPizarra";
 import { FichasPersonal } from "../views/FichasPersonal";
 import { GestionContratos } from "../views/GestionContratos";
 import { ControlVacaciones } from "../views/ControlVacaciones";
@@ -184,6 +185,8 @@ export function Layout() {
         return <DashboardRRHH />;
       case "/rrhh/pizarra":
         return <PizarraDigital />;
+      case "/rrhh/pizarra-dashboard":
+        return <DashboardPizarra />;
       case "/rrhh/fichas":
         return <FichasPersonal />;
       case "/rrhh/contratos":

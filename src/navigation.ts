@@ -19,6 +19,7 @@ import {
   Building,
   Key,
   Database,
+  TrendingUp,
 } from "lucide-react";
 
 export const navigationStructure = [
@@ -39,6 +40,7 @@ export const navigationStructure = [
     icon: LayoutDashboard,
     items: [
       { name: "Pizarra de Vacantes", path: "/rrhh/pizarra", icon: LayoutDashboard },
+      { name: "Dashboard de Requerimientos", path: "/rrhh/pizarra-dashboard", icon: TrendingUp },
     ],
   },
   {
