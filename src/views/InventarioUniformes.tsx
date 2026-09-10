@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { supabase, getOrCreateUserForRole } from "../utils/supabase";
+import { useAuth } from "../utils/authContext";
 import { 
   Shirt, 
   Search, 
@@ -14,6 +15,8 @@ import {
 } from "lucide-react";
 
 export function InventarioUniformes() {
+  const { role } = useAuth();
+  const canWrite = (role === "admin" || role === "logistica" || role === "almacen") && role !== "gerencia";
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -218,13 +221,15 @@ export function InventarioUniformes() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button 
-            onClick={() => handleOpenAdjust()}
-            disabled={data.length === 0}
-            className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold shadow-lg hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50"
-          >
-            Ajustar Stock Manual
-          </button>
+          {canWrite && (
+            <button 
+              onClick={() => handleOpenAdjust()}
+              disabled={data.length === 0}
+              className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold shadow-lg hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50"
+            >
+              Ajustar Stock Manual
+            </button>
+          )}
         </div>
       </div>
 
@@ -313,7 +318,7 @@ export function InventarioUniformes() {
                   <th className="px-6 py-4">Producto</th>
                   <th className="px-6 py-4">Categoría</th>
                   <th className="px-6 py-4">Stock de Variantes (Talla - Cantidad)</th>
-                  <th className="px-6 py-4 text-center">Acciones</th>
+                  {canWrite && <th className="px-6 py-4 text-center">Acciones</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -347,13 +352,15 @@ export function InventarioUniformes() {
                                 >
                                   <span className="text-[10px] uppercase font-bold text-slate-400">Talla {pt.tallas?.valor || "E"}</span>
                                   <span className="text-base font-black tracking-tight mt-0.5">{pt.stock_actual}</span>
-                                  <button
-                                    onClick={() => handleOpenAdjust(p.id, pt.id)}
-                                    className="text-[9px] mt-1.5 text-blue-600 hover:text-blue-700 hover:underline font-bold"
-                                    title="Ajustar stock de esta talla"
-                                  >
-                                    Ajustar
-                                  </button>
+                                  {canWrite && (
+                                    <button
+                                      onClick={() => handleOpenAdjust(p.id, pt.id)}
+                                      className="text-[9px] mt-1.5 text-blue-600 hover:text-blue-700 hover:underline font-bold"
+                                      title="Ajustar stock de esta talla"
+                                    >
+                                      Ajustar
+                                    </button>
+                                  )}
                                 </div>
                               );
                             })
@@ -361,24 +368,28 @@ export function InventarioUniformes() {
                             <div className="text-xs text-amber-600 font-semibold flex items-center gap-1">
                               <HelpCircle className="w-4 h-4 text-amber-500" />
                               <span>Sin tallas configuradas</span>
-                              <button 
-                                onClick={() => handleOpenAdjust(p.id)}
-                                className="text-xs text-blue-600 font-bold hover:underline ml-1"
-                              >
-                                Configurar Ajuste
-                              </button>
+                              {canWrite && (
+                                <button 
+                                  onClick={() => handleOpenAdjust(p.id)}
+                                  className="text-xs text-blue-600 font-bold hover:underline ml-1"
+                                >
+                                  Configurar Ajuste
+                                </button>
+                              )}
                             </div>
                           )}
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-center pt-5">
-                        <button
-                          onClick={() => handleOpenAdjust(p.id)}
-                          className="px-2.5 py-1.5 border border-slate-200 text-slate-600 hover:text-blue-600 hover:bg-blue-50 text-xs font-semibold rounded-lg shadow-sm transition-all"
-                        >
-                          Ajuste Rápido
-                        </button>
-                      </td>
+                      {canWrite && (
+                        <td className="px-6 py-4 text-center pt-5">
+                          <button
+                            onClick={() => handleOpenAdjust(p.id)}
+                            className="px-2.5 py-1.5 border border-slate-200 text-slate-600 hover:text-blue-600 hover:bg-blue-50 text-xs font-semibold rounded-lg shadow-sm transition-all"
+                          >
+                            Ajuste Rápido
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}

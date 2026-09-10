@@ -63,7 +63,8 @@ const colorMap: Record<string, string> = {
 };
 
 export function AccesosRoles() {
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, role } = useAuth();
+  const isAdmin = (role === "admin" || currentUser?.roles?.codigo === "admin") && role !== "gerencia";
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
@@ -551,13 +552,15 @@ export function AccesosRoles() {
             Accesos y Roles
           </h1>
         </div>
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all"
-        >
-          <UserPlus className="w-4 h-4" />
-          Añadir Usuario
-        </button>
+        {isAdmin && (
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all"
+          >
+            <UserPlus className="w-4 h-4" />
+            Añadir Usuario
+          </button>
+        )}
       </div>
 
       {/* Notifications */}
@@ -600,49 +603,51 @@ export function AccesosRoles() {
       </div>
 
       {/* Seguridad y Aprobaciones del Sistema */}
-      <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="space-y-1 max-w-xl">
-          <div className="flex items-center gap-2 text-red-650 font-bold text-xs uppercase tracking-wider">
-            <Lock className="w-4 h-4" />
-            <span>Seguridad y Aprobaciones</span>
+      {isAdmin && (
+        <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1 max-w-xl">
+            <div className="flex items-center gap-2 text-red-650 font-bold text-xs uppercase tracking-wider">
+              <Lock className="w-4 h-4" />
+              <span>Seguridad y Aprobaciones</span>
+            </div>
+            <h2 className="text-sm font-bold text-slate-800">Clave de Aprobación para Acciones Críticas</h2>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              Esta contraseña es requerida para validar la eliminación de fichas de personal y otras operaciones sensibles. 
+              Cualquier colaborador que conozca este código podrá autorizar la acción.
+            </p>
           </div>
-          <h2 className="text-sm font-bold text-slate-800">Clave de Aprobación para Acciones Críticas</h2>
-          <p className="text-xs text-slate-500 leading-relaxed">
-            Esta contraseña es requerida para validar la eliminación de fichas de personal y otras operaciones sensibles. 
-            Cualquier colaborador que conozca este código podrá autorizar la acción.
-          </p>
-        </div>
-        
-        <div className="flex items-center gap-2 self-start md:self-auto min-w-[280px]">
-          <div className="relative flex-1">
-            <input
-              type={showClave ? "text" : "password"}
-              placeholder="Cargando clave..."
-              value={claveAprobacion}
-              onChange={(e) => setClaveAprobacion(e.target.value)}
-              className="w-full pl-3 pr-10 py-2 border border-slate-200 rounded-lg text-xs font-mono tracking-widest focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
+          
+          <div className="flex items-center gap-2 self-start md:self-auto min-w-[280px]">
+            <div className="relative flex-1">
+              <input
+                type={showClave ? "text" : "password"}
+                placeholder="Cargando clave..."
+                value={claveAprobacion}
+                onChange={(e) => setClaveAprobacion(e.target.value)}
+                className="w-full pl-3 pr-10 py-2 border border-slate-200 rounded-lg text-xs font-mono tracking-widest focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+              <button
+                type="button"
+                onClick={() => setShowClave(!showClave)}
+                className="absolute inset-y-0 right-0 px-3 flex items-center text-slate-400 hover:text-slate-650"
+              >
+                {showClave ? (
+                  <span className="text-[10px] font-bold text-slate-500 select-none">Ocultar</span>
+                ) : (
+                  <span className="text-[10px] font-bold text-slate-500 select-none">Mostrar</span>
+                )}
+              </button>
+            </div>
             <button
-              type="button"
-              onClick={() => setShowClave(!showClave)}
-              className="absolute inset-y-0 right-0 px-3 flex items-center text-slate-400 hover:text-slate-650"
+              onClick={handleSaveClaveAprobacion}
+              disabled={savingClave}
+              className="bg-slate-800 hover:bg-slate-900 active:scale-95 text-white px-4 py-2 rounded-lg text-xs font-semibold shadow-sm transition-all disabled:opacity-50 shrink-0"
             >
-              {showClave ? (
-                <span className="text-[10px] font-bold text-slate-500 select-none">Ocultar</span>
-              ) : (
-                <span className="text-[10px] font-bold text-slate-500 select-none">Mostrar</span>
-              )}
+              {savingClave ? "Guardando..." : "Guardar Clave"}
             </button>
           </div>
-          <button
-            onClick={handleSaveClaveAprobacion}
-            disabled={savingClave}
-            className="bg-slate-800 hover:bg-slate-900 active:scale-95 text-white px-4 py-2 rounded-lg text-xs font-semibold shadow-sm transition-all disabled:opacity-50 shrink-0"
-          >
-            {savingClave ? "Guardando..." : "Guardar Clave"}
-          </button>
         </div>
-      </div>
+      )}
 
       {/* Filters and List */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden flex-1 min-h-[400px]">
@@ -706,7 +711,7 @@ export function AccesosRoles() {
                   <th className="px-6 py-4">Correo Corporativo</th>
                   <th className="px-6 py-4">Rol en Sistema</th>
                   <th className="px-6 py-4 text-center">Estado</th>
-                  <th className="px-6 py-4 text-right">Acciones</th>
+                  {isAdmin && <th className="px-6 py-4 text-right">Acciones</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -741,52 +746,66 @@ export function AccesosRoles() {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <button
-                          onClick={() => handleToggleActive(user)}
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-colors ${
-                            user.activo
-                              ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
-                              : "bg-red-100 text-red-800 hover:bg-red-200"
-                          }`}
-                          title="Haga clic para cambiar estado"
-                        >
-                          {user.activo ? "Activo" : "Inactivo"}
-                        </button>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {(user.roles?.codigo === "supervisor" || user.roles?.codigo === "rrhh") && (
-                            <button
-                              onClick={() => handleOpenSedesModal(user)}
-                              className="text-slate-400 hover:text-purple-600 p-1.5 rounded hover:bg-slate-105 transition-colors"
-                              title="Asignar Sedes"
-                            >
-                              <MapPin className="w-4 h-4" />
-                            </button>
-                          )}
-                          <button
-                            onClick={() => handleOpenEditModal(user)}
-                            className="text-slate-400 hover:text-blue-650 p-1.5 rounded hover:bg-slate-100 transition-colors cursor-pointer"
-                            title="Editar Datos y Rol"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
+                        {isAdmin ? (
                           <button
                             onClick={() => handleToggleActive(user)}
-                            className={`p-1.5 rounded hover:bg-slate-100 transition-colors ${user.activo ? 'text-slate-400 hover:text-red-500' : 'text-slate-400 hover:text-emerald-500'}`}
-                            title={user.activo ? "Desactivar Acceso" : "Habilitar Acceso"}
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-colors ${
+                              user.activo
+                                ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
+                                : "bg-red-100 text-red-800 hover:bg-red-200"
+                            }`}
+                            title="Haga clic para cambiar estado"
                           >
-                            <Power className="w-4 h-4" />
+                            {user.activo ? "Activo" : "Inactivo"}
                           </button>
-                          <button
-                            onClick={() => handleDeleteUser(user)}
-                            className="text-slate-400 hover:text-red-600 p-1.5 rounded hover:bg-slate-100 transition-colors"
-                            title="Eliminar de BD"
+                        ) : (
+                          <span
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                              user.activo
+                                ? "bg-emerald-100 text-emerald-800"
+                                : "bg-red-100 text-red-800"
+                            }`}
                           >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
+                            {user.activo ? "Activo" : "Inactivo"}
+                          </span>
+                        )}
                       </td>
+                      {isAdmin && (
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {(user.roles?.codigo === "supervisor" || user.roles?.codigo === "rrhh") && (
+                              <button
+                                onClick={() => handleOpenSedesModal(user)}
+                                className="text-slate-400 hover:text-purple-600 p-1.5 rounded hover:bg-slate-105 transition-colors"
+                                title="Asignar Sedes"
+                              >
+                                <MapPin className="w-4 h-4" />
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleOpenEditModal(user)}
+                              className="text-slate-400 hover:text-blue-650 p-1.5 rounded hover:bg-slate-100 transition-colors cursor-pointer"
+                              title="Editar Datos y Rol"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleToggleActive(user)}
+                              className={`p-1.5 rounded hover:bg-slate-100 transition-colors ${user.activo ? 'text-slate-400 hover:text-red-500' : 'text-slate-400 hover:text-emerald-500'}`}
+                              title={user.activo ? "Desactivar Acceso" : "Habilitar Acceso"}
+                            >
+                              <Power className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteUser(user)}
+                              className="text-slate-400 hover:text-red-600 p-1.5 rounded hover:bg-slate-100 transition-colors"
+                              title="Eliminar de BD"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}

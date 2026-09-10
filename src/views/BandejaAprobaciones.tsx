@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { supabase, getOrCreateUserForRole } from "../utils/supabase";
+import { useAuth } from "../utils/authContext";
 import {
   CheckSquare,
   Search,
@@ -17,6 +18,8 @@ import {
 } from "lucide-react";
 
 export function BandejaAprobaciones() {
+  const { role: authRole } = useAuth();
+  const role = authRole || localStorage.getItem("bax_role") || "admin";
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -33,9 +36,6 @@ export function BandejaAprobaciones() {
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [submittingDecision, setSubmittingDecision] = useState(false);
-
-  // Active user role
-  const role = localStorage.getItem("bax_role") || "admin";
 
   useEffect(() => {
     loadRequisitions();
@@ -310,7 +310,7 @@ export function BandejaAprobaciones() {
     }
   };
 
-  const isAuthorizedRole = role === "admin" || role === "logistica" || role === "almacen";
+  const isAuthorizedRole = (role === "admin" || role === "logistica" || role === "almacen") && role !== "gerencia";
 
   return (
     <div className="flex flex-col h-full space-y-6">

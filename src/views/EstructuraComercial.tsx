@@ -35,6 +35,7 @@ export function EstructuraComercial() {
   const { role } = useAuth();
   const currentRole = role || "admin";
   const showBudget = currentRole !== "supervisor" && currentRole !== "rrhh";
+  const canWrite = (currentRole === "admin" || currentRole === "logistica") && currentRole !== "gerencia";
 
   const [activeTab, setActiveTab] = useState<StructureTab>("empresas");
   const [loading, setLoading] = useState(false);
@@ -753,7 +754,7 @@ export function EstructuraComercial() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {empresas.length === 0 && !loading && (
+          {canWrite && empresas.length === 0 && !loading && (
             <button
               onClick={handleSeedStructure}
               disabled={seeding}
@@ -763,24 +764,28 @@ export function EstructuraComercial() {
               Precargar Demo Comercial
             </button>
           )}
-          <button 
-            onClick={() => {
-              setParsedData(null);
-              setIsImportModalOpen(true);
-            }}
-            className="inline-flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-emerald-100 active:scale-95 transition-all"
-            title="Importar Clientes y Sedes desde Excel"
-          >
-            <FileSpreadsheet className="w-4 h-4" />
-            Importar Excel
-          </button>
-          <button 
-            onClick={handleOpenAdd}
-            className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all"
-          >
-            <Plus className="w-4 h-4 stroke-[3]" />
-            Añadir {activeTab === "empresas" ? "Empresa" : activeTab === "clientes" ? "Cliente" : "Sede"}
-          </button>
+          {canWrite && (
+            <button 
+              onClick={() => {
+                setParsedData(null);
+                setIsImportModalOpen(true);
+              }}
+              className="inline-flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-emerald-100 active:scale-95 transition-all"
+              title="Importar Clientes y Sedes desde Excel"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              Importar Excel
+            </button>
+          )}
+          {canWrite && (
+            <button 
+              onClick={handleOpenAdd}
+              className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all"
+            >
+              <Plus className="w-4 h-4 stroke-[3]" />
+              Añadir {activeTab === "empresas" ? "Empresa" : activeTab === "clientes" ? "Cliente" : "Sede"}
+            </button>
+          )}
         </div>
       </div>
 
@@ -1040,7 +1045,7 @@ export function EstructuraComercial() {
                   )}
 
                   <th className="px-6 py-4 text-center">Estado</th>
-                  <th className="px-6 py-4 text-right">Acciones</th>
+                  {canWrite && <th className="px-6 py-4 text-right">Acciones</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -1148,24 +1153,26 @@ export function EstructuraComercial() {
                     </td>
 
                     {/* Actions column */}
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <button
-                          onClick={() => handleOpenEdit(item)}
-                          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                          title="Editar"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(item.id)}
-                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                          title="Eliminar"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
+                    {canWrite && (
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => handleOpenEdit(item)}
+                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                            title="Editar"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(item.id)}
+                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                            title="Eliminar"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "../utils/supabase";
+import { useAuth } from "../utils/authContext";
 import * as XLSX from "xlsx";
 import { 
   Calendar, 
@@ -26,8 +27,9 @@ import {
 } from "lucide-react";
 
 export function ControlVacaciones() {
-  const currentRole = localStorage.getItem("bax_role") || "admin";
-  const canWrite = currentRole === "admin" || currentRole === "rrhh";
+  const { role } = useAuth();
+  const currentRole = role || localStorage.getItem("bax_role") || "admin";
+  const canWrite = (currentRole === "admin" || currentRole === "rrhh") && currentRole !== "gerencia";
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
@@ -1480,7 +1482,7 @@ export function ControlVacaciones() {
             Descargar Data ({filteredRows.length})
           </button>
 
-          {(localStorage.getItem("bax_role") || "admin") === "admin" && (
+          {currentRole === "admin" && (
             <button
               onClick={() => setIsImportModalOpen(true)}
               className="inline-flex items-center gap-1.5 bg-slate-100 border border-slate-200 text-slate-700 px-3.5 py-2 rounded-lg text-xs font-semibold hover:bg-slate-200 active:scale-95 transition-all cursor-pointer"

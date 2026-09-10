@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "../utils/supabase";
+import { useAuth } from "../utils/authContext";
 import {
   LayoutDashboard,
   Plus,
@@ -207,8 +208,10 @@ export function PizarraDigital() {
   const [altaForm, setAltaForm] = useState<Record<string, any>>({});
 
   // Current user role
-  const currentRole = localStorage.getItem("bax_role") || "admin";
-  const isRRHHOrAdmin = currentRole === "admin" || currentRole === "rrhh";
+  const { role } = useAuth();
+  const currentRole = role || localStorage.getItem("bax_role") || "admin";
+  const isRRHHOrAdmin = (currentRole === "admin" || currentRole === "rrhh") && currentRole !== "gerencia";
+  const canWrite = currentRole !== "gerencia";
 
   const loadLookups = async () => {
     try {
@@ -1010,7 +1013,7 @@ export function PizarraDigital() {
             Recargar
           </button>
 
-          {(currentRole === "admin" || currentRole === "supervisor" || currentRole === "rrhh") && (
+          {(currentRole === "admin" || currentRole === "supervisor" || currentRole === "rrhh") && currentRole !== "gerencia" && (
             <button
               onClick={handleOpenRequest}
               className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all cursor-pointer"
@@ -1387,16 +1390,20 @@ export function PizarraDigital() {
                                   Completar Alta y Contrato
                                 </button>
                               ) : (
-                                <span className="text-[11px] text-slate-400 italic">Requiere rol RRHH</span>
+                                <span className="text-[11px] text-slate-400 italic">
+                                  {currentRole === "gerencia" ? "Modo Lectura" : "Requiere rol RRHH"}
+                                </span>
                               )}
 
-                              <button
-                                onClick={() => handleOpenDiscard(cand)}
-                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                                title="Rechazar / Descartar candidato"
-                              >
-                                <UserX className="w-4 h-4" />
-                              </button>
+                              {isRRHHOrAdmin && (
+                                <button
+                                  onClick={() => handleOpenDiscard(cand)}
+                                  className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                                  title="Rechazar / Descartar candidato"
+                                >
+                                  <UserX className="w-4 h-4" />
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -1433,17 +1440,19 @@ export function PizarraDigital() {
               </div>
 
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setShowAddCandidatoForm(!showAddCandidatoForm)}
-                  className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    showAddCandidatoForm
-                      ? "bg-slate-100 text-slate-700"
-                      : "bg-blue-600 text-white hover:bg-blue-700 shadow-md shadow-blue-100"
-                  }`}
-                >
-                  {showAddCandidatoForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4 stroke-[3]" />}
-                  {showAddCandidatoForm ? "Ocultar Formulario" : "+ Registrar Postulante"}
-                </button>
+                {canWrite && (
+                  <button
+                    onClick={() => setShowAddCandidatoForm(!showAddCandidatoForm)}
+                    className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      showAddCandidatoForm
+                        ? "bg-slate-100 text-slate-700"
+                        : "bg-blue-600 text-white hover:bg-blue-700 shadow-md shadow-blue-100"
+                    }`}
+                  >
+                    {showAddCandidatoForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4 stroke-[3]" />}
+                    {showAddCandidatoForm ? "Ocultar Formulario" : "+ Registrar Postulante"}
+                  </button>
+                )}
                 <button
                   onClick={() => setIsCandidatosModalOpen(false)}
                   className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
@@ -1686,7 +1695,7 @@ export function PizarraDigital() {
 
                       {/* Candidate Actions */}
                       <div className="flex items-center gap-1.5 flex-wrap self-end md:self-center">
-                        {!isHired && !isDiscarded && (
+                        {!isHired && !isDiscarded && canWrite && (
                           <>
                             {/* Step 1 for Recruiters: Send to RRHH */}
                             {!isPendingAlta && (
@@ -1731,6 +1740,15 @@ export function PizarraDigital() {
                               Descartar
                             </button>
                           </>
+                        )}
+
+                        {!isHired && !isDiscarded && !canWrite && (
+                          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${
+                            cand.estado === "Aprobado" ? "bg-emerald-100 text-emerald-800" :
+                            cand.estado === "En Evaluacion" ? "bg-amber-100 text-amber-800" : "bg-blue-100 text-blue-800"
+                          }`}>
+                            {cand.estado}
+                          </span>
                         )}
 
                         {isHired && (

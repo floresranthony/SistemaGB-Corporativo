@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "../utils/supabase";
+import { useAuth } from "../utils/authContext";
 import {
   Truck,
   Search,
@@ -17,6 +18,8 @@ import {
 } from "lucide-react";
 
 export function DespachosEntregas() {
+  const { role } = useAuth();
+  const canDeliver = (role === "admin" || role === "logistica" || role === "almacen") && role !== "gerencia";
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -331,13 +334,15 @@ export function DespachosEntregas() {
                             Vale PDF
                           </button>
                           
-                          <button
-                            onClick={() => handleOpenDeliverCheckout(req)}
-                            className="inline-flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-bold shadow-sm transition-all text-[11px] active:scale-95"
-                          >
-                            <Check className="w-3.5 h-3.5" />
-                            Registrar Entrega
-                          </button>
+                          {canDeliver && (
+                            <button
+                              onClick={() => handleOpenDeliverCheckout(req)}
+                              className="inline-flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-bold shadow-sm transition-all text-[11px] active:scale-95"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                              Registrar Entrega
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -380,7 +385,7 @@ export function DespachosEntregas() {
             {/* Printable Document Box */}
             <div className="flex-1 overflow-y-auto p-8 print:p-0 bg-slate-50 print:bg-white text-slate-800">
               {/* Actual printed paper sheets styling */}
-              <div className="mx-auto w-full max-w-3xl bg-white p-8 border border-slate-200 shadow-lg print:border-none print:shadow-none print:p-0 min-h-[297mm] flex flex-col justify-between">
+              <div className="mx-auto w-full max-w-3xl bg-white p-8 border border-slate-200 shadow-lg print:border-none print:shadow-none print:p-0 min-h-[260mm] print:min-h-0 print:h-auto flex flex-col justify-between">
                 
                 <div className="space-y-6">
                   {/* Document Header */}

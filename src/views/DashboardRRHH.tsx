@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "../utils/supabase";
+import { useAuth } from "../utils/authContext";
 import { 
   Users, 
   FileText, 
@@ -42,6 +43,8 @@ interface VacationModalState {
 }
 
 export function DashboardRRHH() {
+  const { role } = useAuth();
+  const canWrite = (role === "admin" || role === "rrhh") && role !== "gerencia";
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
@@ -945,7 +948,7 @@ export function DashboardRRHH() {
                     <th className="px-3 py-2">Trabajador</th>
                     <th className="px-2 py-2">Fecha Vence</th>
                     <th className="px-2 py-2 text-center">Días Rest.</th>
-                    <th className="px-2 py-2 text-right">Acciones</th>
+                    {canWrite && <th className="px-2 py-2 text-right">Acciones</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -965,16 +968,18 @@ export function DashboardRRHH() {
                           {c.dias_restantes <= 0 ? `Vencido (${Math.abs(c.dias_restantes)}d)` : `${c.dias_restantes}d`}
                         </span>
                       </td>
-                      <td className="px-2 py-2.5 text-right">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenRenewModal(c)}
-                          className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors cursor-pointer"
-                          title="Corregir / Renovar Contrato"
-                        >
-                          <RefreshCw className="w-3.5 h-3.5 stroke-[2.5]" />
-                        </button>
-                      </td>
+                      {canWrite && (
+                        <td className="px-2 py-2.5 text-right">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenRenewModal(c)}
+                            className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors cursor-pointer"
+                            title="Corregir / Renovar Contrato"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5 stroke-[2.5]" />
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -1033,7 +1038,7 @@ export function DashboardRRHH() {
                     <th className="px-3 py-2">Trabajador</th>
                     <th className="px-2 py-2">Fecha Vence</th>
                     <th className="px-2 py-2 text-center">Días Rest.</th>
-                    <th className="px-2 py-2 text-right">Acciones</th>
+                    {canWrite && <th className="px-2 py-2 text-right">Acciones</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -1053,16 +1058,18 @@ export function DashboardRRHH() {
                           {e.dias_restantes === -9999 ? "Vencido / Sin registro" : e.dias_restantes <= 0 ? `Vencido (${Math.abs(e.dias_restantes)}d)` : `${e.dias_restantes}d`}
                         </span>
                       </td>
-                      <td className="px-2 py-2.5 text-right">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenEmoModal(e)}
-                          className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors cursor-pointer"
-                          title="Corregir / Registrar EMO"
-                        >
-                          <RefreshCw className="w-3.5 h-3.5 stroke-[2.5]" />
-                        </button>
-                      </td>
+                      {canWrite && (
+                        <td className="px-2 py-2.5 text-right">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEmoModal(e)}
+                            className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors cursor-pointer"
+                            title="Corregir / Registrar EMO"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5 stroke-[2.5]" />
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -1113,7 +1120,7 @@ export function DashboardRRHH() {
                   <tr className="bg-slate-50 border-b border-slate-100 text-[9px] font-bold text-slate-400 uppercase">
                     <th className="px-3 py-2">Trabajador</th>
                     <th className="px-2 py-2">Pendiente</th>
-                    <th className="px-2 py-2 text-right">Acciones</th>
+                    {canWrite && <th className="px-2 py-2 text-right">Acciones</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -1128,18 +1135,20 @@ export function DashboardRRHH() {
                           {v.net} días ({v.periodos.toFixed(1)} per.)
                         </span>
                       </td>
-                      <td className="px-2 py-2.5 text-right">
-                        <div className="flex justify-end gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenVacationModal(v)}
-                            className="p-1 text-emerald-600 hover:bg-emerald-50 rounded transition-colors cursor-pointer"
-                            title="Registrar días gozados (más)"
-                          >
-                            <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-                          </button>
-                        </div>
-                      </td>
+                      {canWrite && (
+                        <td className="px-2 py-2.5 text-right">
+                          <div className="flex justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenVacationModal(v)}
+                              className="p-1 text-emerald-600 hover:bg-emerald-50 rounded transition-colors cursor-pointer"
+                              title="Registrar días gozados (más)"
+                            >
+                              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                            </button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -1446,14 +1455,16 @@ export function DashboardRRHH() {
                           </div>
                         </div>
                         
-                        <button
-                          type="button"
-                          disabled={approvingId === item.vinculoId}
-                          onClick={() => handleApproveException(item.vinculoId)}
-                          className="px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:bg-slate-200 active:scale-95 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-amber-50 cursor-pointer shrink-0"
-                        >
-                          {approvingId === item.vinculoId ? "Aprobando..." : "Aprobar Excepción"}
-                        </button>
+                        {canWrite && (
+                          <button
+                            type="button"
+                            disabled={approvingId === item.vinculoId}
+                            onClick={() => handleApproveException(item.vinculoId)}
+                            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:bg-slate-200 active:scale-95 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-amber-50 cursor-pointer shrink-0"
+                          >
+                            {approvingId === item.vinculoId ? "Aprobando..." : "Aprobar Excepción"}
+                          </button>
+                        )}
                       </div>
                     ));
                   })()}

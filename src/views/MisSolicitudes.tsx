@@ -327,7 +327,7 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
 
   // Load supervisors list if role is administrative
   useEffect(() => {
-    if (role === "admin" || role === "logistica" || role === "almacen") {
+    if (role === "admin" || role === "logistica" || role === "almacen" || role === "gerencia") {
       fetchSupervisores();
     }
   }, [role]);
@@ -1524,7 +1524,7 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
     };
     const resolvedLogoUrl = companyLogo.startsWith("http") ? companyLogo : `${getBaseUrl()}${companyLogo}`;
 
-    // Standard HTML page string with exact A4 screen pixel aspect ratio (794px width x 1122px height)
+    // Standard HTML page string formatted to fit precisely within a single A4 sheet without overflowing
     // Zero Tailwind stylesheet hooks prevents color space parsing oklch failures.
     const htmlContent = `
       <!DOCTYPE html>
@@ -1533,30 +1533,77 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
           <title>${docName}</title>
           <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
           <style>
+            @page {
+              size: A4 portrait;
+              margin: 6mm 8mm;
+            }
+            * {
+              box-sizing: border-box;
+            }
             body {
               margin: 0;
               padding: 0;
               background-color: #f1f5f9;
+              font-family: Arial, Helvetica, sans-serif;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
             }
             #print-vale-salida {
               background-color: white;
               width: 794px;
-              height: 1122px;
+              min-height: 1040px;
               margin: 20px auto;
-              padding: 40px;
+              padding: 24px;
               box-sizing: border-box;
               box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
             }
+            .vale-inner-box {
+              border: 2px solid black;
+              padding: 16px;
+              display: flex;
+              flex-direction: column;
+              justify-content: space-between;
+              min-height: 990px;
+              box-sizing: border-box;
+              background-color: white;
+            }
+            .signatures-box {
+              margin-top: auto;
+              page-break-inside: avoid !important;
+              break-inside: avoid !important;
+            }
             @media print {
-              body {
-                background-color: white;
-                padding: 0;
+              html, body {
+                background-color: white !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                width: 100% !important;
+                height: auto !important;
               }
               #print-vale-salida {
-                box-shadow: none;
-                width: 100%;
-                padding: 0;
-                margin: 0;
+                box-shadow: none !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                height: auto !important;
+                min-height: auto !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                page-break-after: avoid !important;
+                break-after: avoid !important;
+              }
+              .vale-inner-box {
+                border: 2px solid black !important;
+                padding: 12px 14px !important;
+                height: auto !important;
+                min-height: 260mm !important;
+                box-sizing: border-box !important;
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+              }
+              .signatures-box {
+                margin-top: auto !important;
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
               }
               .no-print {
                 display: none !important;
@@ -1581,44 +1628,44 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
           </div>
 
           <div id="print-vale-salida">
-            <div style="border: 2px solid black; padding: 20px; display: flex; flex-direction: column; justify-content: space-between; height: 100%; color: black; box-sizing: border-box; background-color: white;">
+            <div class="vale-inner-box">
               <div>
                 <!-- Header Table -->
-                <table style="width: 100%; border-collapse: collapse; border: 1px solid black; margin-bottom: 15px;">
+                <table style="width: 100%; border-collapse: collapse; border: 1px solid black; margin-bottom: 12px;">
                   <tbody>
                     <tr>
-                      <td style="width: 25%; border: 1px solid black; padding: 8px; text-align: center; vertical-align: middle;">
-                        <img src="${resolvedLogoUrl}" alt="Logo" style="max-height: 48px; max-width: 120px; display: block; margin: 0 auto;" />
+                      <td style="width: 25%; border: 1px solid black; padding: 6px; text-align: center; vertical-align: middle;">
+                        <img src="${resolvedLogoUrl}" alt="Logo" style="max-height: 44px; max-width: 120px; display: block; margin: 0 auto;" />
                       </td>
-                      <td style="width: 50%; border: 1px solid black; padding: 8px; text-align: center; vertical-align: middle;">
-                        <div style="color: #dc2626; font-weight: 900; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; text-align: center;">REQUERIMIENTO DE MATERIALES</div>
+                      <td style="width: 50%; border: 1px solid black; padding: 6px; text-align: center; vertical-align: middle;">
+                        <div style="color: #dc2626; font-weight: 900; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; text-align: center;">REQUERIMIENTO DE MATERIALES</div>
                         <div style="color: black; font-weight: bold; font-size: 9px; text-transform: uppercase; margin-top: 2px; text-align: center;">SISTEMA INTEGRADO DE GESTIÓN</div>
                       </td>
-                      <td style="width: 25%; border: 1px solid black; padding: 8px; font-size: 10px; font-weight: bold; vertical-align: middle; color: black;">
-                        <div style="border-bottom: 1px solid black; padding-bottom: 4px;">Código: RG-24-SIG-GB</div>
-                        <div style="border-bottom: 1px solid black; padding-top: 4px; padding-bottom: 4px;">Versión: 00</div>
-                        <div style="padding-top: 4px; color: #dc2626; font-weight: 900;">N°: ${selectedReq.codigo}</div>
+                      <td style="width: 25%; border: 1px solid black; padding: 6px; font-size: 9.5px; font-weight: bold; vertical-align: middle; color: black;">
+                        <div style="border-bottom: 1px solid black; padding-bottom: 3px;">Código: RG-24-SIG-GB</div>
+                        <div style="border-bottom: 1px solid black; padding-top: 3px; padding-bottom: 3px;">Versión: 00</div>
+                        <div style="padding-top: 3px; color: #dc2626; font-weight: 900;">N°: ${selectedReq.codigo}</div>
                       </td>
                     </tr>
                   </tbody>
                 </table>
 
                 <!-- General Metadata Table -->
-                <table style="width: 100%; border-collapse: collapse; border: 1px solid black; margin-bottom: 15px; font-size: 11px; font-weight: bold; color: black;">
+                <table style="width: 100%; border-collapse: collapse; border: 1px solid black; margin-bottom: 12px; font-size: 10.5px; font-weight: bold; color: black;">
                   <tbody>
                     <tr>
-                      <td style="border: 1px solid black; padding: 8px; width: 66.6%; text-transform: uppercase;">
+                      <td style="border: 1px solid black; padding: 6px 8px; width: 66.6%; text-transform: uppercase;">
                         SEDE O UNIDAD: ${selectedReq.sedes?.nombre} - ${selectedReq.sedes?.clientes?.razon_social}
                       </td>
-                      <td style="border: 1px solid black; padding: 8px; width: 33.3%; text-transform: uppercase;">
+                      <td style="border: 1px solid black; padding: 6px 8px; width: 33.3%; text-transform: uppercase;">
                         TELEFONO: 
                       </td>
                     </tr>
                     <tr>
-                      <td style="border: 1px solid black; padding: 8px; width: 66.6%; text-transform: uppercase;">
+                      <td style="border: 1px solid black; padding: 6px 8px; width: 66.6%; text-transform: uppercase;">
                         SOLICITANTE: ${solicitanteName}
                       </td>
-                      <td style="border: 1px solid black; padding: 8px; width: 33.3%; text-transform: uppercase;">
+                      <td style="border: 1px solid black; padding: 6px 8px; width: 33.3%; text-transform: uppercase;">
                         FECHA DE SOLICITUD: ${formattedDate}
                       </td>
                     </tr>
@@ -1626,35 +1673,35 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
                 </table>
 
                 <!-- Warning banner text -->
-                <div style="text-align: center; font-weight: bold; font-style: italic; font-size: 11px; margin: 12px 0; color: black; text-transform: uppercase; letter-spacing: 0.5px;">
+                <div style="text-align: center; font-weight: bold; font-style: italic; font-size: 10px; margin: 8px 0; color: black; text-transform: uppercase; letter-spacing: 0.3px;">
                   Por favor, solicite con anticipacion su requerimiento para evitar contratiempos.
                 </div>
 
                 <!-- Items List -->
-                <table style="width: 100%; border-collapse: collapse; border: 1px solid black; font-size: 11px; color: black;">
+                <table style="width: 100%; border-collapse: collapse; border: 1px solid black; font-size: 10.5px; color: black;">
                   <thead>
-                    <tr style="border: 1px solid black; background-color: #f1f5f9; font-size: 10px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; text-align: center;">
-                      <th style="border: 1px solid black; padding: 6px; width: 8%;">ITEM</th>
-                      <th style="border: 1px solid black; padding: 6px; width: 12%;">COD</th>
-                      <th style="border: 1px solid black; padding: 6px; width: 45%;">PRODUCTO</th>
-                      <th style="border: 1px solid black; padding: 6px; width: 12%;">UNIDAD</th>
-                      <th style="border: 1px solid black; padding: 6px; width: 10%;">CANTIDAD</th>
-                      <th style="border: 1px solid black; padding: 6px; width: 23%;">OBSERVACIONES</th>
+                    <tr style="border: 1px solid black; background-color: #f1f5f9; font-size: 9.5px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.3px; text-align: center;">
+                      <th style="border: 1px solid black; padding: 5px; width: 6%;">ITEM</th>
+                      <th style="border: 1px solid black; padding: 5px; width: 14%;">COD</th>
+                      <th style="border: 1px solid black; padding: 5px; width: 44%;">PRODUCTO</th>
+                      <th style="border: 1px solid black; padding: 5px; width: 12%;">UNIDAD</th>
+                      <th style="border: 1px solid black; padding: 5px; width: 10%;">CANTIDAD</th>
+                      <th style="border: 1px solid black; padding: 5px; width: 14%;">OBSERVACIONES</th>
                     </tr>
                   </thead>
                   <tbody>
                     ${reqDetails.map((det, idx) => {
                       const unitName = det.productos?.unidades_medida?.nombre || "Unidad";
                       return `
-                        <tr>
-                          <td style="border: 1px solid black; padding: 6px; text-align: center;">${idx + 1}</td>
-                          <td style="border: 1px solid black; padding: 6px; text-align: center; font-family: monospace; font-size: 9px;">${det.productos?.sku || "—"}</td>
-                          <td style="border: 1px solid black; padding: 6px; font-weight: bold; text-transform: uppercase;">
+                        <tr style="page-break-inside: avoid;">
+                          <td style="border: 1px solid black; padding: 5px; text-align: center;">${idx + 1}</td>
+                          <td style="border: 1px solid black; padding: 5px; text-align: center; font-family: monospace; font-size: 9px;">${det.productos?.sku || "—"}</td>
+                          <td style="border: 1px solid black; padding: 5px; font-weight: bold; text-transform: uppercase;">
                             ${det.productos?.nombre} ${det.producto_tallas?.tallas?.valor ? `(TALLA ${det.producto_tallas.tallas.valor})` : ""}
                           </td>
-                          <td style="border: 1px solid black; padding: 6px; text-align: center; text-transform: uppercase;">${unitName}</td>
-                          <td style="border: 1px solid black; padding: 6px; text-align: center; font-weight: 900;">${det.cantidad_aprobada !== undefined ? det.cantidad_aprobada : det.cantidad_solicitada}</td>
-                          <td style="border: 1px solid black; padding: 6px; font-style: italic; font-size: 10px;">${det.motivo_modificacion || det.observacion || "—"}</td>
+                          <td style="border: 1px solid black; padding: 5px; text-align: center; text-transform: uppercase;">${unitName}</td>
+                          <td style="border: 1px solid black; padding: 5px; text-align: center; font-weight: 900;">${det.cantidad_aprobada !== undefined ? det.cantidad_aprobada : det.cantidad_solicitada}</td>
+                          <td style="border: 1px solid black; padding: 5px; font-style: italic; font-size: 9.5px;">${det.motivo_modificacion || det.observacion || "—"}</td>
                         </tr>
                       `;
                     }).join("")}
@@ -1663,27 +1710,27 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
               </div>
 
               <!-- Signatures Box -->
-              <div style="margin-top: auto;">
-                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; text-align: center; margin-top: 48px; margin-bottom: 8px;">
+              <div class="signatures-box">
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; text-align: center; margin-top: 36px; margin-bottom: 6px;">
                   <div style="display: flex; flex-direction: column; align-items: center; justify-content: flex-end;">
-                    <div style="width: 75%; border-bottom: 1px solid black; margin-bottom: 4px;"></div>
-                    <div style="font-size: 9px; font-weight: bold; color: black; text-transform: uppercase; letter-spacing: 0.5px;">FIRMA DE SUPERVISOR SOLICITANTE</div>
-                    <div style="font-size: 9px; color: #64748b; font-weight: 500; text-transform: uppercase; margin-top: 2px;">${solicitanteName}</div>
+                    <div style="width: 80%; border-bottom: 1px solid black; margin-bottom: 4px;"></div>
+                    <div style="font-size: 8.5px; font-weight: bold; color: black; text-transform: uppercase; letter-spacing: 0.3px;">FIRMA DE SUPERVISOR SOLICITANTE</div>
+                    <div style="font-size: 8.5px; color: #475569; font-weight: 500; text-transform: uppercase; margin-top: 2px;">${solicitanteName}</div>
                   </div>
                   <div style="display: flex; flex-direction: column; align-items: center; justify-content: flex-end;">
-                    <div style="width: 75%; border-bottom: 1px solid black; margin-bottom: 4px;"></div>
-                    <div style="font-size: 9px; font-weight: bold; color: black; text-transform: uppercase; letter-spacing: 0.5px;">FIRMA DE JEFE DE OPERACIONES</div>
-                    <div style="font-size: 9px; color: #64748b; font-weight: 500; text-transform: uppercase; margin-top: 2px;">JEFE DE OPERACIONES</div>
+                    <div style="width: 80%; border-bottom: 1px solid black; margin-bottom: 4px;"></div>
+                    <div style="font-size: 8.5px; font-weight: bold; color: black; text-transform: uppercase; letter-spacing: 0.3px;">FIRMA DE JEFE DE OPERACIONES</div>
+                    <div style="font-size: 8.5px; color: #475569; font-weight: 500; text-transform: uppercase; margin-top: 2px;">JEFE DE OPERACIONES</div>
                   </div>
                   <div style="display: flex; flex-direction: column; align-items: center; justify-content: flex-end;">
-                    <div style="width: 75%; border-bottom: 1px solid black; margin-bottom: 4px;"></div>
-                    <div style="font-size: 9px; font-weight: bold; color: black; text-transform: uppercase; letter-spacing: 0.5px;">FIRMA DE ASISTENTE DE LOGÍSTICA</div>
-                    <div style="font-size: 9px; color: #64748b; font-weight: 500; text-transform: uppercase; margin-top: 2px;">ASISTENTE DE LOGÍSTICA</div>
+                    <div style="width: 80%; border-bottom: 1px solid black; margin-bottom: 4px;"></div>
+                    <div style="font-size: 8.5px; font-weight: bold; color: black; text-transform: uppercase; letter-spacing: 0.3px;">FIRMA DE ASISTENTE DE LOGÍSTICA</div>
+                    <div style="font-size: 8.5px; color: #475569; font-weight: 500; text-transform: uppercase; margin-top: 2px;">ASISTENTE DE LOGÍSTICA</div>
                   </div>
                 </div>
 
                 <!-- Footer control FP-05-SIG-GB -->
-                <div style="text-align: right; font-size: 8px; font-weight: bold; color: #94a3b8; font-family: monospace; margin-top: 16px;">
+                <div style="text-align: right; font-size: 8px; font-weight: bold; color: #94a3b8; font-family: monospace; margin-top: 12px;">
                   FP-05-SIG-GB
                 </div>
               </div>
@@ -1697,8 +1744,9 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
                 margin:       0,
                 filename:     "${docName}.pdf",
                 image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { scale: 1.5, logging: false },
-                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                html2canvas:  { scale: 2, logging: false, useCORS: true, scrollY: 0 },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+                pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
               };
               html2pdf().from(element).set(opt).save();
             }
@@ -1746,9 +1794,9 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
   const activeProduct = productos.find(p => p.id === Number(selectedProductId));
   const activeProductVariants = activeProduct?.producto_tallas || [];
 
-  const isApproverRole = role === "admin" || 
+  const isApproverRole = (role === "admin" || 
     (role === "logistica" && activeTab === "Materiales_y_EPP") || 
-    ((role === "almacen" || role === "logistica") && activeTab === "Uniformes_Almacen");
+    ((role === "almacen" || role === "logistica") && activeTab === "Uniformes_Almacen")) && role !== "gerencia";
 
   // LIST VIEW RENDER
   const renderListView = () => {
@@ -1766,7 +1814,7 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
                 : "Gestión de Requerimientos"}
             </h1>
           </div>
-          {role !== "almacen" && (
+          {role !== "almacen" && role !== "gerencia" && (
             <button
               onClick={() => {
                 setCart([]);
@@ -1908,8 +1956,8 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
               </select>
             </div>
 
-            {/* 5. Supervisor / Solicitante (Only visible to admin, logistica, almacen roles) */}
-            {(role === "admin" || role === "logistica" || role === "almacen") ? (
+            {/* 5. Supervisor / Solicitante (Only visible to admin, logistica, almacen, gerencia roles) */}
+            {(role === "admin" || role === "logistica" || role === "almacen" || role === "gerencia") ? (
               <div>
                 <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Supervisor / Solicitante</label>
                 <select
@@ -1994,9 +2042,9 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
                       ? rawDate.toLocaleDateString("es-PE", { day: '2-digit', month: '2-digit', year: 'numeric' })
                       : "—";
 
-                    const canSend = req.estado === "Aprobado" && (role === "admin" || role === "logistica" || role === "almacen");
-                    const canReceive = req.estado === "Enviado" && (role === "admin" || role === "logistica" || role === "almacen" || (user && req.usuario_solicitante_id === user.id));
-                    const canComplete = req.estado === "Entregado Incompleto" && (role === "admin" || (user && req.usuario_solicitante_id === user.id));
+                    const canSend = req.estado === "Aprobado" && (role === "admin" || role === "logistica" || role === "almacen") && role !== "gerencia";
+                    const canReceive = req.estado === "Enviado" && (role === "admin" || role === "logistica" || role === "almacen" || (user && req.usuario_solicitante_id === user.id)) && role !== "gerencia";
+                    const canComplete = req.estado === "Entregado Incompleto" && (role === "admin" || (user && req.usuario_solicitante_id === user.id)) && role !== "gerencia";
 
                     return (
                       <tr key={req.id} className="hover:bg-slate-50/50 transition-colors">
@@ -2076,14 +2124,16 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
                                 Completar
                               </button>
                             )}
-                            <button
-                              onClick={() => handleDuplicateRequisition(req)}
-                              className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200 hover:border-blue-300 hover:bg-blue-50 text-slate-700 hover:text-blue-700 font-bold py-1 px-2 rounded text-[11px] transition-all shadow-2xs"
-                              title="Crear un nuevo requerimiento basado en este"
-                            >
-                              <Copy className="w-3 h-3 text-blue-600" />
-                              Replicar
-                            </button>
+                            {role !== "gerencia" && (
+                              <button
+                                onClick={() => handleDuplicateRequisition(req)}
+                                className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200 hover:border-blue-300 hover:bg-blue-50 text-slate-700 hover:text-blue-700 font-bold py-1 px-2 rounded text-[11px] transition-all shadow-2xs"
+                                title="Crear un nuevo requerimiento basado en este"
+                              >
+                                <Copy className="w-3 h-3 text-blue-600" />
+                                Replicar
+                              </button>
+                            )}
                             <button
                               onClick={() => handleOpenDetails(req)}
                               className="inline-flex items-center gap-1 text-slate-600 hover:text-blue-600 font-bold py-1 px-2 hover:underline"
@@ -2106,10 +2156,10 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
                     Aprobado: "bg-blue-100 text-blue-800", Enviado: "bg-purple-100 text-purple-800",
                     Entregado: "bg-emerald-100 text-emerald-800", "Entregado Incompleto": "bg-fuchsia-100 text-fuchsia-800", Rechazado: "bg-red-100 text-red-800",
                   };
-                  const canSend = req.estado === "Aprobado" && (role === "admin" || role === "logistica" || role === "almacen");
-                  const canReceive = req.estado === "Enviado" && (role === "admin" || role === "logistica" || role === "almacen" || (user && req.usuario_solicitante_id === user.id));
-                  const canComplete = req.estado === "Entregado Incompleto" && (role === "admin" || (user && req.usuario_solicitante_id === user.id));
-                  const canEditDraft = req.estado === "Borrador" && !!user && req.usuario_solicitante_id === user.id;
+                  const canSend = req.estado === "Aprobado" && (role === "admin" || role === "logistica" || role === "almacen") && role !== "gerencia";
+                  const canReceive = req.estado === "Enviado" && (role === "admin" || role === "logistica" || role === "almacen" || (user && req.usuario_solicitante_id === user.id)) && role !== "gerencia";
+                  const canComplete = req.estado === "Entregado Incompleto" && (role === "admin" || (user && req.usuario_solicitante_id === user.id)) && role !== "gerencia";
+                  const canEditDraft = req.estado === "Borrador" && !!user && req.usuario_solicitante_id === user.id && role !== "gerencia";
                   const date = new Date(req.fecha_solicitud).toLocaleDateString("es-PE");
                   return <article key={req.id} className="p-4 space-y-3 bg-white">
                     <div className="flex items-start justify-between gap-3">
@@ -2120,7 +2170,7 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
                     {req.estado === "Entregado Incompleto" && req.notas_entrega_incompleta && <p className="text-xs text-purple-700 bg-purple-50 rounded-lg p-2">Pendiente: {req.notas_entrega_incompleta}</p>}
                     <div className="grid grid-cols-2 gap-2">
                       <button onClick={() => handleOpenDetails(req)} className="min-h-11 rounded-lg border border-slate-200 text-xs font-bold text-slate-700">Ver detalle</button>
-                      <button onClick={() => handleDuplicateRequisition(req)} className="min-h-11 rounded-lg border border-blue-200 bg-blue-50/50 text-blue-700 text-xs font-bold flex items-center justify-center gap-1"><Copy className="w-3.5 h-3.5"/>Replicar</button>
+                      {role !== "gerencia" && <button onClick={() => handleDuplicateRequisition(req)} className="min-h-11 rounded-lg border border-blue-200 bg-blue-50/50 text-blue-700 text-xs font-bold flex items-center justify-center gap-1"><Copy className="w-3.5 h-3.5"/>Replicar</button>}
                       {canEditDraft && <button onClick={() => handleEditDraft(req)} className="min-h-11 rounded-lg bg-blue-600 text-white text-xs font-bold">Editar borrador</button>}
                       {canSend && <button onClick={() => handleSendRequest(req.id)} className="min-h-11 rounded-lg bg-blue-600 text-white text-xs font-bold">Enviar</button>}
                       {canReceive && <button onClick={() => handleMarkFullyDelivered(req.id)} className="min-h-11 rounded-lg bg-emerald-600 text-white text-xs font-bold">Confirmar recibido</button>}
@@ -2158,12 +2208,12 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
     ];
 
     const canApprove = selectedReq.estado === "Pendiente Aprobacion" && isApproverRole;
-    const canSend = selectedReq.estado === "Aprobado" && (role === "admin" || role === "logistica" || role === "almacen");
-    const canReceive = selectedReq.estado === "Enviado" && (role === "admin" || role === "logistica" || role === "almacen" || (user && selectedReq.usuario_solicitante_id === user.id));
-    const canComplete = selectedReq.estado === "Entregado Incompleto" && (role === "admin" || (user && selectedReq.usuario_solicitante_id === user.id));
+    const canSend = selectedReq.estado === "Aprobado" && (role === "admin" || role === "logistica" || role === "almacen") && role !== "gerencia";
+    const canReceive = selectedReq.estado === "Enviado" && (role === "admin" || role === "logistica" || role === "almacen" || (user && selectedReq.usuario_solicitante_id === user.id)) && role !== "gerencia";
+    const canComplete = selectedReq.estado === "Entregado Incompleto" && (role === "admin" || (user && selectedReq.usuario_solicitante_id === user.id)) && role !== "gerencia";
     
     // Check if role is authorized to see pricing and budgets
-    const canSeePrices = role === "admin" || role === "logistica" || role === "almacen";
+    const canSeePrices = role === "admin" || role === "logistica" || role === "almacen" || role === "gerencia";
 
     // Calculate total approved cost (qty_approved * price)
     const totalCost = reqDetails.reduce((sum, det) => {
@@ -2201,14 +2251,16 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
 
           <div className="flex items-center gap-2 self-start md:self-auto">
             {/* Replicar Requerimiento button */}
-            <button
-              onClick={() => handleDuplicateRequisition(selectedReq)}
-              className="inline-flex items-center gap-1.5 border border-slate-300 hover:bg-slate-50 bg-white text-slate-700 font-bold py-2 px-3.5 rounded-lg text-xs shadow-sm transition-colors cursor-pointer"
-              title="Crear un nuevo requerimiento a partir de este"
-            >
-              <Copy className="w-4 h-4 text-blue-600" />
-              Replicar
-            </button>
+            {role !== "gerencia" && (
+              <button
+                onClick={() => handleDuplicateRequisition(selectedReq)}
+                className="inline-flex items-center gap-1.5 border border-slate-300 hover:bg-slate-50 bg-white text-slate-700 font-bold py-2 px-3.5 rounded-lg text-xs shadow-sm transition-colors cursor-pointer"
+                title="Crear un nuevo requerimiento a partir de este"
+              >
+                <Copy className="w-4 h-4 text-blue-600" />
+                Replicar
+              </button>
+            )}
 
             {/* Vale de Salida direct PDF download button */}
             <button
@@ -2293,7 +2345,7 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
               </button>
             )}
 
-            {selectedReq.estado === "Borrador" && user && selectedReq.usuario_solicitante_id === user.id && (
+            {selectedReq.estado === "Borrador" && user && selectedReq.usuario_solicitante_id === user.id && role !== "gerencia" && (
               <>
                 <button
                   onClick={() => handleEditDraft(selectedReq)}

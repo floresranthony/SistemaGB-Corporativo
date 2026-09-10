@@ -105,7 +105,7 @@ const isPathAllowed = (path: string, currentRole: string): boolean => {
 };
 
 const getDefaultPath = (currentRole: string): string => {
-  if (currentRole === "rrhh") return "/dashboards/rrhh";
+  if (currentRole === "rrhh" || currentRole === "gerencia") return "/dashboards/rrhh";
   if (currentRole === "reclutador" || currentRole === "reclutamiento") return "/rrhh/pizarra";
   if (currentRole === "logistica") return "/dashboards/logistico";
   if (currentRole === "almacen") return "/almacen/catalogo";

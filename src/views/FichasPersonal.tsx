@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "../utils/supabase";
+import { useAuth } from "../utils/authContext";
 import * as XLSX from "xlsx";
 import {
   UserSquare,
@@ -35,9 +36,10 @@ import { SearchableMultiSelect } from "../components/SearchableMultiSelect";
 type FormViewMode = "list" | "form" | "view" | "import";
 
 export function FichasPersonal() {
-  const currentRole = localStorage.getItem("bax_role") || "admin";
-  const canWrite = currentRole === "admin" || currentRole === "rrhh";
-  const canDelete = currentRole === "admin" || currentRole === "rrhh";
+  const { role } = useAuth();
+  const currentRole = role || localStorage.getItem("bax_role") || "admin";
+  const canWrite = (currentRole === "admin" || currentRole === "rrhh") && currentRole !== "gerencia";
+  const canDelete = (currentRole === "admin" || currentRole === "rrhh") && currentRole !== "gerencia";
   const [viewMode, setViewMode] = useState<FormViewMode>("list");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -2241,7 +2243,7 @@ export function FichasPersonal() {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              {personas.length === 0 && !loading && (
+              {personas.length === 0 && !loading && canWrite && (
                 <button
                   onClick={handleSeedPersonnel}
                   disabled={seeding}

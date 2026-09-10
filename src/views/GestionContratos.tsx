@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "../utils/supabase";
+import { useAuth } from "../utils/authContext";
 import { 
   ArrowLeft,
   Upload,
@@ -24,6 +25,8 @@ import {
 } from "lucide-react";
 
 export function GestionContratos() {
+  const { role } = useAuth();
+  const canWrite = (role === "admin" || role === "rrhh") && role !== "gerencia";
   const [loading, setLoading] = useState(false);
   const [personas, setPersonas] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -490,31 +493,35 @@ export function GestionContratos() {
                             )}
                           </td>
                           <td className="px-4 py-3.5 text-right">
-                            <div className="flex items-center justify-end gap-1.5">
-                              {c.estado === "Vigente" && v.estado === "Activo" && (
+                            {canWrite ? (
+                              <div className="flex items-center justify-end gap-1.5">
+                                {c.estado === "Vigente" && v.estado === "Activo" && (
+                                  <button
+                                    onClick={() => handleOpenRenew(c)}
+                                    className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors cursor-pointer border-none"
+                                    title="Renovar este contrato"
+                                  >
+                                    <RefreshCw className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
                                 <button
-                                  onClick={() => handleOpenRenew(c)}
-                                  className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors cursor-pointer border-none"
-                                  title="Renovar este contrato"
+                                  onClick={() => handleOpenEdit(c)}
+                                  className="p-1 text-slate-500 hover:bg-slate-100 rounded transition-colors cursor-pointer border-none"
+                                  title="Editar este contrato (cambiar PDF, fechas, etc.)"
                                 >
-                                  <RefreshCw className="w-3.5 h-3.5" />
+                                  <Pencil className="w-3.5 h-3.5" />
                                 </button>
-                              )}
-                              <button
-                                onClick={() => handleOpenEdit(c)}
-                                className="p-1 text-slate-500 hover:bg-slate-100 rounded transition-colors cursor-pointer border-none"
-                                title="Editar este contrato (cambiar PDF, fechas, etc.)"
-                              >
-                                <Pencil className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteContract(c.id)}
-                                className="p-1 text-red-650 hover:bg-red-50 rounded transition-colors cursor-pointer border-none"
-                                title="Eliminar este contrato permanentemente"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
+                                <button
+                                  onClick={() => handleDeleteContract(c.id)}
+                                  className="p-1 text-red-650 hover:bg-red-50 rounded transition-colors cursor-pointer border-none"
+                                  title="Eliminar este contrato permanentemente"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 text-[10px] italic">Lectura</span>
+                            )}
                           </td>
                         </tr>
                       );
@@ -528,193 +535,187 @@ export function GestionContratos() {
 
         {/* Column 2: Contract Registration/Renewal Form (5 columns) */}
         <div className="lg:col-span-5 space-y-4">
-          <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4">
-            <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-              {editingContractId ? (
-                <Pencil className="w-4 h-4 text-amber-600 stroke-[2.5]" />
-              ) : (
-                <Plus className="w-4 h-4 text-blue-600 stroke-[3]" />
-              )}
-              {editingContractId ? "Editar Contrato Registrado" : isRenewing ? "Renovar Contrato Vigente" : "Registrar Nuevo Contrato"}
-            </h4>
-            
-            <form onSubmit={handleSaveContract} className="space-y-4">
+          {canWrite ? (
+            <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                {editingContractId ? (
+                  <Pencil className="w-4 h-4 text-amber-600 stroke-[2.5]" />
+                ) : (
+                  <Plus className="w-4 h-4 text-blue-600 stroke-[3]" />
+                )}
+                {editingContractId ? "Editar Contrato Registrado" : isRenewing ? "Renovar Contrato Vigente" : "Registrar Nuevo Contrato"}
+              </h4>
               
-              {/* Select Job / Vinculo */}
-              <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Puesto / Obra Asignado</label>
-                <select
-                  required
-                  value={formValues.vinculo_laboral_id}
-                  onChange={(e) => setFormValues({ ...formValues, vinculo_laboral_id: parseInt(e.target.value) })}
-                  disabled={isRenewing}
-                  className="w-full p-2.5 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium text-slate-700 cursor-pointer"
-                >
-                  <option value="" disabled>Seleccione puesto...</option>
-                  {(selectedPersona.vinculos_laborales || [])
-                    .filter((v: any) => v.estado === "Activo")
-                    .map((v: any) => (
-                      <option key={v.id} value={v.id}>
-                        {v.cargos?.nombre} ({v.sedes?.nombre}) &bull; {v.empresas_internas?.razon_social}
-                      </option>
-                    ))
-                  }
-                  {/* Fallback to inactive vinculos if no active ones are found, just to avoid breaking UI */}
-                  {(selectedPersona.vinculos_laborales || [])
-                    .filter((v: any) => v.estado === "Inactivo")
-                    .map((v: any) => (
-                      <option key={v.id} value={v.id} disabled>
-                        [INACTIVO] {v.cargos?.nombre} ({v.sedes?.nombre})
-                      </option>
-                    ))
-                  }
-                </select>
-              </div>
-
-              {/* Modalidad de Contrato */}
-              <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Modalidad de Contrato</label>
-                <select
-                  required
-                  value={formValues.modalidad_contrato_id}
-                  onChange={(e) => setFormValues({ ...formValues, modalidad_contrato_id: parseInt(e.target.value) })}
-                  className="w-full p-2.5 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium text-slate-700 cursor-pointer"
-                >
-                  <option value="" disabled>Seleccione modalidad...</option>
-                  {modalidades.map((m) => (
-                    <option key={m.id} value={m.id}>{m.nombre}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Dates */}
-              <div className="grid grid-cols-2 gap-3">
+              <form onSubmit={handleSaveContract} className="space-y-4">
+                
+                {/* Select Job / Vinculo */}
                 <div>
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Fecha Inicio</label>
-                  <input
-                    type="date"
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Puesto / Obra Asignado</label>
+                  <select
                     required
-                    value={formValues.fecha_inicio}
-                    onChange={(e) => setFormValues({ ...formValues, fecha_inicio: e.target.value })}
-                    className="w-full p-2.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-slate-700"
-                  />
+                    value={formValues.vinculo_laboral_id}
+                    onChange={(e) => setFormValues({ ...formValues, vinculo_laboral_id: parseInt(e.target.value) })}
+                    disabled={isRenewing}
+                    className="w-full p-2.5 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold text-slate-700 disabled:opacity-60"
+                  >
+                    <option value="">Seleccione un puesto laboral...</option>
+                    {selectedPersona?.vinculos_laborales?.map((v: any) => (
+                      <option key={v.id} value={v.id}>
+                        {v.cargos?.nombre} ({v.sedes?.nombre}) — {v.estado}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Fecha Fin (Opcional)</label>
-                  <input
-                    type="date"
-                    value={formValues.fecha_fin}
-                    onChange={(e) => setFormValues({ ...formValues, fecha_fin: e.target.value })}
-                    className="w-full p-2.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-slate-700"
-                    placeholder="Indeterminado"
-                  />
-                </div>
-              </div>
 
-              {/* PDF upload option */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Adjuntar PDF Escaneado (Opcional)</label>
-                <div className="relative border border-dashed border-slate-350 hover:border-blue-450 hover:bg-slate-50/50 rounded-xl p-4 text-center transition-all cursor-pointer">
-                  <input
-                    type="file"
-                    accept=".pdf"
-                    onChange={handleFileChange}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  />
-                  <div className="flex flex-col items-center justify-center space-y-1.5">
-                    <Upload className="w-5 h-5 text-slate-400" />
-                    {selectedFile ? (
-                      <p className="text-xs font-bold text-slate-800 truncate max-w-[250px]">{selectedFile.name}</p>
-                    ) : (
-                      <p className="text-[11px] text-slate-500 font-semibold">Haz clic para buscar o arrastra el PDF aquí</p>
+                {/* Modalidad de Contrato */}
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Modalidad de Contrato</label>
+                  <select
+                    required
+                    value={formValues.modalidad_contrato_id}
+                    onChange={(e) => setFormValues({ ...formValues, modalidad_contrato_id: parseInt(e.target.value) })}
+                    className="w-full p-2.5 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium text-slate-700 cursor-pointer"
+                  >
+                    <option value="">Seleccione modalidad...</option>
+                    {modalidades.map((m) => (
+                      <option key={m.id} value={m.id}>{m.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Vigencia Fechas */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Fecha Inicio</label>
+                    <input
+                      type="date"
+                      required
+                      value={formValues.fecha_inicio}
+                      onChange={(e) => setFormValues({ ...formValues, fecha_inicio: e.target.value })}
+                      className="w-full p-2.5 border border-slate-200 rounded-lg text-xs font-mono text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Fecha Fin</label>
+                    <input
+                      type="date"
+                      value={formValues.fecha_fin}
+                      onChange={(e) => setFormValues({ ...formValues, fecha_fin: e.target.value })}
+                      className="w-full p-2.5 border border-slate-200 rounded-lg text-xs font-mono text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Upload Archivo PDF */}
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Contrato Escaneado (PDF)</label>
+                  <div className="flex items-center gap-2">
+                    <label className="cursor-pointer border border-slate-200 hover:bg-slate-50 rounded-lg px-3 py-2 text-xs font-semibold text-slate-600 flex items-center gap-1.5 transition-colors bg-white">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>{selectedFile ? selectedFile.name : formValues.archivo_pdf || "Cargar archivo PDF"}</span>
+                      <input
+                        type="file"
+                        accept="application/pdf"
+                        onChange={handleFileChange}
+                        className="hidden"
+                      />
+                    </label>
+                    {formValues.archivo_pdf && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedFile(null);
+                          setFormValues({ ...formValues, archivo_pdf: "" });
+                        }}
+                        className="p-1.5 text-slate-400 hover:text-red-600 rounded"
+                        title="Quitar archivo"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
                     )}
                   </div>
                 </div>
-              </div>
 
-              {/* PDF path */}
-              <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Nombre final del archivo PDF</label>
-                <input
-                  type="text"
-                  value={formValues.archivo_pdf || ""}
-                  onChange={(e) => setFormValues({ ...formValues, archivo_pdf: e.target.value })}
-                  className="w-full p-2.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-slate-700 bg-slate-50"
-                  placeholder="Se auto-completa al seleccionar un archivo"
-                />
-              </div>
-
-              {/* Estado */}
-              <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Estado del Contrato</label>
-                <select
-                  value={formValues.estado}
-                  onChange={(e) => setFormValues({ ...formValues, estado: e.target.value })}
-                  className="w-full p-2.5 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium text-slate-700 cursor-pointer"
-                >
-                  <option value="Vigente">Vigente (Activo)</option>
-                  <option value="Renovado">Renovado (Sustituido)</option>
-                  <option value="Vencido">Vencido</option>
-                  <option value="Anulado">Anulado</option>
-                </select>
-              </div>
-
-              {/* Submit buttons */}
-              <div className="flex gap-2 pt-2">
-                {isRenewing && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsRenewing(false);
-                      const activeVinculos = selectedPersona.vinculos_laborales?.filter((v: any) => v.estado === "Activo") || [];
-                      const targetV = activeVinculos[0] || selectedPersona.vinculos_laborales?.[0] || null;
-                      setFormValues({
-                        vinculo_laboral_id: targetV?.id || "",
-                        modalidad_contrato_id: modalidades[0]?.id || "",
-                        fecha_inicio: new Date().toISOString().split("T")[0],
-                        fecha_fin: "",
-                        estado: "Vigente",
-                        archivo_pdf: ""
-                      });
-                    }}
-                    className="flex-1 py-2 border border-slate-200 text-slate-500 hover:bg-slate-50 rounded-lg text-xs font-semibold transition-all cursor-pointer bg-white"
+                {/* Estado */}
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Estado de Vigencia</label>
+                  <select
+                    value={formValues.estado}
+                    onChange={(e) => setFormValues({ ...formValues, estado: e.target.value })}
+                    className="w-full p-2.5 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium text-slate-700 cursor-pointer"
                   >
-                    Cancelar Ren.
-                  </button>
-                )}
-                {editingContractId && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditingContractId(null);
-                      const activeVinculos = selectedPersona.vinculos_laborales?.filter((v: any) => v.estado === "Activo") || [];
-                      const targetV = activeVinculos[0] || selectedPersona.vinculos_laborales?.[0] || null;
-                      setFormValues({
-                        vinculo_laboral_id: targetV?.id || "",
-                        modalidad_contrato_id: modalidades[0]?.id || "",
-                        fecha_inicio: new Date().toISOString().split("T")[0],
-                        fecha_fin: "",
-                        estado: "Vigente",
-                        archivo_pdf: ""
-                      });
-                    }}
-                    className="flex-1 py-2 border border-slate-200 text-slate-550 hover:bg-slate-50 rounded-lg text-xs font-semibold transition-all cursor-pointer bg-white"
-                  >
-                    Cancelar Edic.
-                  </button>
-                )}
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 active:scale-95 disabled:opacity-50 transition-all shadow-md shadow-blue-100 flex items-center justify-center gap-1.5 cursor-pointer border-none"
-                >
-                  {loading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                  {editingContractId ? "Guardar Cambios" : isRenewing ? "Renovar Puesto" : "Registrar Contrato"}
-                </button>
-              </div>
+                    <option value="Vigente">Vigente (Activo)</option>
+                    <option value="Renovado">Renovado (Sustituido)</option>
+                    <option value="Vencido">Vencido</option>
+                    <option value="Anulado">Anulado</option>
+                  </select>
+                </div>
 
-            </form>
-          </div>
+                {/* Submit buttons */}
+                <div className="flex gap-2 pt-2">
+                  {isRenewing && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsRenewing(false);
+                        const activeVinculos = selectedPersona?.vinculos_laborales?.filter((v: any) => v.estado === "Activo") || [];
+                        const targetV = activeVinculos[0] || selectedPersona?.vinculos_laborales?.[0] || null;
+                        setFormValues({
+                          vinculo_laboral_id: targetV?.id || "",
+                          modalidad_contrato_id: modalidades[0]?.id || "",
+                          fecha_inicio: new Date().toISOString().split("T")[0],
+                          fecha_fin: "",
+                          estado: "Vigente",
+                          archivo_pdf: ""
+                        });
+                      }}
+                      className="flex-1 py-2 border border-slate-200 text-slate-500 hover:bg-slate-50 rounded-lg text-xs font-semibold transition-all cursor-pointer bg-white"
+                    >
+                      Cancelar Ren.
+                    </button>
+                  )}
+                  {editingContractId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingContractId(null);
+                        const activeVinculos = selectedPersona?.vinculos_laborales?.filter((v: any) => v.estado === "Activo") || [];
+                        const targetV = activeVinculos[0] || selectedPersona?.vinculos_laborales?.[0] || null;
+                        setFormValues({
+                          vinculo_laboral_id: targetV?.id || "",
+                          modalidad_contrato_id: modalidades[0]?.id || "",
+                          fecha_inicio: new Date().toISOString().split("T")[0],
+                          fecha_fin: "",
+                          estado: "Vigente",
+                          archivo_pdf: ""
+                        });
+                      }}
+                      className="flex-1 py-2 border border-slate-200 text-slate-550 hover:bg-slate-50 rounded-lg text-xs font-semibold transition-all cursor-pointer bg-white"
+                    >
+                      Cancelar Edic.
+                    </button>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 active:scale-95 disabled:opacity-50 transition-all shadow-md shadow-blue-100 flex items-center justify-center gap-1.5 cursor-pointer border-none"
+                  >
+                    {loading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                    {editingContractId ? "Guardar Cambios" : isRenewing ? "Renovar Puesto" : "Registrar Contrato"}
+                  </button>
+                </div>
+
+              </form>
+            </div>
+          ) : (
+            <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4 text-center py-12 text-slate-500">
+              <FileText className="w-10 h-10 mx-auto text-slate-300" />
+              <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Modo Solo Lectura (Gerencia)</h4>
+              <p className="text-xs text-slate-400 max-w-xs mx-auto leading-relaxed">
+                Seleccione un colaborador del listado de la izquierda para consultar su historial de contratos y descargar los archivos PDF asociados.
+              </p>
+            </div>
+          )}
         </div>
 
       </div>

@@ -63,6 +63,7 @@ export function DiccionariosDatos() {
   ];
 
   const { role } = useAuth();
+  const canWrite = (role === "admin" || role === "rrhh" || role === "logistica" || role === "almacen") && role !== "gerencia";
 
   const rrhhTabs: DictionaryType[] = [
     "cargos",
@@ -84,7 +85,7 @@ export function DiccionariosDatos() {
 
   const filteredTabs = React.useMemo(() => {
     return tabs.filter((t) => {
-      if (role === "admin") return true;
+      if (role === "admin" || role === "gerencia") return true;
       if (role === "rrhh") return rrhhTabs.includes(t.value);
       if (role === "logistica" || role === "almacen") return logisticaTabs.includes(t.value);
       return false;
@@ -324,7 +325,7 @@ export function DiccionariosDatos() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {data.length === 0 && !loading && (
+          {canWrite && data.length === 0 && !loading && (
             <button
               onClick={handleSeedData}
               disabled={seeding}
@@ -334,13 +335,15 @@ export function DiccionariosDatos() {
               Precargar Semilla
             </button>
           )}
-          <button 
-            onClick={handleOpenAdd}
-            className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all"
-          >
-            <Plus className="w-4 h-4 stroke-[3]" />
-            Nuevo Registro
-          </button>
+          {canWrite && (
+            <button 
+              onClick={handleOpenAdd}
+              className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all"
+            >
+              <Plus className="w-4 h-4 stroke-[3]" />
+              Nuevo Registro
+            </button>
+          )}
         </div>
       </div>
 
@@ -450,7 +453,7 @@ export function DiccionariosDatos() {
                     {searchQuery ? "Intenta modificar el filtro de búsqueda." : "Comienza agregando un nuevo registro al diccionario."}
                   </p>
                 </div>
-                {!searchQuery && data.length === 0 && (
+                {canWrite && !searchQuery && data.length === 0 && (
                   <button 
                     onClick={handleSeedData}
                     disabled={seeding}
@@ -490,7 +493,7 @@ export function DiccionariosDatos() {
                     {(activeTab === "cargos" || activeTab === "categorias_producto" || activeTab === "proveedores" || activeTab === "tallas") && (
                       <th className="px-6 py-4 text-center">Estado</th>
                     )}
-                    <th className="px-6 py-4 text-right">Acciones</th>
+                    {canWrite && <th className="px-6 py-4 text-right">Acciones</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -552,24 +555,26 @@ export function DiccionariosDatos() {
                           </span>
                         </td>
                       )}
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            onClick={() => handleOpenEdit(item)}
-                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                            title="Editar"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(item.id)}
-                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                            title="Eliminar"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
+                      {canWrite && (
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => handleOpenEdit(item)}
+                              className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                              title="Editar"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(item.id)}
+                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                              title="Eliminar"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>

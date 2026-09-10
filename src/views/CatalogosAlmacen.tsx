@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { supabase, getOrCreateUserForRole } from "../utils/supabase";
+import { useAuth } from "../utils/authContext";
 import { 
   Box, 
   Plus, 
@@ -21,6 +22,8 @@ import {
 import * as XLSX from "xlsx";
 
 export function CatalogosAlmacen() {
+  const { role } = useAuth();
+  const canWrite = (role === "admin" || role === "logistica" || role === "almacen") && role !== "gerencia";
   const [loading, setLoading] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [data, setData] = useState<any[]>([]);
@@ -1077,7 +1080,7 @@ export function CatalogosAlmacen() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {data.length === 0 && !loading && (
+          {canWrite && data.length === 0 && !loading && (
             <button
               onClick={handleSeedAlmacen}
               disabled={seeding}
@@ -1097,15 +1100,17 @@ export function CatalogosAlmacen() {
             className="inline-flex items-center gap-2 bg-emerald-600 border border-emerald-500 text-white px-4 py-2.5 rounded-lg text-sm font-semibold shadow-lg shadow-emerald-100 hover:bg-emerald-700 active:scale-95 transition-all"
           >
             <FileSpreadsheet className="w-4 h-4" />
-            Importar/Exportar Excel
+            {canWrite ? "Importar/Exportar Excel" : "Exportar Excel"}
           </button>
-          <button 
-            onClick={handleOpenAdd}
-            className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all"
-          >
-            <Plus className="w-4 h-4 stroke-[3]" />
-            Añadir Producto
-          </button>
+          {canWrite && (
+            <button 
+              onClick={handleOpenAdd}
+              className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all"
+            >
+              <Plus className="w-4 h-4 stroke-[3]" />
+              Añadir Producto
+            </button>
+          )}
         </div>
       </div>
 
@@ -1223,7 +1228,7 @@ export function CatalogosAlmacen() {
                   <th className="px-6 py-4 sticky top-0 bg-slate-100 z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.05)]">Precio Unitario</th>
                   <th className="px-6 py-4 sticky top-0 bg-slate-100 z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.05)] text-center">Es Uniforme</th>
                   <th className="px-6 py-4 sticky top-0 bg-slate-100 z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.05)] text-center">Estado</th>
-                  <th className="px-6 py-4 sticky top-0 bg-slate-100 z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.05)] text-right">Acciones</th>
+                  {canWrite && <th className="px-6 py-4 sticky top-0 bg-slate-100 z-10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.05)] text-right">Acciones</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -1265,24 +1270,26 @@ export function CatalogosAlmacen() {
                         {p.activo ? "Activo" : "Inactivo"}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <button
-                          onClick={() => handleOpenEdit(p)}
-                          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                          title="Editar"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(p.id)}
-                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                          title="Eliminar"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
+                    {canWrite && (
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => handleOpenEdit(p)}
+                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                            title="Editar"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(p.id)}
+                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                            title="Eliminar"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -1622,11 +1629,12 @@ export function CatalogosAlmacen() {
                 </div>
               </div>
 
-              <div className="border-t border-slate-100 pt-5">
-                <h4 className="text-sm font-bold text-slate-800 flex items-center gap-1.5 mb-3">
-                  <Upload className="w-4 h-4 text-indigo-600" />
-                  3. Importar y Actualizar Productos
-                </h4>
+              {canWrite && (
+                <div className="border-t border-slate-100 pt-5">
+                  <h4 className="text-sm font-bold text-slate-800 flex items-center gap-1.5 mb-3">
+                    <Upload className="w-4 h-4 text-indigo-600" />
+                    3. Importar y Actualizar Productos
+                  </h4>
                 
                 <form onSubmit={handleImportExcel} className="space-y-4">
                   <div 
@@ -1744,6 +1752,7 @@ export function CatalogosAlmacen() {
                   </div>
                 </form>
               </div>
+              )}
             </div>
           </div>
         </div>
