@@ -20,6 +20,7 @@ import {
   AlertCircle
 } from "lucide-react";
 import * as XLSX from "xlsx";
+import { SedeLocationPicker } from "../components/common/SedeLocationPicker";
 
 const cleanUrl = (url: string | null | undefined): string => {
   if (!url) return "";
@@ -1137,8 +1138,19 @@ export function EstructuraComercial() {
                           </td>
                         )}
                         <td className="px-6 py-4">
-                          <div className="text-sm text-slate-700">{item.distrito}</div>
-                          <div className="text-[10px] text-slate-400 truncate max-w-[120px]" title={item.direccion}>{item.direccion}</div>
+                          <div className="flex items-center gap-1.5">
+                            <div className="text-sm font-semibold text-slate-800">{item.distrito}</div>
+                            {item.latitud && item.longitud ? (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-black bg-blue-50 text-blue-700 border border-blue-200" title={`Coordenadas exactas: ${item.latitud}, ${item.longitud}`}>
+                                GPS
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-slate-100 text-slate-400" title="Sin coordenadas exactas (usa centroide de distrito)">
+                                Aprox
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[10px] text-slate-400 truncate max-w-[140px]" title={item.direccion}>{item.direccion}</div>
                         </td>
                       </>
                     )}
@@ -1386,6 +1398,24 @@ export function EstructuraComercial() {
                         placeholder="Dirección física exacta"
                       />
                     </div>
+
+                    {/* Selector y Calibrador Interactivo de Mapa */}
+                    <div className="pt-1">
+                      <SedeLocationPicker
+                        initialLat={formValues.latitud}
+                        initialLng={formValues.longitud}
+                        direccion={formValues.direccion}
+                        distrito={formValues.distrito}
+                        onCoordinatesChange={(coords) => {
+                          setFormValues((prev: any) => ({
+                            ...prev,
+                            latitud: coords.lat,
+                            longitud: coords.lng
+                          }));
+                        }}
+                      />
+                    </div>
+
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Nombre Contacto</label>

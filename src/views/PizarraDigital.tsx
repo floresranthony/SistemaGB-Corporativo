@@ -35,8 +35,11 @@ import {
   Tag,
   MessageSquare,
   FileText,
-  ExternalLink
+  ExternalLink,
+  Compass
 } from "lucide-react";
+import { RadarVacantesModal } from "../components/pizarra/RadarVacantesModal";
+import { SedeCalibrationModal } from "../components/common/SedeCalibrationModal";
 
 export function PizarraDigital() {
   const [loading, setLoading] = useState(false);
@@ -76,6 +79,10 @@ export function PizarraDigital() {
   const [isAltaModalOpen, setIsAltaModalOpen] = useState(false);
   const [selectedCandidatoForAlta, setSelectedCandidatoForAlta] = useState<any | null>(null);
   const [selectedRequestForAlta, setSelectedRequestForAlta] = useState<any | null>(null);
+
+  // Radar de Vacantes & Calibración de Sedes
+  const [isRadarModalOpen, setIsRadarModalOpen] = useState(false);
+  const [calibratingSede, setCalibratingSede] = useState<any | null>(null);
 
   // System Feedback Modal State (Replaces native alerts)
   const [feedbackModal, setFeedbackModal] = useState<{
@@ -241,7 +248,7 @@ export function PizarraDigital() {
   const loadLookups = async () => {
     try {
       const [s, c, p, r, d, cl, emp, tt, mc, sp, b, usRel] = await Promise.all([
-        supabase.from("sedes").select("*").eq("activo", true),
+        supabase.from("sedes").select("*, clientes(id, razon_social, empresa_interna_id)").eq("activo", true),
         supabase.from("cargos").select("*").eq("activo", true),
         supabase.from("personas").select("id, nombres, apellidos, numero_documento"),
         supabase.from("regimenes_laborales").select("id, nombre"),
@@ -498,6 +505,73 @@ export function PizarraDigital() {
   // ==========================================
   // CANDIDATES MANAGEMENT (RECLUTAMIENTO)
   // ==========================================
+
+  // Manejar selección de vacante desde el Radar de Vacantes
+  const handleSelectVacanteFromRadar = (
+    vacante: any,
+    candidateLocation?: { direccion: string; distrito?: string }
+  ) => {
+    setSelectedRequestForCandidatos(vacante);
+    setCandidatoFilterStatus("todos");
+    setShowAddCandidatoForm(true);
+    const firstDoc = documentTypes[0]?.id || 1;
+    setNewCandidatoForm({
+      nombres: "",
+      apellidos: "",
+      tipo_documento_id: firstDoc,
+      numero_documento: "",
+      sexo: "Masculino",
+      fecha_nacimiento: "",
+      telefono: "",
+      correo: "",
+      direccion: candidateLocation?.direccion || "",
+      fuente_reclutamiento: "Radar de Ubicación",
+      notas_reclutamiento: candidateLocation?.distrito
+        ? `Ubicado por cercanía a distrito: ${candidateLocation.distrito}`
+        : ""
+    });
+    setIsCandidatosModalOpen(true);
+    setIsRadarModalOpen(false);
+  };
+
+  // Manejar actualización de coordenadas de sede tras calibración
+  const handleSedeUpdated = (updatedSede: any) => {
+    setSedes(prev => prev.map(s => (s.id === updatedSede.id ? { ...s, ...updatedSede } : s)));
+    setData(prev =>
+      prev.map(req => {
+        if (req.sede_id === updatedSede.id) {
+          return {
+            ...req,
+            sedes: {
+              ...req.sedes,
+              ...updatedSede
+            }
+          };
+        }
+        return req;
+      })
+    );
+
+    // Sincronizar locationModal si está abierto para refrescar el mapa al instante
+    setLocationModal(prev => {
+      if (prev.isOpen && (prev.sede?.id === updatedSede.id || prev.request?.sede_id === updatedSede.id)) {
+        return {
+          ...prev,
+          sede: {
+            ...prev.sede,
+            ...updatedSede
+          }
+        };
+      }
+      return prev;
+    });
+
+    showSystemMessage(
+      "success",
+      "Sede Calibrada",
+      `La ubicación de la sede "${updatedSede.nombre}" se actualizó correctamente en el sistema.`
+    );
+  };
 
   const handleOpenCandidatosModal = (req: any) => {
     setSelectedRequestForCandidatos(req);
@@ -1054,6 +1128,19 @@ export function PizarraDigital() {
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
             Recargar
+          </button>
+
+          {/* Botón Destacado: Radar de Vacantes por Postulante */}
+          <button
+            onClick={() => setIsRadarModalOpen(true)}
+            className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 text-white px-4 py-2.5 rounded-lg text-sm font-bold shadow-lg shadow-indigo-200 active:scale-95 transition-all cursor-pointer"
+            title="Buscar vacantes cercanas a la ubicación del postulante"
+          >
+            <Compass className="w-4 h-4 text-blue-200 animate-pulse" />
+            <span>Radar de Vacantes</span>
+            <span className="bg-white/20 text-white text-[10px] px-1.5 py-0.5 rounded-md font-black uppercase tracking-wider">
+              GPS
+            </span>
           </button>
 
           {(currentRole === "admin" || currentRole === "supervisor" || currentRole === "rrhh") && currentRole !== "gerencia" && (
@@ -2706,24 +2793,32 @@ export function PizarraDigital() {
 
               {/* Map Iframe Embed */}
               <div className="w-full h-64 sm:h-72 rounded-2xl overflow-hidden border border-slate-200 shadow-sm bg-slate-100 relative">
-                <iframe
-                  title="Mapa de Sede"
-                  width="100%"
-                  height="100%"
-                  frameBorder="0"
-                  scrolling="no"
-                  marginHeight={0}
-                  marginWidth={0}
-                  src={`https://maps.google.com/maps?q=${encodeURIComponent(
-                    `${locationModal.sede?.direccion || locationModal.sede?.nombre || ""}, ${locationModal.sede?.distrito || ""} Perú`
-                  )}&t=&z=15&ie=UTF8&iwloc=&output=embed`}
-                  className="w-full h-full"
-                />
+                {(() => {
+                  const matchedSedeObj = sedes.find(s => s.id === (locationModal.sede?.id || locationModal.request?.sede_id)) || locationModal.sede;
+                  const hasCoords = matchedSedeObj?.latitud != null && matchedSedeObj?.longitud != null && !isNaN(Number(matchedSedeObj.latitud)) && Number(matchedSedeObj.latitud) !== 0;
+                  const mapQuery = hasCoords
+                    ? `${matchedSedeObj.latitud},${matchedSedeObj.longitud}`
+                    : `${matchedSedeObj?.direccion || matchedSedeObj?.nombre || ""}, ${matchedSedeObj?.distrito || ""} Perú`;
+
+                  return (
+                    <iframe
+                      title="Mapa de Sede"
+                      width="100%"
+                      height="100%"
+                      frameBorder="0"
+                      scrolling="no"
+                      marginHeight={0}
+                      marginWidth={0}
+                      src={`https://maps.google.com/maps?q=${encodeURIComponent(mapQuery)}&t=&z=16&ie=UTF8&iwloc=&output=embed`}
+                      className="w-full h-full"
+                    />
+                  );
+                })()}
               </div>
             </div>
 
             {/* Footer */}
-            <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-3">
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-3 flex-wrap">
               <button
                 type="button"
                 onClick={() => setLocationModal({ isOpen: false, sede: null, cliente: null, request: null })}
@@ -2732,17 +2827,40 @@ export function PizarraDigital() {
                 Cerrar
               </button>
 
-              <a
-                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                  `${locationModal.sede?.direccion || locationModal.sede?.nombre || ""}, ${locationModal.sede?.distrito || ""} Perú`
-                )}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-2.5 px-4 rounded-xl font-bold text-xs shadow-md shadow-blue-200 transition-all cursor-pointer"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-                Abrir en Google Maps
-              </a>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const matchedSede = sedes.find(s => s.id === (locationModal.sede?.id || locationModal.request?.sede_id)) || locationModal.sede;
+                    setCalibratingSede(matchedSede);
+                  }}
+                  className="inline-flex items-center gap-1.5 py-2.5 px-3.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl font-bold text-xs transition-colors cursor-pointer border border-indigo-200 shadow-2xs"
+                  title="Calibrar el pin exacto de esta sede en el mapa"
+                >
+                  <Edit className="w-3.5 h-3.5" />
+                  Calibrar Ubicación
+                </button>
+
+                {(() => {
+                  const matchedSedeObj = sedes.find(s => s.id === (locationModal.sede?.id || locationModal.request?.sede_id)) || locationModal.sede;
+                  const hasCoords = matchedSedeObj?.latitud != null && matchedSedeObj?.longitud != null && !isNaN(Number(matchedSedeObj.latitud)) && Number(matchedSedeObj.latitud) !== 0;
+                  const searchQuery = hasCoords
+                    ? `${matchedSedeObj.latitud},${matchedSedeObj.longitud}`
+                    : `${matchedSedeObj?.direccion || matchedSedeObj?.nombre || ""}, ${matchedSedeObj?.distrito || ""} Perú`;
+
+                  return (
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(searchQuery)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-2.5 px-4 rounded-xl font-bold text-xs shadow-md shadow-blue-200 transition-all cursor-pointer"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      Abrir en Google Maps
+                    </a>
+                  );
+                })()}
+              </div>
             </div>
           </div>
         </div>
@@ -2870,6 +2988,32 @@ export function PizarraDigital() {
             </button>
           </div>
         </div>
+      )}
+
+      {/* ==================================================== */}
+      {/* RADAR DE VACANTES (GEOMATCHING POR POSTULANTE) */}
+      {/* ==================================================== */}
+      <RadarVacantesModal
+        isOpen={isRadarModalOpen}
+        onClose={() => setIsRadarModalOpen(false)}
+        vacantes={data}
+        sedes={sedes}
+        cargos={cargos}
+        clientes={clientes}
+        onSelectVacanteForPostulante={handleSelectVacanteFromRadar}
+        onCalibrateSede={(sede) => setCalibratingSede(sede)}
+      />
+
+      {/* ==================================================== */}
+      {/* CALIBRADOR RÁPIDO DE SEDE */}
+      {/* ==================================================== */}
+      {calibratingSede && (
+        <SedeCalibrationModal
+          isOpen={!!calibratingSede}
+          onClose={() => setCalibratingSede(null)}
+          sede={calibratingSede}
+          onSedeUpdated={handleSedeUpdated}
+        />
       )}
 
     </div>
