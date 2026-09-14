@@ -314,6 +314,7 @@ export function DashboardPizarra() {
     let countPostulantes = 0;
     let countEvaluacion = 0;
     let countAprobados = 0;
+    let countReclutados = 0;
     let countPendienteAlta = 0;
     let countContratados = 0;
     let countDescartados = 0;
@@ -329,6 +330,9 @@ export function DashboardPizarra() {
           break;
         case "Aprobado":
           countAprobados++;
+          break;
+        case "Reclutado":
+          countReclutados++;
           break;
         case "Pendiente de Alta":
           countPendienteAlta++;
@@ -349,17 +353,18 @@ export function DashboardPizarra() {
     });
 
     const totalCandidatos = filteredCandidatos.length;
-    const totalEnProceso = countPostulantes + countEvaluacion + countAprobados + countPendienteAlta;
+    const totalEnProceso = countPostulantes + countEvaluacion + countAprobados;
+    const totalIngresados = countContratados + countReclutados + countPendienteAlta;
     const ratioPostulantePorPlaza = (totalPlazasPedidas - totalPlazasCubiertas) > 0
       ? (totalEnProceso / (totalPlazasPedidas - totalPlazasCubiertas)).toFixed(1)
       : "0";
 
     const tasaEfectividad = totalCandidatos > 0
-      ? Math.round((countContratados / totalCandidatos) * 100)
+      ? Math.round((totalIngresados / totalCandidatos) * 100)
       : 0;
 
-    const tasaDesercion = (countContratados + countNoSePresento + countPendienteAlta) > 0
-      ? Math.round((countNoSePresento / (countContratados + countNoSePresento + countPendienteAlta)) * 100)
+    const tasaDesercion = (totalIngresados + countNoSePresento) > 0
+      ? Math.round((countNoSePresento / (totalIngresados + countNoSePresento)) * 100)
       : 0;
 
     return {
@@ -373,10 +378,12 @@ export function DashboardPizarra() {
       criticalList: criticalList.sort((a, b) => b.daysOpen - a.daysOpen),
       totalCandidatos,
       totalEnProceso,
+      totalIngresados,
       ratioPostulantePorPlaza,
       countPostulantes,
       countEvaluacion,
       countAprobados,
+      countReclutados,
       countPendienteAlta,
       countContratados,
       countDescartados,
@@ -431,7 +438,7 @@ export function DashboardPizarra() {
       const f = c.fuente_reclutamiento || "Directo";
       if (!map[f]) map[f] = { total: 0, contratados: 0 };
       map[f].total++;
-      if (c.estado === "Contratado") {
+      if (c.estado === "Contratado" || c.estado === "Reclutado") {
         map[f].contratados++;
       }
     });
@@ -739,16 +746,16 @@ export function DashboardPizarra() {
           <div className="mt-3">
             <div className="flex items-baseline gap-2">
               <span className="text-2xl sm:text-3xl font-black text-emerald-600 tracking-tight">
-                {metrics.countContratados}
+                {metrics.totalIngresados}
               </span>
-              <span className="text-xs font-bold text-slate-400">altas oficiales</span>
+              <span className="text-xs font-bold text-slate-400">colaboradores</span>
             </div>
             <div className="mt-3 flex items-center justify-between text-[11px] text-slate-600 font-semibold bg-emerald-50/60 px-2.5 py-1.5 rounded-lg border border-emerald-100">
               <span>Efectividad de Conversión:</span>
               <span className="font-extrabold text-emerald-700">{metrics.tasaEfectividad}%</span>
             </div>
             <div className="text-[11px] text-slate-400 font-medium mt-1">
-              {metrics.countPendienteAlta} listos en bandeja de RRHH
+              {metrics.countContratados} en nómina activa · {metrics.countReclutados + metrics.countPendienteAlta} por formalizar
             </div>
           </div>
         </div>
@@ -852,19 +859,19 @@ export function DashboardPizarra() {
                 </div>
               </div>
 
-              {/* Step 4: Pendientes de Alta */}
+              {/* Step 4: Reclutados (Iniciaron a Laborar) */}
               <div className="p-3 bg-amber-50/60 rounded-xl border border-amber-200 relative overflow-hidden">
                 <div className="flex items-center justify-between mb-1.5 text-xs">
                   <span className="font-bold text-amber-900 flex items-center gap-2">
                     <span className="w-5 h-5 rounded-full bg-amber-200 text-amber-800 flex items-center justify-center text-[10px] font-black">4</span>
-                    Pendientes de Alta (Pase a Bandeja RRHH)
+                    Reclutados (Ingresaron a Laborar / En Espera RRHH)
                   </span>
-                  <span className="font-extrabold text-amber-700 font-mono text-sm">{metrics.countPendienteAlta}</span>
+                  <span className="font-extrabold text-amber-700 font-mono text-sm">{metrics.countReclutados + metrics.countPendienteAlta}</span>
                 </div>
                 <div className="w-full bg-amber-100 h-2 rounded-full overflow-hidden">
                   <div
                     className="bg-amber-500 h-full rounded-full transition-all"
-                    style={{ width: `${metrics.totalCandidatos > 0 ? (metrics.countPendienteAlta / metrics.totalCandidatos) * 100 : 0}%` }}
+                    style={{ width: `${metrics.totalCandidatos > 0 ? ((metrics.countReclutados + metrics.countPendienteAlta) / metrics.totalCandidatos) * 100 : 0}%` }}
                   />
                 </div>
               </div>
@@ -874,7 +881,7 @@ export function DashboardPizarra() {
                 <div className="flex items-center justify-between mb-1.5 text-xs">
                   <span className="font-bold text-emerald-900 flex items-center gap-2">
                     <span className="w-5 h-5 rounded-full bg-emerald-200 text-emerald-800 flex items-center justify-center text-[10px] font-black">5</span>
-                    Ingresos Formalizados (Contratados en Planilla)
+                    Formalizados en Planilla (Contratos Vigentes)
                   </span>
                   <span className="font-extrabold text-emerald-700 font-mono text-sm">{metrics.countContratados}</span>
                 </div>
