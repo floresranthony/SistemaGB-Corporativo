@@ -109,7 +109,44 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [supervisorFilter, setSupervisorFilter] = useState("all");
+  const [clienteFilter, setClienteFilter] = useState("all");
+  const [sedeFilter, setSedeFilter] = useState("all");
   const [supervisoresList, setSupervisoresList] = useState<{ id: number; nombres: string; apellidos: string }[]>([]);
+
+  // Unique clients and sedes present in the requirements list for filtering
+  const listClientes = React.useMemo(() => {
+    const map = new Map<number, string>();
+    requerimientos.forEach(r => {
+      if (r.sedes?.clientes?.id && r.sedes?.clientes?.razon_social) {
+        map.set(r.sedes.clientes.id, r.sedes.clientes.razon_social);
+      }
+    });
+    return Array.from(map.entries())
+      .map(([id, razon_social]) => ({ id, razon_social }))
+      .sort((a, b) => a.razon_social.localeCompare(b.razon_social));
+  }, [requerimientos]);
+
+  const listSedes = React.useMemo(() => {
+    const map = new Map<number, { id: number; nombre: string; cliente_id?: number }>();
+    requerimientos.forEach(r => {
+      if (r.sedes?.id && r.sedes?.nombre) {
+        if (!map.has(r.sedes.id)) {
+          map.set(r.sedes.id, {
+            id: r.sedes.id,
+            nombre: r.sedes.nombre,
+            cliente_id: r.sedes.clientes?.id
+          });
+        }
+      }
+    });
+    return Array.from(map.values())
+      .sort((a, b) => a.nombre.localeCompare(b.nombre));
+  }, [requerimientos]);
+
+  const availableSedesForFilter = React.useMemo(() => {
+    if (clienteFilter === "all") return listSedes;
+    return listSedes.filter(s => String(s.cliente_id) === String(clienteFilter));
+  }, [listSedes, clienteFilter]);
   
   // --- DETAIL / ACTION STATE ---
   const [selectedReq, setSelectedReq] = useState<Requerimiento | null>(null);
@@ -541,7 +578,13 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
           sku,
           precio_unitario,
           unidades_medida (nombre, codigo),
-          categorias_producto (nombre)
+          categorias_producto (nombre),
+          producto_tallas (
+            id,
+            talla_id,
+            stock_actual,
+            tallas (id, valor)
+          )
         ),
         producto_tallas (id, tallas (valor)),
         vinculos_laborales (id, personas(nombres, apellidos))
@@ -1382,6 +1425,26 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
     }
   };
 
+  const handleUpdateCartItemTalla = (id: string, productoTallaId: number | undefined) => {
+    setCart(prev => prev.map(item => {
+      if (item.id !== id) return item;
+      if (!productoTallaId) {
+        return {
+          ...item,
+          productoTallaId: undefined,
+          tallaValor: undefined
+        };
+      }
+      const allVariants = item.producto?.producto_tallas || productos.find(p => p.id === item.producto?.id)?.producto_tallas || [];
+      const variantObj = allVariants.find((pt: any) => pt.id === Number(productoTallaId));
+      return {
+        ...item,
+        productoTallaId: Number(productoTallaId),
+        tallaValor: variantObj?.tallas?.valor || item.tallaValor
+      };
+    }));
+  };
+
   const handleRemoveFromCart = (id: string) => {
     setCart(prev => prev.filter(item => item.id !== id));
   };
@@ -1822,22 +1885,32 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
   const filteredRequerimientos = requerimientos.filter(req => {
     if (req.tipo_solicitud !== activeTab) return false;
     
-    // 1. Code Match
-    const codeMatch = req.codigo.toLowerCase().includes(searchTerm.toLowerCase());
+    // 1. Search Query Match (Code, Sede, Client)
+    const q = searchTerm.toLowerCase().trim();
+    const codeMatch = !q || 
+      req.codigo.toLowerCase().includes(q) ||
+      (req.sedes?.nombre?.toLowerCase() || "").includes(q) ||
+      (req.sedes?.clientes?.razon_social?.toLowerCase() || "").includes(q);
+
+    // 2. Client Filter Match
+    const clienteMatch = clienteFilter === "all" || String(req.sedes?.clientes?.id) === String(clienteFilter);
+
+    // 3. Sede Filter Match
+    const sedeMatch = sedeFilter === "all" || String(req.sede_id) === String(sedeFilter);
     
-    // 2. Status Match
+    // 4. Status Match
     const statusMatch = statusFilter === "all" || req.estado === statusFilter;
     
-    // 3. Supervisor Match (only matches user_solicitante_id if filter is selected)
+    // 5. Supervisor Match (only matches user_solicitante_id if filter is selected)
     const supervisorMatch = supervisorFilter === "all" || String(req.usuario_solicitante_id) === supervisorFilter;
 
-    // 4. Date Range Match (lexicographical string checks on YYYY-MM-DD format)
+    // 6. Date Range Match (lexicographical string checks on YYYY-MM-DD format)
     let dateMatch = true;
     const reqDateStr = req.fecha_solicitud.slice(0, 10);
     if (startDate && reqDateStr < startDate) dateMatch = false;
     if (endDate && reqDateStr > endDate) dateMatch = false;
 
-    return codeMatch && statusMatch && supervisorMatch && dateMatch;
+    return codeMatch && clienteMatch && sedeMatch && statusMatch && supervisorMatch && dateMatch;
   });
 
   const activeProduct = productos.find(p => p.id === Number(selectedProductId));
@@ -1893,6 +1966,8 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
                 setStartDate("");
                 setEndDate("");
                 setSupervisorFilter("all");
+                setClienteFilter("all");
+                setSedeFilter("all");
               }}
               className={`px-5 py-2.5 text-xs font-bold transition-all border-b-2 rounded-t-lg -mb-px flex items-center gap-2 ${activeTab === "Materiales_y_EPP" ? "border-blue-600 text-blue-600 bg-blue-50/20" : "border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-50/50"}`}
             >
@@ -1907,6 +1982,8 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
                 setStartDate("");
                 setEndDate("");
                 setSupervisorFilter("all");
+                setClienteFilter("all");
+                setSedeFilter("all");
               }}
               className={`px-5 py-2.5 text-xs font-bold transition-all border-b-2 rounded-t-lg -mb-px flex items-center gap-2 ${activeTab === "Uniformes_Almacen" ? "border-blue-600 text-blue-600 bg-blue-50/20" : "border-transparent text-slate-400 hover:text-slate-650 hover:bg-slate-50/50"}`}
             >
@@ -1930,7 +2007,7 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
               <Filter className="w-4 h-4 text-blue-600" />
               Filtros
             </div>
-            {(searchTerm || startDate || endDate || statusFilter !== "all" || supervisorFilter !== "all") && (
+            {(searchTerm || startDate || endDate || statusFilter !== "all" || supervisorFilter !== "all" || clienteFilter !== "all" || sedeFilter !== "all") && (
               <button
                 onClick={() => {
                   setSearchTerm("");
@@ -1938,6 +2015,8 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
                   setEndDate("");
                   setStatusFilter("all");
                   setSupervisorFilter("all");
+                  setClienteFilter("all");
+                  setSedeFilter("all");
                 }}
                 className="text-xs font-bold text-red-650 hover:underline flex items-center gap-1"
               >
@@ -1946,17 +2025,17 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
             )}
           </div>
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-            {/* 1. Código */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
+            {/* 1. Código / Búsqueda */}
             <div>
-              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Buscar por Código</label>
+              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Buscar Requerimiento</label>
               <div className="relative">
                 <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center text-slate-400">
                   <Search className="w-3.5 h-3.5" />
                 </span>
                 <input
                   type="text"
-                  placeholder="Buscar código..."
+                  placeholder="Código, sede, cliente..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="block w-full pl-8 pr-2 py-1.5 border border-slate-200 rounded-lg bg-slate-50/20 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium"
@@ -1964,26 +2043,48 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
               </div>
             </div>
 
-            {/* 2. Fecha Desde */}
+            {/* 2. Cliente */}
             <div>
-              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Fecha Desde</label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="block w-full px-2.5 py-1.5 border border-slate-200 rounded-lg bg-slate-50/20 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium"
-              />
+              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Cliente</label>
+              <select
+                value={clienteFilter}
+                onChange={(e) => {
+                  const newCli = e.target.value;
+                  setClienteFilter(newCli);
+                  // Reset Sede if current sede doesn't belong to the newly selected client
+                  if (newCli !== "all" && sedeFilter !== "all") {
+                    const matchSede = listSedes.find(s => String(s.id) === String(sedeFilter));
+                    if (matchSede && String(matchSede.cliente_id) !== String(newCli)) {
+                      setSedeFilter("all");
+                    }
+                  }
+                }}
+                className="block w-full px-2.5 py-1.5 border border-slate-200 rounded-lg bg-slate-50/20 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 font-bold text-slate-700 truncate"
+              >
+                <option value="all">Todos los Clientes</option>
+                {listClientes.map(cli => (
+                  <option key={cli.id} value={cli.id}>
+                    {cli.razon_social}
+                  </option>
+                ))}
+              </select>
             </div>
 
-            {/* 3. Fecha Hasta */}
+            {/* 3. Sede */}
             <div>
-              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Fecha Hasta</label>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="block w-full px-2.5 py-1.5 border border-slate-200 rounded-lg bg-slate-50/20 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium"
-              />
+              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Sede Operativa</label>
+              <select
+                value={sedeFilter}
+                onChange={(e) => setSedeFilter(e.target.value)}
+                className="block w-full px-2.5 py-1.5 border border-slate-200 rounded-lg bg-slate-50/20 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 font-bold text-slate-700 truncate"
+              >
+                <option value="all">Todas las Sedes</option>
+                {availableSedesForFilter.map(s => (
+                  <option key={s.id} value={s.id}>
+                    {s.nombre}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* 4. Estado */}
@@ -2005,14 +2106,36 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
               </select>
             </div>
 
-            {/* 5. Supervisor / Solicitante (Only visible to admin, logistica, almacen, gerencia roles) */}
+            {/* 5. Fecha Desde */}
+            <div>
+              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Fecha Desde</label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="block w-full px-2.5 py-1.5 border border-slate-200 rounded-lg bg-slate-50/20 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium"
+              />
+            </div>
+
+            {/* 6. Fecha Hasta */}
+            <div>
+              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Fecha Hasta</label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="block w-full px-2.5 py-1.5 border border-slate-200 rounded-lg bg-slate-50/20 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium"
+              />
+            </div>
+
+            {/* 7. Supervisor / Solicitante (Only visible to admin, logistica, almacen, gerencia roles) */}
             {(role === "admin" || role === "logistica" || role === "almacen" || role === "gerencia") ? (
               <div>
                 <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Supervisor / Solicitante</label>
                 <select
                   value={supervisorFilter}
                   onChange={(e) => setSupervisorFilter(e.target.value)}
-                  className="block w-full px-2.5 py-1.5 border border-slate-200 rounded-lg bg-slate-50/20 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 font-bold text-slate-700"
+                  className="block w-full px-2.5 py-1.5 border border-slate-200 rounded-lg bg-slate-50/20 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 font-bold text-slate-700 truncate"
                 >
                   <option value="all">Todos los Supervisores</option>
                   {supervisoresList.map(sup => (
@@ -2023,7 +2146,7 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
                 </select>
               </div>
             ) : (
-              <div className="hidden lg:block opacity-0 pointer-events-none" />
+              <div className="hidden xl:block opacity-0 pointer-events-none" />
             )}
           </div>
         </div>
@@ -3219,8 +3342,35 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
                                 ))}
                               </select>
                             </td>
-                            <td className="px-4 py-3 text-center font-bold text-slate-700">
-                              {item.tallaValor || "—"}
+                            <td className="px-4 py-3 text-center">
+                              {(() => {
+                                const allVariants = item.producto?.producto_tallas || productos.find(p => p.id === item.producto?.id)?.producto_tallas || [];
+                                if (allVariants && allVariants.length > 0) {
+                                  return (
+                                    <select
+                                      value={item.productoTallaId || ""}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        handleUpdateCartItemTalla(item.id, val ? Number(val) : undefined);
+                                      }}
+                                      className="text-xs py-1 px-2 border border-slate-250 hover:border-blue-400 rounded-lg font-bold text-slate-800 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-xs max-w-[125px] transition-colors cursor-pointer"
+                                      title="Cambiar talla de este artículo en el pedido"
+                                    >
+                                      <option value="" disabled>Seleccionar Talla</option>
+                                      {allVariants.map((pt: any) => (
+                                        <option key={pt.id} value={pt.id}>
+                                          {pt.tallas?.valor ? `Talla ${pt.tallas.valor}` : `Variante ${pt.id}`}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  );
+                                }
+                                return (
+                                  <span className="font-bold text-slate-400 font-mono text-xs">
+                                    {item.tallaValor || "—"}
+                                  </span>
+                                );
+                              })()}
                             </td>
                             <td className="px-4 py-3 text-center">
                               <div className="inline-flex items-center border border-slate-250 rounded-lg bg-white shadow-xs overflow-hidden">

@@ -36,10 +36,14 @@ import {
   MessageSquare,
   FileText,
   ExternalLink,
-  Compass
+  Compass,
+  FileSpreadsheet,
+  Layers,
+  CheckCheck
 } from "lucide-react";
 import { RadarVacantesModal } from "../components/pizarra/RadarVacantesModal";
 import { SedeCalibrationModal } from "../components/common/SedeCalibrationModal";
+import { ReporteResumenModal } from "../components/pizarra/ReporteResumenModal";
 
 export function PizarraDigital() {
   const [loading, setLoading] = useState(false);
@@ -49,6 +53,8 @@ export function PizarraDigital() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeVinculos, setActiveVinculos] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<"pizarra" | "altas_pendientes">("pizarra");
+  const [coberturaFilter, setCoberturaFilter] = useState<"todas" | "incompletas" | "completadas">("todas");
+  const [isReporteModalOpen, setIsReporteModalOpen] = useState(false);
 
   // Lookups
   const [sedes, setSedes] = useState<any[]>([]);
@@ -1120,8 +1126,19 @@ export function PizarraDigital() {
     }
   };
 
+  // Cobertura metrics
+  const totalSolicitadasAll = data.reduce((acc, v) => acc + (v.plazas_solicitadas || 0), 0);
+  const totalCubiertasAll = data.reduce((acc, v) => acc + (v.plazas_cubiertas || 0), 0);
+  const totalFaltantesAll = Math.max(0, totalSolicitadasAll - totalCubiertasAll);
+  const totalCompletadasCount = data.filter(v => (v.plazas_cubiertas || 0) >= (v.plazas_solicitadas || 0) || v.estado === "Completado").length;
+  const totalIncompletasCount = data.filter(v => (v.plazas_cubiertas || 0) < (v.plazas_solicitadas || 0) && v.estado !== "Completado").length;
+
   // Filter lists
   const filteredData = data.filter((s) => {
+    const isCompleted = (s.plazas_cubiertas || 0) >= (s.plazas_solicitadas || 0) || s.estado === "Completado";
+    if (coberturaFilter === "incompletas" && isCompleted) return false;
+    if (coberturaFilter === "completadas" && !isCompleted) return false;
+
     const q = searchQuery.toLowerCase();
     if (!q) return true;
     const sedeName = s.sedes?.nombre?.toLowerCase() || "";
@@ -1217,6 +1234,16 @@ export function PizarraDigital() {
             Recargar
           </button>
 
+          {/* Botón Destacado: Reporte de Plazas Cubiertas y Faltantes */}
+          <button
+            onClick={() => setIsReporteModalOpen(true)}
+            className="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white px-4 py-2.5 rounded-lg text-sm font-bold shadow-lg shadow-emerald-200 active:scale-95 transition-all cursor-pointer"
+            title="Generar y descargar reporte de plazas cubiertas y faltantes para WhatsApp o Excel"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-100" />
+            <span>Reporte de Plazas</span>
+          </button>
+
           {/* Botón Destacado: Radar de Vacantes por Postulante */}
           <button
             onClick={() => setIsRadarModalOpen(true)}
@@ -1281,8 +1308,10 @@ export function PizarraDigital() {
         </button>
       </div>
 
-      {/* Search and filter toolbar */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      {/* Toolbar & Filter Bar */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        
+        {/* Search input */}
         <div className="relative w-full max-w-md">
           <Search className="absolute left-3 top-2.5 h-4.5 w-4.5 text-slate-400" />
           <input
@@ -1290,7 +1319,7 @@ export function PizarraDigital() {
             placeholder={activeTab === "pizarra" ? "Buscar por Sede, Cliente o Cargo..." : "Buscar por Nombre, DNI, Cargo, Sede o Cliente..."}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-9 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 font-medium text-slate-700"
+            className="w-full pl-10 pr-9 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 font-medium text-slate-700 shadow-xs"
           />
           {searchQuery && (
             <button
@@ -1303,6 +1332,76 @@ export function PizarraDigital() {
             </button>
           )}
         </div>
+
+        {/* Cobertura Filter Tabs & KPI Stats (Visible in Pizarra tab) */}
+        {activeTab === "pizarra" && (
+          <div className="flex items-center gap-2.5 flex-wrap">
+            
+            {/* Filter Pills */}
+            <div className="inline-flex bg-slate-100 p-1 rounded-xl border border-slate-200/80 text-xs font-semibold shadow-xs">
+              <button
+                type="button"
+                onClick={() => setCoberturaFilter("todas")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  coberturaFilter === "todas"
+                    ? "bg-white text-blue-700 shadow-xs font-bold"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <LayoutDashboard className="w-3.5 h-3.5" />
+                <span>Todas</span>
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-200/70 text-slate-700 font-mono">
+                  {data.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCoberturaFilter("incompletas")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  coberturaFilter === "incompletas"
+                    ? "bg-white text-red-700 shadow-xs font-bold"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5 text-red-500" />
+                <span>Faltan Cubrir</span>
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-red-100 text-red-700 font-mono font-bold">
+                  {totalIncompletasCount}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCoberturaFilter("completadas")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  coberturaFilter === "completadas"
+                    ? "bg-white text-emerald-700 shadow-xs font-bold"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                <span>Cubiertas</span>
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-100 text-emerald-700 font-mono font-bold">
+                  {totalCompletadasCount}
+                </span>
+              </button>
+            </div>
+
+            {/* Quick KPI Stats Badge */}
+            <div className="hidden lg:flex items-center gap-2 bg-white border border-slate-200/90 px-3 py-1.5 rounded-xl text-xs font-medium text-slate-600 shadow-xs">
+              <span className="text-slate-400">Total:</span>
+              <span className="font-bold text-slate-800 font-mono">{totalSolicitadasAll}</span>
+              <span className="text-slate-300">|</span>
+              <span className="text-emerald-600 font-semibold">Cubiertas:</span>
+              <span className="font-bold text-emerald-700 font-mono">{totalCubiertasAll}</span>
+              <span className="text-slate-300">|</span>
+              <span className="text-red-600 font-semibold">Faltan:</span>
+              <span className="font-bold text-red-700 font-mono">{totalFaltantesAll}</span>
+            </div>
+
+          </div>
+        )}
 
         {error && (
           <div className="bg-red-50 text-red-700 border border-red-100 px-3 py-1.5 text-xs rounded-lg flex items-center gap-1.5 font-medium">
@@ -3138,6 +3237,15 @@ export function PizarraDigital() {
           onSedeUpdated={handleSedeUpdated}
         />
       )}
+
+      {/* ==================================================== */}
+      {/* REPORTE RESUMEN DE PLAZAS CUBIERTAS Y FALTANTES */}
+      {/* ==================================================== */}
+      <ReporteResumenModal
+        isOpen={isReporteModalOpen}
+        onClose={() => setIsReporteModalOpen(false)}
+        vacancies={data}
+      />
 
     </div>
   );
