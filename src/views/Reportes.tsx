@@ -53,9 +53,10 @@ const AVAILABLE_COLUMNS = [
 
   // Datos Financieros
   { id: "sueldo_basico", label: "Sueldo Básico", group: "Datos Financieros" },
-  { id: "bono", label: "Bono 1", group: "Datos Financieros" },
-  { id: "bono_secundario", label: "Bono 2", group: "Datos Financieros" },
-  { id: "bono_asistencia_perfecta", label: "Bono Asistencia Perfecta", group: "Datos Financieros" },
+  { id: "bono", label: "Bono de Movilidad", group: "Datos Financieros" },
+  { id: "bono_secundario", label: "Bono por Asig. Familiar", group: "Datos Financieros" },
+  { id: "bono_asistencia_perfecta", label: "Bono por Asistencia Perfecta", group: "Datos Financieros" },
+  { id: "bono_alimentacion", label: "Bono por Alimentación", group: "Datos Financieros" },
   { id: "asignacion_familiar", label: "Asignación Familiar", group: "Datos Financieros" },
   { id: "vencimiento_asignacion_familiar", label: "Venc. Asig. Familiar", group: "Datos Financieros" },
   { id: "sistema_pension", label: "Sistema Pensión", group: "Datos Financieros" },
@@ -189,6 +190,7 @@ export function Reportes() {
               bono,
               bono_secundario,
               bono_asistencia_perfecta,
+              bono_alimentacion,
               asignacion_familiar,
               vencimiento_asignacion_familiar,
               tipo_trabajador_id,
@@ -533,6 +535,7 @@ export function Reportes() {
             case "bono": val = v ? (v.bono !== undefined && v.bono !== null ? parseFloat(v.bono) : 0) : "-"; break;
             case "bono_secundario": val = v ? (v.bono_secundario !== undefined && v.bono_secundario !== null ? parseFloat(v.bono_secundario) : 0) : "-"; break;
             case "bono_asistencia_perfecta": val = v ? (v.bono_asistencia_perfecta !== undefined && v.bono_asistencia_perfecta !== null ? parseFloat(v.bono_asistencia_perfecta) : 0) : "-"; break;
+            case "bono_alimentacion": val = v ? (v.bono_alimentacion !== undefined && v.bono_alimentacion !== null ? parseFloat(v.bono_alimentacion) : 0) : "-"; break;
             case "asignacion_familiar": val = v ? (v.asignacion_familiar ? "Sí" : "No") : "-"; break;
             case "vencimiento_asignacion_familiar": val = v?.vencimiento_asignacion_familiar ? formatExcelDate(v.vencimiento_asignacion_familiar) : "-"; break;
             case "sistema_pension": val = p.sistemas_pension?.nombre || "-"; break;

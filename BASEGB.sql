@@ -153,6 +153,7 @@ CREATE TABLE vinculos_laborales (
     bono DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
     bono_secundario DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
     bono_asistencia_perfecta DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    bono_alimentacion DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
     fecha_ingreso DATE DEFAULT NULL,
     fecha_primer_contrato DATE DEFAULT NULL,
     
