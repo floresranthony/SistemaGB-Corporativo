@@ -148,7 +148,13 @@ CREATE TABLE vinculos_laborales (
     
     regimen_laboral_id INT NOT NULL REFERENCES regimenes_laborales(id) ON DELETE RESTRICT,
     asignacion_familiar BOOLEAN DEFAULT FALSE,
+    vencimiento_asignacion_familiar DATE DEFAULT NULL,
     sueldo_basico DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    bono DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    bono_secundario DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    bono_asistencia_perfecta DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    fecha_ingreso DATE DEFAULT NULL,
+    fecha_primer_contrato DATE DEFAULT NULL,
     
     estado VARCHAR(20) DEFAULT 'Activo' CHECK (estado IN ('Activo', 'Inactivo')),
     fecha_cese DATE DEFAULT NULL,
