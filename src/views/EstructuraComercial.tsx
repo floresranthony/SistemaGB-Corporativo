@@ -1197,28 +1197,50 @@ export function EstructuraComercial() {
         </div>
       </div>
 
-      {/* Side-over Form Drawer */}
+      {/* Modal Centrado Panorámico para Creación / Edición */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/40 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-md bg-white h-full shadow-2xl p-6 flex flex-col justify-between animate-slide-in relative border-l border-slate-100">
-            <div>
-              <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-6">
-                <h3 className="font-heading text-lg font-bold text-slate-800">
-                  {editingId ? "Editar" : "Añadir"} {activeTab === "empresas" ? "Empresa" : activeTab === "clientes" ? "Cliente" : "Sede"}
-                </h3>
-                <button
-                  onClick={() => setIsModalOpen(false)}
-                  className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm animate-fade-in p-4 overflow-y-auto">
+          <div className={`bg-white rounded-2xl shadow-2xl w-full ${activeTab === "sedes" ? "max-w-4xl" : "max-w-xl"} max-h-[90vh] flex flex-col animate-scale-up border border-slate-100 overflow-hidden relative my-auto`}>
+            
+            {/* Modal Header (Fijo) */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/70 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-50 text-blue-600 rounded-xl border border-blue-100/70 shadow-sm">
+                  {activeTab === "empresas" ? (
+                    <Building className="w-5 h-5" />
+                  ) : activeTab === "clientes" ? (
+                    <Users className="w-5 h-5" />
+                  ) : (
+                    <MapPin className="w-5 h-5" />
+                  )}
+                </div>
+                <div>
+                  <h3 className="font-heading text-base font-bold text-slate-800">
+                    {editingId ? "Editar" : "Añadir"} {activeTab === "empresas" ? "Empresa Interna" : activeTab === "clientes" ? "Cliente" : "Sede Operativa"}
+                  </h3>
+                  <p className="text-xs text-slate-400 font-medium">
+                    {activeTab === "sedes"
+                      ? "Completa los datos del servicio y ubica la sede en el mapa interactivo"
+                      : "Completa la información requerida en los campos"}
+                  </p>
+                </div>
               </div>
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
+            {/* Modal Body (Scroll Independiente) */}
+            <div className="flex-1 overflow-y-auto p-6">
               <form id="structForm" onSubmit={handleSave} className="space-y-4">
                 
                 {/* 1. Form fields for EMPRESAS */}
                 {activeTab === "empresas" && (
-                  <>
+                  <div className="space-y-4">
                     <div>
                       <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">RUC (11 dígitos)</label>
                       <input
@@ -1283,17 +1305,17 @@ export function EstructuraComercial() {
                       </div>
                       {formValues.logo_url && !selectedLogoFile && (
                         <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-lg border border-slate-100 mt-2">
-                           <img src={cleanUrl(formValues.logo_url)} alt="Logo actual" style={{ maxHeight: "32px", maxWidth: "80px", objectFit: "contain" }} />
+                          <img src={cleanUrl(formValues.logo_url)} alt="Logo actual" style={{ maxHeight: "32px", maxWidth: "80px", objectFit: "contain" }} />
                           <span className="text-[10px] text-slate-400 truncate max-w-[200px]">{formValues.logo_url}</span>
                         </div>
                       )}
                     </div>
-                  </>
+                  </div>
                 )}
 
                 {/* 2. Form fields for CLIENTES */}
                 {activeTab === "clientes" && (
-                  <>
+                  <div className="space-y-4">
                     <div>
                       <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Empresa Interna Facturadora</label>
                       <select
@@ -1331,137 +1353,149 @@ export function EstructuraComercial() {
                         placeholder="Ej. Minera Las Bambas S.A."
                       />
                     </div>
-                  </>
+                  </div>
                 )}
 
-                {/* 3. Form fields for SEDES */}
+                {/* 3. Form fields for SEDES (Distribución Panorámica en 2 Columnas) */}
                 {activeTab === "sedes" && (
-                  <>
-                    <div>
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Cliente / Cuenta</label>
-                      <select
-                        required
-                        value={formValues.cliente_id || ""}
-                        onChange={(e) => setFormValues({ ...formValues, cliente_id: parseInt(e.target.value) })}
-                        className="w-full p-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all"
-                      >
-                        {clientes.map((c) => (
-                          <option key={c.id} value={c.id}>{c.razon_social}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Nombre de la Sede</label>
-                      <input
-                        type="text"
-                        required
-                        value={formValues.nombre || ""}
-                        onChange={(e) => setFormValues({ ...formValues, nombre: e.target.value })}
-                        className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all"
-                        placeholder="Ej. Sede Mina Apurímac"
-                      />
-                    </div>
-                    <div className={showBudget ? "grid grid-cols-2 gap-4" : "block"}>
-                      {showBudget && (
-                        <div>
-                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Presupuesto Asignado (S/.)</label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            required
-                            value={formValues.presupuesto ?? 0.00}
-                            onChange={(e) => setFormValues({ ...formValues, presupuesto: parseFloat(e.target.value) || 0 })}
-                            className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all font-semibold text-indigo-700"
-                          />
-                        </div>
-                      )}
-                      <div className={showBudget ? "" : "mt-0"}>
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Distrito</label>
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    {/* Columna Izquierda: Datos Operativos y de Contacto */}
+                    <div className="lg:col-span-6 space-y-4">
+                      <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Cliente / Cuenta *</label>
+                        <select
+                          required
+                          value={formValues.cliente_id || ""}
+                          onChange={(e) => setFormValues({ ...formValues, cliente_id: parseInt(e.target.value) })}
+                          className="w-full p-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all"
+                        >
+                          {clientes.map((c) => (
+                            <option key={c.id} value={c.id}>{c.razon_social}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Nombre de la Sede *</label>
                         <input
                           type="text"
                           required
-                          value={formValues.distrito || ""}
-                          onChange={(e) => setFormValues({ ...formValues, distrito: e.target.value })}
+                          value={formValues.nombre || ""}
+                          onChange={(e) => setFormValues({ ...formValues, nombre: e.target.value })}
                           className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all"
-                          placeholder="Ej. San Isidro"
+                          placeholder="Ej. Sede Mina Apurímac"
                         />
                       </div>
-                    </div>
-                    <div>
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Dirección de Sede</label>
-                      <input
-                        type="text"
-                        value={formValues.direccion || ""}
-                        onChange={(e) => setFormValues({ ...formValues, direccion: e.target.value })}
-                        className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all"
-                        placeholder="Dirección física exacta"
-                      />
-                    </div>
 
-                    {/* Selector y Calibrador Interactivo de Mapa */}
-                    <div className="pt-1">
-                      <SedeLocationPicker
-                        initialLat={formValues.latitud}
-                        initialLng={formValues.longitud}
-                        direccion={formValues.direccion}
-                        distrito={formValues.distrito}
-                        onCoordinatesChange={(coords) => {
-                          setFormValues((prev: any) => ({
-                            ...prev,
-                            latitud: coords.lat,
-                            longitud: coords.lng
-                          }));
-                        }}
-                      />
-                    </div>
+                      <div className={showBudget ? "grid grid-cols-2 gap-4" : "block"}>
+                        {showBudget && (
+                          <div>
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Presupuesto Asignado (S/.)</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              required
+                              value={formValues.presupuesto ?? 0.00}
+                              onChange={(e) => setFormValues({ ...formValues, presupuesto: parseFloat(e.target.value) || 0 })}
+                              className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all font-semibold text-indigo-700"
+                            />
+                          </div>
+                        )}
+                        <div className={showBudget ? "" : "mt-0"}>
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Distrito *</label>
+                          <input
+                            type="text"
+                            required
+                            value={formValues.distrito || ""}
+                            onChange={(e) => setFormValues({ ...formValues, distrito: e.target.value })}
+                            className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all"
+                            placeholder="Ej. San Isidro"
+                          />
+                        </div>
+                      </div>
 
-                    <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Nombre Contacto</label>
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Dirección de Sede</label>
                         <input
                           type="text"
-                          value={formValues.contacto_nombre || ""}
-                          onChange={(e) => setFormValues({ ...formValues, contacto_nombre: e.target.value })}
+                          value={formValues.direccion || ""}
+                          onChange={(e) => setFormValues({ ...formValues, direccion: e.target.value })}
                           className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all"
-                          placeholder="Ing. de operaciones"
+                          placeholder="Dirección física exacta"
                         />
                       </div>
-                      <div>
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Teléfono Contacto</label>
-                        <input
-                          type="text"
-                          value={formValues.contacto_telefono || ""}
-                          onChange={(e) => setFormValues({ ...formValues, contacto_telefono: e.target.value })}
-                          className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all"
-                          placeholder="999888777"
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Nombre Contacto</label>
+                          <input
+                            type="text"
+                            value={formValues.contacto_nombre || ""}
+                            onChange={(e) => setFormValues({ ...formValues, contacto_nombre: e.target.value })}
+                            className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all"
+                            placeholder="Ing. de operaciones"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Teléfono Contacto</label>
+                          <input
+                            type="text"
+                            value={formValues.contacto_telefono || ""}
+                            onChange={(e) => setFormValues({ ...formValues, contacto_telefono: e.target.value })}
+                            className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all"
+                            placeholder="999888777"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Columna Derecha: Selector y Calibrador Interactivo de Mapa */}
+                    <div className="lg:col-span-6 flex flex-col justify-start">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">
+                        Ubicación Geográfica y Mapa
+                      </label>
+                      <div className="border border-slate-200 rounded-xl p-3 bg-slate-50/50 shadow-inner">
+                        <SedeLocationPicker
+                          initialLat={formValues.latitud}
+                          initialLng={formValues.longitud}
+                          direccion={formValues.direccion}
+                          distrito={formValues.distrito}
+                          onCoordinatesChange={(coords) => {
+                            setFormValues((prev: any) => ({
+                              ...prev,
+                              latitud: coords.lat,
+                              longitud: coords.lng
+                            }));
+                          }}
                         />
                       </div>
                     </div>
-                  </>
+                  </div>
                 )}
 
                 {/* State toggle (always present) */}
-                <div className="flex items-center gap-2 pt-2">
+                <div className="flex items-center gap-2 pt-3 border-t border-slate-100 mt-2">
                   <input
                     type="checkbox"
                     id="activo"
                     checked={formValues.activo ?? true}
                     onChange={(e) => setFormValues({ ...formValues, activo: e.target.checked })}
-                    className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+                    className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500 cursor-pointer"
                   />
-                  <label htmlFor="activo" className="text-sm font-semibold text-slate-700 select-none">
+                  <label htmlFor="activo" className="text-sm font-semibold text-slate-700 select-none cursor-pointer">
                     Elemento Activo (Habilitado para operaciones)
                   </label>
                 </div>
               </form>
             </div>
 
-            <div className="border-t border-slate-100 pt-4 flex gap-2">
+            {/* Modal Footer (Fijo) */}
+            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/70 flex gap-3 justify-end shrink-0">
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 rounded-lg text-sm font-semibold hover:bg-slate-50 active:scale-95 transition-all"
+                className="px-5 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold hover:bg-slate-100 active:scale-95 transition-all cursor-pointer bg-white"
               >
                 Cancelar
               </button>
@@ -1469,10 +1503,10 @@ export function EstructuraComercial() {
                 type="submit"
                 form="structForm"
                 disabled={loading}
-                className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 shadow-md shadow-blue-200 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                className="px-6 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 shadow-md shadow-blue-200 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer border-none"
               >
                 {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4 stroke-[3]" />}
-                Guardar
+                {editingId ? "Guardar Cambios" : activeTab === "sedes" ? "Registrar Sede" : activeTab === "clientes" ? "Registrar Cliente" : "Registrar Empresa"}
               </button>
             </div>
           </div>

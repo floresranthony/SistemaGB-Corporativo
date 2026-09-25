@@ -72,6 +72,7 @@ export function FichasPersonal() {
 
   // Form states (Persona)
   const [personaForm, setPersonaForm] = useState<Record<string, any>>({});
+  const [personaFormErrors, setPersonaFormErrors] = useState<Record<string, string>>({});
   const [activeFormTab, setActiveFormTab] = useState<"personales" | "financieros" | "tallas" | "puesto">("personales");
   const [ubigeoSearch, setUbigeoSearch] = useState("");
   const [ubigeoResults, setUbigeoResults] = useState<any[]>([]);
@@ -410,13 +411,14 @@ export function FichasPersonal() {
     const firstCli = availableClients[0];
     const clientSedes = firstCli ? sedes.filter(s => s.cliente_id === firstCli.id) : [];
     const firstSede = clientSedes[0];
+    const todayStr = new Date().toISOString().split("T")[0];
 
     setPersonaForm({
       sexo: "Masculino",
       tipo_documento_id: tiposDoc[0]?.id || "",
       sistema_pension_id: pensiones[0]?.id || "",
-      fecha_ingreso: "",
-      fecha_primer_contrato: "",
+      fecha_ingreso: todayStr,
+      fecha_primer_contrato: todayStr,
 
       // Defaults for position/contract
       empresa_interna_id: firstEmp?.id || "",
@@ -433,7 +435,7 @@ export function FichasPersonal() {
       lugar_especifico_trabajo: "",
       asignacion_familiar: false,
       contrato_modalidad_id: modalidades[0]?.id || "",
-      contrato_fecha_inicio: "",
+      contrato_fecha_inicio: todayStr,
       contrato_fecha_fin: ""
     });
     setCreationClienteSearchText("");
@@ -442,6 +444,8 @@ export function FichasPersonal() {
     setUbigeoSearch("");
     setUbigeoResults([]);
     setEditingId(null);
+    setPersonaFormErrors({});
+    setError(null);
     setActiveFormTab("personales");
     setViewMode("form");
   };
@@ -458,17 +462,216 @@ export function FichasPersonal() {
     setUbigeoSearch(uDesc);
     setUbigeoResults([]);
 
+    setPersonaFormErrors({});
+    setError(null);
     setActiveFormTab("personales");
     setViewMode("form");
   };
 
+  // Helper to check if a specific form tab has errors
+  const hasTabErrors = (tab: "personales" | "financieros" | "tallas" | "puesto") => {
+    if (tab === "personales") {
+      return ["tipo_documento_id", "numero_documento", "apellidos", "nombres", "sexo", "fecha_nacimiento", "telefono", "correo"].some(k => !!personaFormErrors[k]);
+    }
+    if (tab === "financieros") {
+      return ["sistema_pension_id", "codigo_cuss_afp", "banco_sueldo_id", "cuenta_sueldo"].some(k => !!personaFormErrors[k]);
+    }
+    if (tab === "tallas") {
+      return ["fecha_ultimo_emo"].some(k => !!personaFormErrors[k]);
+    }
+    if (tab === "puesto") {
+      return ["empresa_interna_id", "sede_id", "cargo_id", "tipo_trabajador_id", "regimen_laboral_id", "sueldo_basico", "fecha_ingreso", "fecha_primer_contrato", "contrato_fecha_inicio", "contrato_fecha_fin"].some(k => !!personaFormErrors[k]);
+    }
+    return false;
+  };
+
+  // Complete validation across all tabs
+  const validatePersonaForm = (): { isValid: boolean; errors: Record<string, string>; firstErrorTab?: "personales" | "financieros" | "tallas" | "puesto" } => {
+    const errors: Record<string, string> = {};
+    let firstErrorTab: "personales" | "financieros" | "tallas" | "puesto" | undefined = undefined;
+
+    const setErr = (field: string, msg: string, tab: "personales" | "financieros" | "tallas" | "puesto") => {
+      errors[field] = msg;
+      if (!firstErrorTab) firstErrorTab = tab;
+    };
+
+    // --- TAB 1: DATOS PERSONALES ---
+    if (!personaForm.tipo_documento_id) {
+      setErr("tipo_documento_id", "Debe seleccionar el Tipo de Documento.", "personales");
+    }
+
+    const docNum = (personaForm.numero_documento || "").trim();
+    const selectedTipoDoc = tiposDoc.find(t => t.id === Number(personaForm.tipo_documento_id));
+    const isDNI = selectedTipoDoc?.codigo === "01" || selectedTipoDoc?.nombre?.toUpperCase().includes("DNI") || !selectedTipoDoc;
+
+    if (!docNum) {
+      setErr("numero_documento", "El número de documento es obligatorio.", "personales");
+    } else if (isDNI && !/^\d{8}$/.test(docNum)) {
+      setErr("numero_documento", "El DNI debe contener exactamente 8 dígitos numéricos.", "personales");
+    } else if (!isDNI && docNum.length < 4) {
+      setErr("numero_documento", "El número de documento no es válido (mínimo 4 caracteres).", "personales");
+    } else {
+      const dup = personas.find(p => p.id !== editingId && p.numero_documento?.trim().toLowerCase() === docNum.toLowerCase());
+      if (dup) {
+        setErr("numero_documento", `Este documento ya está registrado para: ${dup.nombres} ${dup.apellidos}.`, "personales");
+      }
+    }
+
+    if (!personaForm.apellidos || !personaForm.apellidos.trim()) {
+      setErr("apellidos", "Los apellidos son obligatorios.", "personales");
+    }
+
+    if (!personaForm.nombres || !personaForm.nombres.trim()) {
+      setErr("nombres", "Los nombres son obligatorios.", "personales");
+    }
+
+    if (!personaForm.sexo) {
+      setErr("sexo", "Debe seleccionar el sexo.", "personales");
+    }
+
+    if (!personaForm.fecha_nacimiento) {
+      setErr("fecha_nacimiento", "La fecha de nacimiento es obligatoria.", "personales");
+    } else {
+      const birthDate = new Date(personaForm.fecha_nacimiento);
+      const today = new Date();
+      if (isNaN(birthDate.getTime())) {
+        setErr("fecha_nacimiento", "Fecha de nacimiento no válida.", "personales");
+      } else if (birthDate > today) {
+        setErr("fecha_nacimiento", "La fecha de nacimiento no puede ser futura.", "personales");
+      } else {
+        let age = today.getFullYear() - birthDate.getFullYear();
+        const m = today.getMonth() - birthDate.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+          age--;
+        }
+        if (age < 18) {
+          setErr("fecha_nacimiento", `El colaborador debe ser mayor de edad (mínimo 18 años). Edad calculada: ${age} años.`, "personales");
+        } else if (age > 95) {
+          setErr("fecha_nacimiento", "Verifique la fecha de nacimiento ingresada.", "personales");
+        }
+      }
+    }
+
+    const tel = (personaForm.telefono || "").trim();
+    if (tel) {
+      if (/[/,\-–—\s]/.test(tel) || !/^\d+$/.test(tel)) {
+        setErr("telefono", "Ingrese solo 1 número telefónico (solo dígitos, sin barras, comas ni espacios).", "personales");
+      } else if (tel.length !== 9 && tel.length !== 7) {
+        setErr("telefono", "El número telefónico debe tener 9 dígitos para celular o 7 para fijo (ej. 987654321).", "personales");
+      }
+    }
+
+    const email = (personaForm.correo || "").trim();
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setErr("correo", "Ingrese un correo electrónico válido (ej. nombre@dominio.com).", "personales");
+    }
+
+    // --- TAB 2: DATOS FINANCIEROS ---
+    if (!personaForm.sistema_pension_id) {
+      setErr("sistema_pension_id", "Debe seleccionar un Sistema de Pensión.", "financieros");
+    }
+
+    // --- TAB 3: TALLAS Y MEDICO ---
+    if (personaForm.fecha_ultimo_emo) {
+      const emoDate = new Date(personaForm.fecha_ultimo_emo);
+      if (isNaN(emoDate.getTime())) {
+        setErr("fecha_ultimo_emo", "Fecha de último EMO no válida.", "tallas");
+      }
+    }
+
+    // --- TAB 4: PUESTO Y CONTRATO (Solo al crear nuevo colaborador) ---
+    if (!editingId) {
+      if (!personaForm.empresa_interna_id) {
+        setErr("empresa_interna_id", "Debe seleccionar la Empresa Interna (Planilla).", "puesto");
+      }
+
+      if (!personaForm.sede_id) {
+        setErr("sede_id", "Debe seleccionar una Sede / Obra asignada válida de la lista desplegable.", "puesto");
+      }
+
+      if (!personaForm.cargo_id) {
+        setErr("cargo_id", "Debe seleccionar un Cargo a desempeñar válido de la lista desplegable.", "puesto");
+      }
+
+      if (!personaForm.tipo_trabajador_id) {
+        setErr("tipo_trabajador_id", "Debe seleccionar el Tipo de Trabajador.", "puesto");
+      }
+
+      if (!personaForm.regimen_laboral_id) {
+        setErr("regimen_laboral_id", "Debe seleccionar el Régimen Laboral.", "puesto");
+      }
+
+      if (personaForm.sueldo_basico === undefined || personaForm.sueldo_basico === "" || isNaN(Number(personaForm.sueldo_basico)) || Number(personaForm.sueldo_basico) < 0) {
+        setErr("sueldo_basico", "Ingrese un Sueldo Básico numérico válido (mayor o igual a 0).", "puesto");
+      }
+
+      if (!personaForm.fecha_ingreso) {
+        setErr("fecha_ingreso", "La Fecha de Ingreso Laboral es obligatoria.", "puesto");
+      } else if (isNaN(new Date(personaForm.fecha_ingreso).getTime())) {
+        setErr("fecha_ingreso", "Fecha de Ingreso Laboral no válida.", "puesto");
+      }
+
+      if (!personaForm.fecha_primer_contrato) {
+        setErr("fecha_primer_contrato", "La Fecha de 1° Contrato es obligatoria.", "puesto");
+      } else if (isNaN(new Date(personaForm.fecha_primer_contrato).getTime())) {
+        setErr("fecha_primer_contrato", "Fecha de 1° Contrato no válida.", "puesto");
+      }
+
+      if (personaForm.asignacion_familiar && personaForm.vencimiento_asignacion_familiar) {
+        if (isNaN(new Date(personaForm.vencimiento_asignacion_familiar).getTime())) {
+          setErr("vencimiento_asignacion_familiar", "Fecha de vencimiento de asignación familiar no válida.", "puesto");
+        }
+      }
+
+      if (personaForm.contrato_fecha_inicio) {
+        if (isNaN(new Date(personaForm.contrato_fecha_inicio).getTime())) {
+          setErr("contrato_fecha_inicio", "Fecha de inicio de contrato no válida.", "puesto");
+        }
+        if (!personaForm.contrato_modalidad_id) {
+          setErr("contrato_modalidad_id", "Debe seleccionar la Modalidad de Contrato.", "puesto");
+        }
+        if (personaForm.contrato_fecha_fin) {
+          if (isNaN(new Date(personaForm.contrato_fecha_fin).getTime())) {
+            setErr("contrato_fecha_fin", "Fecha fin de contrato no válida.", "puesto");
+          } else if (new Date(personaForm.contrato_fecha_fin) < new Date(personaForm.contrato_fecha_inicio)) {
+            setErr("contrato_fecha_fin", "La fecha fin de contrato no puede ser anterior a la fecha de inicio.", "puesto");
+          }
+        }
+      }
+    }
+
+    return {
+      isValid: Object.keys(errors).length === 0,
+      errors,
+      firstErrorTab
+    };
+  };
+
   const handleSavePersona = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // 1. Validar todos los campos del formulario antes de enviar
+    const validation = validatePersonaForm();
+    if (!validation.isValid) {
+      setPersonaFormErrors(validation.errors);
+      if (validation.firstErrorTab) {
+        setActiveFormTab(validation.firstErrorTab);
+      }
+      const errorCount = Object.keys(validation.errors).length;
+      const errorList = Object.values(validation.errors).map(msg => `• ${msg}`).join("\n");
+      alert(
+        `No se pudo guardar la ficha. Se encontraron ${errorCount} inconsistencia(s) o campo(s) requeridos:\n\n${errorList}\n\nPor favor, revísalos en la pestaña destacada con alerta.`,
+        "Datos Requeridos o Incompletos"
+      );
+      return;
+    }
+
     setLoading(true);
     setError(null);
+    setPersonaFormErrors({});
 
-    // Clean up relation objects and temporary job fields
-    const payload = { ...personaForm };
+    // 2. Limpiar objetos de relación y campos temporales de puesto
+    const payload: Record<string, any> = { ...personaForm };
     delete payload.tipos_documento;
     delete payload.sistemas_pension;
     delete payload.ubigeo_distritos;
@@ -476,7 +679,7 @@ export function FichasPersonal() {
     delete payload.fecha_ingreso;
     delete payload.fecha_primer_contrato;
 
-    // Delete job/contract fields from persona payload so Supabase doesn't complain
+    // Eliminar campos de puesto/contrato del payload de la persona
     const jobFields = [
       "empresa_interna_id",
       "cliente_id",
@@ -498,6 +701,28 @@ export function FichasPersonal() {
     ];
     jobFields.forEach(f => delete payload[f]);
 
+    // Sanitizar tipos y fechas vacías a null para evitar errores de Postgres
+    payload.tipo_documento_id = parseInt(personaForm.tipo_documento_id);
+    payload.numero_documento = (personaForm.numero_documento || "").trim();
+    payload.nombres = (personaForm.nombres || "").trim();
+    payload.apellidos = (personaForm.apellidos || "").trim();
+    payload.sexo = personaForm.sexo || "Masculino";
+    payload.fecha_nacimiento = personaForm.fecha_nacimiento || null;
+    payload.direccion = personaForm.direccion ? personaForm.direccion.trim() : null;
+    payload.ubigeo_id = personaForm.ubigeo_id || null;
+    payload.telefono = personaForm.telefono ? personaForm.telefono.trim() : null;
+    payload.correo = personaForm.correo ? personaForm.correo.trim() : null;
+    payload.sistema_pension_id = parseInt(personaForm.sistema_pension_id);
+    payload.banco_sueldo_id = personaForm.banco_sueldo_id ? parseInt(personaForm.banco_sueldo_id) : null;
+    payload.cuenta_sueldo = personaForm.cuenta_sueldo ? personaForm.cuenta_sueldo.trim() : null;
+    payload.banco_cts_id = personaForm.banco_cts_id ? parseInt(personaForm.banco_cts_id) : null;
+    payload.cuenta_cts = personaForm.cuenta_cts ? personaForm.cuenta_cts.trim() : null;
+    payload.codigo_cuss_afp = personaForm.codigo_cuss_afp ? personaForm.codigo_cuss_afp.trim() : null;
+    payload.fecha_ultimo_emo = personaForm.fecha_ultimo_emo || null;
+    payload.talla_polo = personaForm.talla_polo ? personaForm.talla_polo.trim() : null;
+    payload.talla_pantalon = personaForm.talla_pantalon ? personaForm.talla_pantalon.trim() : null;
+    payload.talla_calzado = personaForm.talla_calzado ? personaForm.talla_calzado.trim() : null;
+
     try {
       if (editingId) {
         const { error: dbError } = await supabase
@@ -505,9 +730,9 @@ export function FichasPersonal() {
           .update(payload)
           .eq("id", editingId);
         if (dbError) throw dbError;
-        alert("Colaborador actualizado correctamente.");
+        alert("Colaborador actualizado correctamente.", "Registro Exitoso");
       } else {
-        // Insert and select new ID
+        // Insertar persona y obtener ID
         const { data: newPers, error: pErr } = await supabase
           .from("personas")
           .insert([payload])
@@ -515,9 +740,9 @@ export function FichasPersonal() {
           .single();
         if (pErr) throw pErr;
 
-        // If job fields are filled in, insert vinculo
+        // Insertar vinculo laboral inicial si se completó el puesto
         if (newPers && personaForm.empresa_interna_id && personaForm.sede_id) {
-          const defaultDate = personaForm.contrato_fecha_inicio || new Date().toISOString().split("T")[0];
+          const defaultDate = personaForm.contrato_fecha_inicio || personaForm.fecha_ingreso || new Date().toISOString().split("T")[0];
           const vPayload = {
             persona_id: newPers.id,
             empresa_interna_id: parseInt(personaForm.empresa_interna_id),
@@ -530,7 +755,7 @@ export function FichasPersonal() {
             bono_secundario: parseFloat(personaForm.bono_secundario) || 0.00,
             bono_asistencia_perfecta: parseFloat(personaForm.bono_asistencia_perfecta) || 0.00,
             bono_alimentacion: parseFloat(personaForm.bono_alimentacion) || 0.00,
-            lugar_especifico_trabajo: personaForm.lugar_especifico_trabajo || "",
+            lugar_especifico_trabajo: personaForm.lugar_especifico_trabajo ? personaForm.lugar_especifico_trabajo.trim() : null,
             asignacion_familiar: !!personaForm.asignacion_familiar,
             vencimiento_asignacion_familiar: personaForm.asignacion_familiar ? (personaForm.vencimiento_asignacion_familiar || null) : null,
             fecha_ingreso: personaForm.fecha_ingreso || defaultDate,
@@ -545,7 +770,7 @@ export function FichasPersonal() {
             .single();
           if (vErr) throw vErr;
 
-          // Insert contract if filled
+          // Insertar contrato inicial si fue especificado
           if (newVinc && personaForm.contrato_modalidad_id && personaForm.contrato_fecha_inicio) {
             const cPayload = {
               vinculo_laboral_id: newVinc.id,
@@ -561,13 +786,22 @@ export function FichasPersonal() {
             if (cErr) throw cErr;
           }
         }
-        alert("Colaborador registrado correctamente.");
+        alert("Colaborador registrado correctamente.", "Registro Exitoso");
       }
       setViewMode("list");
       loadPersonas();
     } catch (err: any) {
       console.error("Error saving persona:", err);
-      setError(err.message || "Error al guardar ficha maestra.");
+      let userFriendlyMsg = err.message || "Error al guardar ficha maestra.";
+      if (userFriendlyMsg.includes("personas_numero_documento_key") || userFriendlyMsg.includes("duplicate key")) {
+        userFriendlyMsg = `El número de documento "${payload.numero_documento}" ya se encuentra registrado en el sistema.`;
+        setPersonaFormErrors(prev => ({ ...prev, numero_documento: "Número de documento ya registrado." }));
+        setActiveFormTab("personales");
+      } else if (userFriendlyMsg.includes("violates foreign key")) {
+        userFriendlyMsg = "No se pudo guardar porque uno de los catálogos seleccionados (sede, cargo, etc.) no existe o no es válido.";
+      }
+      setError(userFriendlyMsg);
+      alert(userFriendlyMsg, "Error al Guardar Ficha");
     } finally {
       setLoading(false);
     }
@@ -1484,6 +1718,39 @@ export function FichasPersonal() {
   const handleSaveVinculo = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!vinculoForm.empresa_interna_id) {
+      alert("Por favor seleccione una Empresa Interna (Planilla).", "Campo Requerido");
+      return;
+    }
+    if (!vinculoForm.sede_id) {
+      alert("Por favor seleccione una Sede / Obra asignada válida de la lista.", "Campo Requerido");
+      return;
+    }
+    if (!vinculoForm.cargo_id) {
+      alert("Por favor seleccione un Cargo a desempeñar válido de la lista.", "Campo Requerido");
+      return;
+    }
+    if (!vinculoForm.tipo_trabajador_id) {
+      alert("Por favor seleccione el Tipo de Trabajador.", "Campo Requerido");
+      return;
+    }
+    if (!vinculoForm.regimen_laboral_id) {
+      alert("Por favor seleccione el Régimen Laboral.", "Campo Requerido");
+      return;
+    }
+    if (vinculoForm.sueldo_basico === undefined || vinculoForm.sueldo_basico === "" || isNaN(Number(vinculoForm.sueldo_basico)) || Number(vinculoForm.sueldo_basico) < 0) {
+      alert("Por favor ingrese un Sueldo Básico numérico válido (mayor o igual a 0).", "Campo Requerido");
+      return;
+    }
+    if (!vinculoForm.fecha_ingreso) {
+      alert("Por favor ingrese la Fecha de Ingreso Laboral.", "Campo Requerido");
+      return;
+    }
+    if (!vinculoForm.fecha_primer_contrato) {
+      alert("Por favor ingrese la Fecha de 1° Contrato.", "Campo Requerido");
+      return;
+    }
+
     const targetEmpresaId = parseInt(vinculoForm.empresa_interna_id);
     const isDupCheckNeeded = !editingVinculoId || (editingVinculoId && vinculoForm.empresa_interna_id !== vinculos.find(v => v.id === editingVinculoId)?.empresa_interna_id);
 
@@ -1492,7 +1759,7 @@ export function FichasPersonal() {
         v => v.id !== editingVinculoId && v.estado === "Activo" && v.empresa_interna_id === targetEmpresaId
       );
       if (hasDuplicate) {
-        alert("El colaborador ya tiene un puesto ACTIVO registrado en esta empresa interna. Para asignarle un nuevo puesto en esta misma empresa, primero debes Cesar el puesto actual.");
+        alert("El colaborador ya tiene un puesto ACTIVO registrado en esta empresa interna. Para asignarle un nuevo puesto en esta misma empresa, primero debes Cesar el puesto actual.", "Puesto Activo Existente");
         return;
       }
     }
@@ -1507,10 +1774,17 @@ export function FichasPersonal() {
       delete vinculoPayload.contrato_fecha_inicio;
       delete vinculoPayload.contrato_fecha_fin;
       delete vinculoPayload.cliente_id;
+      vinculoPayload.empresa_interna_id = parseInt(vinculoPayload.empresa_interna_id);
+      vinculoPayload.sede_id = parseInt(vinculoPayload.sede_id);
+      vinculoPayload.cargo_id = parseInt(vinculoPayload.cargo_id);
+      vinculoPayload.tipo_trabajador_id = parseInt(vinculoPayload.tipo_trabajador_id);
+      vinculoPayload.regimen_laboral_id = parseInt(vinculoPayload.regimen_laboral_id);
+      vinculoPayload.sueldo_basico = parseFloat(vinculoPayload.sueldo_basico) || 0.00;
       vinculoPayload.bono = parseFloat(vinculoPayload.bono) || 0.00;
       vinculoPayload.bono_secundario = parseFloat(vinculoPayload.bono_secundario) || 0.00;
       vinculoPayload.bono_asistencia_perfecta = parseFloat(vinculoPayload.bono_asistencia_perfecta) || 0.00;
       vinculoPayload.bono_alimentacion = parseFloat(vinculoPayload.bono_alimentacion) || 0.00;
+      vinculoPayload.lugar_especifico_trabajo = vinculoPayload.lugar_especifico_trabajo ? vinculoPayload.lugar_especifico_trabajo.trim() : null;
       vinculoPayload.vencimiento_asignacion_familiar = vinculoPayload.asignacion_familiar ? (vinculoPayload.vencimiento_asignacion_familiar || null) : null;
       
       // Corregir valores de fecha vacíos para evitar errores de sintaxis en Postgres
@@ -1526,7 +1800,7 @@ export function FichasPersonal() {
           .eq("id", editingVinculoId);
 
         if (dbError) throw dbError;
-        alert("Puesto laboral actualizado correctamente.");
+        alert("Puesto laboral actualizado correctamente.", "Registro Exitoso");
       } else {
         const { data: newVinc, error: dbError } = await supabase
           .from("vinculos_laborales")
@@ -1536,22 +1810,23 @@ export function FichasPersonal() {
 
         if (dbError) throw dbError;
 
-        // Save corresponding contract if values are provided
+        // Guardar contrato inicial correspondiente si fue especificado
         if (newVinc && contractModalidadId && contractFechaInicio) {
           const { error: contractErr } = await supabase
             .from("contratos")
             .insert([{
               vinculo_laboral_id: newVinc.id,
-              modalidad_contrato_id: contractModalidadId,
+              modalidad_contrato_id: parseInt(contractModalidadId),
               fecha_inicio: contractFechaInicio,
               fecha_fin: contractFechaFin || null,
               estado: "Vigente"
             }]);
           if (contractErr) {
             console.error("Error creating associated contract:", contractErr);
-            alert("Puesto creado, pero ocurrió un error al registrar su contrato inicial: " + contractErr.message);
+            alert("Puesto creado, pero ocurrió un error al registrar su contrato inicial: " + contractErr.message, "Aviso de Contrato");
           }
         }
+        alert("Puesto laboral asignado correctamente.", "Registro Exitoso");
       }
 
       setIsVinculoModalOpen(false);
@@ -1559,7 +1834,7 @@ export function FichasPersonal() {
       loadVinculos(activePersona.id);
       loadPersonas();
     } catch (err: any) {
-      alert("Error al guardar puesto laboral: " + err.message);
+      alert("Error al guardar puesto laboral: " + err.message, "Error al Guardar Puesto");
     }
   };
 
@@ -3314,9 +3589,14 @@ export function FichasPersonal() {
               >
                 <ArrowLeft className="w-5 h-5" />
               </button>
-              <h2 className="font-heading text-xl font-bold text-slate-900">
-                {editingId ? "Modificar Ficha Maestra" : "Nueva Ficha Maestra de Personal"}
-              </h2>
+              <div>
+                <h2 className="font-heading text-xl font-bold text-slate-900">
+                  {editingId ? "Modificar Ficha Maestra" : "Nueva Ficha Maestra de Personal"}
+                </h2>
+                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                  Los campos marcados con <span className="text-red-500 font-bold">*</span> son obligatorios.
+                </p>
+              </div>
             </div>
             <button
               onClick={() => setViewMode("list")}
@@ -3326,117 +3606,228 @@ export function FichasPersonal() {
             </button>
           </div>
 
+          {/* Banner de Errores de Validación */}
+          {Object.keys(personaFormErrors).length > 0 && (
+            <div className="bg-red-50 border border-red-200 text-red-800 p-4 rounded-xl mb-6 flex items-start gap-3 animate-fadeIn shadow-sm">
+              <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h4 className="font-bold text-sm text-red-900">
+                  Se encontraron {Object.keys(personaFormErrors).length} campo(s) con inconsistencias o requeridos:
+                </h4>
+                <ul className="text-xs list-disc list-inside mt-1.5 space-y-0.5 text-red-700 font-medium">
+                  {Object.entries(personaFormErrors).map(([key, msg]) => (
+                    <li key={key}>{msg}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+
           {/* Form Tabs */}
-          <div className="flex border-b border-slate-100 mb-6 gap-2">
+          <div className="flex border-b border-slate-100 mb-6 gap-2 flex-wrap">
             <button
               type="button"
               onClick={() => setActiveFormTab("personales")}
-              className={`pb-2 px-4 text-sm font-semibold border-b-2 transition-all bg-transparent border-none cursor-pointer ${activeFormTab === "personales" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-700"
+              className={`pb-2 px-4 text-sm font-semibold border-b-2 transition-all bg-transparent border-none cursor-pointer flex items-center gap-2 ${activeFormTab === "personales" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-700"
                 }`}
             >
-              Datos Personales
+              <span>Datos Personales</span>
+              {hasTabErrors("personales") && (
+                <span className="flex h-2 w-2 relative">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                </span>
+              )}
             </button>
             <button
               type="button"
               onClick={() => setActiveFormTab("financieros")}
-              className={`pb-2 px-4 text-sm font-semibold border-b-2 transition-all bg-transparent border-none cursor-pointer ${activeFormTab === "financieros" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-700"
+              className={`pb-2 px-4 text-sm font-semibold border-b-2 transition-all bg-transparent border-none cursor-pointer flex items-center gap-2 ${activeFormTab === "financieros" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-700"
                 }`}
             >
-              Cuentas y Pensiones
+              <span>Cuentas y Pensiones</span>
+              {hasTabErrors("financieros") && (
+                <span className="flex h-2 w-2 relative">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                </span>
+              )}
             </button>
             <button
               type="button"
               onClick={() => setActiveFormTab("tallas")}
-              className={`pb-2 px-4 text-sm font-semibold border-b-2 transition-all bg-transparent border-none cursor-pointer ${activeFormTab === "tallas" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-700"
+              className={`pb-2 px-4 text-sm font-semibold border-b-2 transition-all bg-transparent border-none cursor-pointer flex items-center gap-2 ${activeFormTab === "tallas" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-700"
                 }`}
             >
-              Tallas y Médico
+              <span>Tallas y Médico</span>
+              {hasTabErrors("tallas") && (
+                <span className="flex h-2 w-2 relative">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                </span>
+              )}
             </button>
             {!editingId && (
               <button
                 type="button"
                 onClick={() => setActiveFormTab("puesto")}
-                className={`pb-2 px-4 text-sm font-semibold border-b-2 transition-all bg-transparent border-none cursor-pointer ${activeFormTab === "puesto" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-700"
+                className={`pb-2 px-4 text-sm font-semibold border-b-2 transition-all bg-transparent border-none cursor-pointer flex items-center gap-2 ${activeFormTab === "puesto" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-700"
                   }`}
               >
-                Puesto y Contrato
+                <span>Puesto y Contrato</span>
+                {hasTabErrors("puesto") && (
+                  <span className="flex h-2 w-2 relative">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                  </span>
+                )}
               </button>
             )}
           </div>
 
-          <form onSubmit={handleSavePersona} className="space-y-6">
+          <form onSubmit={handleSavePersona} noValidate className="space-y-6">
             {/* TABS 1: DATOS PERSONALES */}
             {activeFormTab === "personales" && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Tipo Documento</label>
+                  <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                    Tipo Documento <span className="text-red-500 font-bold">*</span>
+                  </label>
                   <select
-                    required
                     value={personaForm.tipo_documento_id || ""}
-                    onChange={(e) => setPersonaForm({ ...personaForm, tipo_documento_id: parseInt(e.target.value) })}
-                    className="w-full p-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none"
+                    onChange={(e) => {
+                      setPersonaForm({ ...personaForm, tipo_documento_id: parseInt(e.target.value) });
+                      if (personaFormErrors.tipo_documento_id) setPersonaFormErrors(prev => ({ ...prev, tipo_documento_id: "" }));
+                    }}
+                    className={`w-full p-2.5 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none transition-all ${
+                      personaFormErrors.tipo_documento_id ? "border-red-500 ring-1 ring-red-500 bg-red-50/10" : "border-slate-200"
+                    }`}
                   >
+                    <option value="">Seleccione tipo de documento...</option>
                     {tiposDoc.map((td) => (
                       <option key={td.id} value={td.id}>{td.nombre}</option>
                     ))}
                   </select>
+                  {personaFormErrors.tipo_documento_id && (
+                    <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1 animate-fadeIn">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {personaFormErrors.tipo_documento_id}
+                    </p>
+                  )}
                 </div>
+
                 <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Número Documento</label>
+                  <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                    Número Documento <span className="text-red-500 font-bold">*</span>
+                  </label>
                   <input
                     type="text"
-                    required
                     value={personaForm.numero_documento || ""}
-                    onChange={(e) => setPersonaForm({ ...personaForm, numero_documento: e.target.value.replace(/\D/g, "") })}
-                    className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none font-mono"
-                    placeholder="DNI de 8 dígitos"
+                    onChange={(e) => {
+                      const selectedTipoDoc = tiposDoc.find(t => t.id === Number(personaForm.tipo_documento_id));
+                      const isDNI = selectedTipoDoc?.codigo === "01" || selectedTipoDoc?.nombre?.toUpperCase().includes("DNI") || !selectedTipoDoc;
+                      const cleanVal = isDNI ? e.target.value.replace(/\D/g, "").slice(0, 8) : e.target.value.trim().slice(0, 20);
+                      setPersonaForm({ ...personaForm, numero_documento: cleanVal });
+                      if (personaFormErrors.numero_documento) setPersonaFormErrors(prev => ({ ...prev, numero_documento: "" }));
+                    }}
+                    className={`w-full p-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none font-mono transition-all ${
+                      personaFormErrors.numero_documento ? "border-red-500 ring-1 ring-red-500 bg-red-50/10" : "border-slate-200"
+                    }`}
+                    placeholder="DNI de 8 dígitos o N° doc"
                   />
+                  {personaFormErrors.numero_documento && (
+                    <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1 animate-fadeIn">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {personaFormErrors.numero_documento}
+                    </p>
+                  )}
                 </div>
+
                 <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Apellidos</label>
+                  <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                    Apellidos <span className="text-red-500 font-bold">*</span>
+                  </label>
                   <input
                     type="text"
-                    required
                     value={personaForm.apellidos || ""}
-                    onChange={(e) => setPersonaForm({ ...personaForm, apellidos: e.target.value })}
-                    className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none"
+                    onChange={(e) => {
+                      setPersonaForm({ ...personaForm, apellidos: e.target.value });
+                      if (personaFormErrors.apellidos) setPersonaFormErrors(prev => ({ ...prev, apellidos: "" }));
+                    }}
+                    className={`w-full p-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none transition-all ${
+                      personaFormErrors.apellidos ? "border-red-500 ring-1 ring-red-500 bg-red-50/10" : "border-slate-200"
+                    }`}
                     placeholder="Apellidos completos"
                   />
+                  {personaFormErrors.apellidos && (
+                    <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1 animate-fadeIn">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {personaFormErrors.apellidos}
+                    </p>
+                  )}
                 </div>
+
                 <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Nombres</label>
+                  <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                    Nombres <span className="text-red-500 font-bold">*</span>
+                  </label>
                   <input
                     type="text"
-                    required
                     value={personaForm.nombres || ""}
-                    onChange={(e) => setPersonaForm({ ...personaForm, nombres: e.target.value })}
-                    className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none"
+                    onChange={(e) => {
+                      setPersonaForm({ ...personaForm, nombres: e.target.value });
+                      if (personaFormErrors.nombres) setPersonaFormErrors(prev => ({ ...prev, nombres: "" }));
+                    }}
+                    className={`w-full p-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none transition-all ${
+                      personaFormErrors.nombres ? "border-red-500 ring-1 ring-red-500 bg-red-50/10" : "border-slate-200"
+                    }`}
                     placeholder="Nombres completos"
                   />
+                  {personaFormErrors.nombres && (
+                    <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1 animate-fadeIn">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {personaFormErrors.nombres}
+                    </p>
+                  )}
                 </div>
+
                 <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Sexo</label>
+                  <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                    Sexo <span className="text-red-500 font-bold">*</span>
+                  </label>
                   <select
                     value={personaForm.sexo || "Masculino"}
-                    onChange={(e) => setPersonaForm({ ...personaForm, sexo: e.target.value })}
+                    onChange={(e) => {
+                      setPersonaForm({ ...personaForm, sexo: e.target.value });
+                      if (personaFormErrors.sexo) setPersonaFormErrors(prev => ({ ...prev, sexo: "" }));
+                    }}
                     className="w-full p-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none"
                   >
                     <option value="Masculino">Masculino</option>
                     <option value="Femenino">Femenino</option>
                   </select>
                 </div>
+
                 <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Fecha de Nacimiento</label>
+                  <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                    Fecha de Nacimiento <span className="text-red-500 font-bold">*</span>
+                  </label>
                   <input
                     type="date"
-                    required
                     value={personaForm.fecha_nacimiento || ""}
-                    onChange={(e) => setPersonaForm({ ...personaForm, fecha_nacimiento: e.target.value })}
-                    className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none font-mono"
+                    onChange={(e) => {
+                      setPersonaForm({ ...personaForm, fecha_nacimiento: e.target.value });
+                      if (personaFormErrors.fecha_nacimiento) setPersonaFormErrors(prev => ({ ...prev, fecha_nacimiento: "" }));
+                    }}
+                    className={`w-full p-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none font-mono transition-all ${
+                      personaFormErrors.fecha_nacimiento ? "border-red-500 ring-1 ring-red-500 bg-red-50/10" : "border-slate-200"
+                    }`}
                   />
+                  {personaFormErrors.fecha_nacimiento && (
+                    <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1 animate-fadeIn">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {personaFormErrors.fecha_nacimiento}
+                    </p>
+                  )}
                 </div>
+
                 <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Dirección de Residencia</label>
+                  <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-1">Dirección de Residencia</label>
                   <input
                     type="text"
                     value={personaForm.direccion || ""}
@@ -3445,8 +3836,9 @@ export function FichasPersonal() {
                     placeholder="Av., Calle, Nro de departamento..."
                   />
                 </div>
+
                 <div className="relative">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Buscar Distrito (Ubigeo)</label>
+                  <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-1">Buscar Distrito (Ubigeo)</label>
                   <input
                     type="text"
                     value={ubigeoSearch}
@@ -3478,27 +3870,52 @@ export function FichasPersonal() {
                     </span>
                   )}
                 </div>
+
                 <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Teléfono Móvil</label>
+                  <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                    Teléfono Móvil <span className="text-[10px] text-slate-400 font-normal lowercase">(solo 1 número de 9 dígitos)</span>
+                  </label>
                   <input
-                    type="text"
+                    type="tel"
+                    maxLength={9}
                     value={personaForm.telefono || ""}
-                    onChange={(e) => setPersonaForm({ ...personaForm, telefono: e.target.value })}
-                    className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none"
+                    onChange={(e) => {
+                      const cleanTel = e.target.value.replace(/\D/g, "").slice(0, 9);
+                      setPersonaForm({ ...personaForm, telefono: cleanTel });
+                      if (personaFormErrors.telefono) setPersonaFormErrors(prev => ({ ...prev, telefono: "" }));
+                    }}
+                    className={`w-full p-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none font-mono transition-all ${
+                      personaFormErrors.telefono ? "border-red-500 ring-1 ring-red-500 bg-red-50/10" : "border-slate-200"
+                    }`}
                     placeholder="999888777"
                   />
+                  {personaFormErrors.telefono && (
+                    <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1 animate-fadeIn">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {personaFormErrors.telefono}
+                    </p>
+                  )}
                 </div>
+
                 <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Correo Electrónico</label>
+                  <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-1">Correo Electrónico</label>
                   <input
                     type="email"
                     value={personaForm.correo || ""}
-                    onChange={(e) => setPersonaForm({ ...personaForm, correo: e.target.value })}
-                    className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none"
+                    onChange={(e) => {
+                      setPersonaForm({ ...personaForm, correo: e.target.value });
+                      if (personaFormErrors.correo) setPersonaFormErrors(prev => ({ ...prev, correo: "" }));
+                    }}
+                    className={`w-full p-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none transition-all ${
+                      personaFormErrors.correo ? "border-red-500 ring-1 ring-red-500 bg-red-50/10" : "border-slate-200"
+                    }`}
                     placeholder="colaborador@correo.com"
                   />
+                  {personaFormErrors.correo && (
+                    <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1 animate-fadeIn">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {personaFormErrors.correo}
+                    </p>
+                  )}
                 </div>
-
               </div>
             )}
 
@@ -3506,20 +3923,58 @@ export function FichasPersonal() {
             {activeFormTab === "financieros" && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Banco Sueldo</label>
+                  <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                    Sistema de Pensión <span className="text-red-500 font-bold">*</span>
+                  </label>
+                  <select
+                    value={personaForm.sistema_pension_id || ""}
+                    onChange={(e) => {
+                      setPersonaForm({ ...personaForm, sistema_pension_id: parseInt(e.target.value) });
+                      if (personaFormErrors.sistema_pension_id) setPersonaFormErrors(prev => ({ ...prev, sistema_pension_id: "" }));
+                    }}
+                    className={`w-full p-2.5 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none transition-all ${
+                      personaFormErrors.sistema_pension_id ? "border-red-500 ring-1 ring-red-500 bg-red-50/10" : "border-slate-200"
+                    }`}
+                  >
+                    <option value="">Seleccione sistema de pensión...</option>
+                    {pensiones.map((p) => (
+                      <option key={p.id} value={p.id}>{p.nombre} ({p.tipo})</option>
+                    ))}
+                  </select>
+                  {personaFormErrors.sistema_pension_id && (
+                    <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1 animate-fadeIn">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {personaFormErrors.sistema_pension_id}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-1">Código CUSS (AFP)</label>
+                  <input
+                    type="text"
+                    value={personaForm.codigo_cuss_afp || ""}
+                    onChange={(e) => setPersonaForm({ ...personaForm, codigo_cuss_afp: e.target.value })}
+                    className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none font-mono"
+                    placeholder="Solo si es AFP (opcional)"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-1">Banco Sueldo</label>
                   <select
                     value={personaForm.banco_sueldo_id || ""}
                     onChange={(e) => setPersonaForm({ ...personaForm, banco_sueldo_id: e.target.value ? parseInt(e.target.value) : null })}
                     className="w-full p-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none"
                   >
-                    <option value="">Ninguno</option>
+                    <option value="">Ninguno / Por Definir</option>
                     {bancos.map((b) => (
                       <option key={b.id} value={b.id}>{b.nombre}</option>
                     ))}
                   </select>
                 </div>
+
                 <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Cuenta Sueldo</label>
+                  <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-1">Cuenta Sueldo</label>
                   <input
                     type="text"
                     disabled={personaForm.cuenta_sueldo === "TIENE_CUENTA" || personaForm.cuenta_sueldo === "POR_AFILIAR"}
@@ -3571,8 +4026,9 @@ export function FichasPersonal() {
                     </label>
                   </div>
                 </div>
+
                 <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Banco CTS</label>
+                  <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-1">Banco CTS</label>
                   <select
                     value={personaForm.banco_cts_id || ""}
                     onChange={(e) => setPersonaForm({ ...personaForm, banco_cts_id: e.target.value ? parseInt(e.target.value) : null })}
@@ -3584,37 +4040,15 @@ export function FichasPersonal() {
                     ))}
                   </select>
                 </div>
+
                 <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Cuenta CTS</label>
+                  <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-1">Cuenta CTS</label>
                   <input
                     type="text"
                     value={personaForm.cuenta_cts || ""}
                     onChange={(e) => setPersonaForm({ ...personaForm, cuenta_cts: e.target.value })}
                     className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none font-mono"
                     placeholder="Nro. Cuenta CTS"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Sistema de Pensión</label>
-                  <select
-                    required
-                    value={personaForm.sistema_pension_id || ""}
-                    onChange={(e) => setPersonaForm({ ...personaForm, sistema_pension_id: parseInt(e.target.value) })}
-                    className="w-full p-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none"
-                  >
-                    {pensiones.map((p) => (
-                      <option key={p.id} value={p.id}>{p.nombre} ({p.tipo})</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Código CUSS (AFP)</label>
-                  <input
-                    type="text"
-                    value={personaForm.codigo_cuss_afp || ""}
-                    onChange={(e) => setPersonaForm({ ...personaForm, codigo_cuss_afp: e.target.value })}
-                    className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none font-mono"
-                    placeholder="Solo si es AFP"
                   />
                 </div>
               </div>
@@ -3624,7 +4058,7 @@ export function FichasPersonal() {
             {activeFormTab === "tallas" && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Talla Polo / Camisa</label>
+                  <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-1">Talla Polo / Camisa</label>
                   <input
                     type="text"
                     value={personaForm.talla_polo || ""}
@@ -3633,8 +4067,9 @@ export function FichasPersonal() {
                     placeholder="Ej. S, M, L, XL"
                   />
                 </div>
+
                 <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Talla Pantalón</label>
+                  <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-1">Talla Pantalón</label>
                   <input
                     type="text"
                     value={personaForm.talla_pantalon || ""}
@@ -3643,8 +4078,9 @@ export function FichasPersonal() {
                     placeholder="Ej. 30, 32, 34"
                   />
                 </div>
+
                 <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Talla Calzado</label>
+                  <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-1">Talla Calzado</label>
                   <input
                     type="text"
                     value={personaForm.talla_calzado || ""}
@@ -3653,14 +4089,25 @@ export function FichasPersonal() {
                     placeholder="Ej. 38, 40, 42"
                   />
                 </div>
+
                 <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Fecha de Último EMO</label>
+                  <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-1">Fecha de Último EMO</label>
                   <input
                     type="date"
                     value={personaForm.fecha_ultimo_emo || ""}
-                    onChange={(e) => setPersonaForm({ ...personaForm, fecha_ultimo_emo: e.target.value })}
-                    className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none font-mono"
+                    onChange={(e) => {
+                      setPersonaForm({ ...personaForm, fecha_ultimo_emo: e.target.value });
+                      if (personaFormErrors.fecha_ultimo_emo) setPersonaFormErrors(prev => ({ ...prev, fecha_ultimo_emo: "" }));
+                    }}
+                    className={`w-full p-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none font-mono transition-all ${
+                      personaFormErrors.fecha_ultimo_emo ? "border-red-500 ring-1 ring-red-500 bg-red-50/10" : "border-slate-200"
+                    }`}
                   />
+                  {personaFormErrors.fecha_ultimo_emo && (
+                    <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1 animate-fadeIn">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {personaFormErrors.fecha_ultimo_emo}
+                    </p>
+                  )}
                 </div>
               </div>
             )}
@@ -3670,7 +4117,9 @@ export function FichasPersonal() {
               <div className="space-y-6 animate-fadeIn">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Empresa Interna (Planilla)</label>
+                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                      Empresa Interna (Planilla) <span className="text-red-500 font-bold">*</span>
+                    </label>
                     <select
                       value={personaForm.empresa_interna_id || ""}
                       onChange={(e) => {
@@ -3683,17 +4132,26 @@ export function FichasPersonal() {
                         });
                         setCreationClienteSearchText("");
                         setCreationSedeSearchText("");
+                        if (personaFormErrors.empresa_interna_id) setPersonaFormErrors(prev => ({ ...prev, empresa_interna_id: "" }));
                       }}
-                      className="w-full p-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none"
+                      className={`w-full p-2.5 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none transition-all ${
+                        personaFormErrors.empresa_interna_id ? "border-red-500 ring-1 ring-red-500 bg-red-50/10" : "border-slate-200"
+                      }`}
                     >
+                      <option value="">Seleccione empresa...</option>
                       {empresas.map((e) => (
                         <option key={e.id} value={e.id}>{e.razon_social}</option>
                       ))}
                     </select>
+                    {personaFormErrors.empresa_interna_id && (
+                      <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1 animate-fadeIn">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {personaFormErrors.empresa_interna_id}
+                      </p>
+                    )}
                   </div>
 
                   <div className="relative">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Cliente (Servicio)</label>
+                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-1">Cliente (Servicio)</label>
                     <input
                       type="text"
                       value={creationClienteSearchText}
@@ -3736,19 +4194,29 @@ export function FichasPersonal() {
                   </div>
 
                   <div className="relative">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Sede / Obra Asignada</label>
+                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                      Sede / Obra Asignada <span className="text-red-500 font-bold">*</span>
+                    </label>
                     <input
                       type="text"
                       value={creationSedeSearchText}
                       onChange={(e) => {
                         setCreationSedeSearchText(e.target.value);
                         setShowCreationSedeDropdown(true);
+                        if (personaFormErrors.sede_id) setPersonaFormErrors(prev => ({ ...prev, sede_id: "" }));
                       }}
                       onFocus={() => setShowCreationSedeDropdown(true)}
                       onBlur={handleCreationSedeBlur}
-                      className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none"
-                      placeholder="Buscar sede..."
+                      className={`w-full p-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none transition-all ${
+                        personaFormErrors.sede_id ? "border-red-500 ring-1 ring-red-500 bg-red-50/10" : "border-slate-200"
+                      }`}
+                      placeholder="Buscar o seleccionar sede..."
                     />
+                    {personaFormErrors.sede_id && (
+                      <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1 animate-fadeIn">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {personaFormErrors.sede_id}
+                      </p>
+                    )}
                     {showCreationSedeDropdown && (
                       <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-30 max-h-48 overflow-y-auto divide-y divide-slate-100">
                         {filteredSedesForCreation.length === 0 ? (
@@ -3762,6 +4230,7 @@ export function FichasPersonal() {
                                 setPersonaForm({ ...personaForm, sede_id: s.id });
                                 setCreationSedeSearchText(s.nombre);
                                 setShowCreationSedeDropdown(false);
+                                if (personaFormErrors.sede_id) setPersonaFormErrors(prev => ({ ...prev, sede_id: "" }));
                               }}
                               className="w-full text-left px-3 py-2 hover:bg-slate-50 text-xs font-medium border-none cursor-pointer"
                             >
@@ -3774,19 +4243,29 @@ export function FichasPersonal() {
                   </div>
 
                   <div className="relative">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Cargo a Desempeñar</label>
+                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                      Cargo a Desempeñar <span className="text-red-500 font-bold">*</span>
+                    </label>
                     <input
                       type="text"
                       value={creationCargoSearchText}
                       onChange={(e) => {
                         setCreationCargoSearchText(e.target.value);
                         setShowCreationCargoDropdown(true);
+                        if (personaFormErrors.cargo_id) setPersonaFormErrors(prev => ({ ...prev, cargo_id: "" }));
                       }}
                       onFocus={() => setShowCreationCargoDropdown(true)}
                       onBlur={handleCreationCargoBlur}
-                      className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none"
-                      placeholder="Buscar cargo..."
+                      className={`w-full p-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none transition-all ${
+                        personaFormErrors.cargo_id ? "border-red-500 ring-1 ring-red-500 bg-red-50/10" : "border-slate-200"
+                      }`}
+                      placeholder="Buscar o seleccionar cargo..."
                     />
+                    {personaFormErrors.cargo_id && (
+                      <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1 animate-fadeIn">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {personaFormErrors.cargo_id}
+                      </p>
+                    )}
                     {showCreationCargoDropdown && (
                       <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-30 max-h-48 overflow-y-auto divide-y divide-slate-100">
                         {filteredCargosForCreation.length === 0 ? (
@@ -3800,6 +4279,7 @@ export function FichasPersonal() {
                                 setPersonaForm({ ...personaForm, cargo_id: c.id });
                                 setCreationCargoSearchText(c.nombre);
                                 setShowCreationCargoDropdown(false);
+                                if (personaFormErrors.cargo_id) setPersonaFormErrors(prev => ({ ...prev, cargo_id: "" }));
                               }}
                               className="w-full text-left px-3 py-2 hover:bg-slate-50 text-xs font-medium border-none cursor-pointer"
                             >
@@ -3812,48 +4292,88 @@ export function FichasPersonal() {
                   </div>
 
                   <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Tipo de Trabajador</label>
+                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                      Tipo de Trabajador <span className="text-red-500 font-bold">*</span>
+                    </label>
                     <select
                       value={personaForm.tipo_trabajador_id || ""}
-                      onChange={(e) => setPersonaForm({ ...personaForm, tipo_trabajador_id: parseInt(e.target.value) })}
-                      className="w-full p-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none"
+                      onChange={(e) => {
+                        setPersonaForm({ ...personaForm, tipo_trabajador_id: parseInt(e.target.value) });
+                        if (personaFormErrors.tipo_trabajador_id) setPersonaFormErrors(prev => ({ ...prev, tipo_trabajador_id: "" }));
+                      }}
+                      className={`w-full p-2.5 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none transition-all ${
+                        personaFormErrors.tipo_trabajador_id ? "border-red-500 ring-1 ring-red-500 bg-red-50/10" : "border-slate-200"
+                      }`}
                     >
+                      <option value="">Seleccione tipo trabajador...</option>
                       {tiposTrab.map((t) => (
                         <option key={t.id} value={t.id}>{t.nombre}</option>
                       ))}
                     </select>
+                    {personaFormErrors.tipo_trabajador_id && (
+                      <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1 animate-fadeIn">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {personaFormErrors.tipo_trabajador_id}
+                      </p>
+                    )}
                   </div>
 
                   <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Régimen Laboral</label>
+                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                      Régimen Laboral <span className="text-red-500 font-bold">*</span>
+                    </label>
                     <select
                       value={personaForm.regimen_laboral_id || ""}
-                      onChange={(e) => setPersonaForm({ ...personaForm, regimen_laboral_id: parseInt(e.target.value) })}
-                      className="w-full p-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none"
+                      onChange={(e) => {
+                        setPersonaForm({ ...personaForm, regimen_laboral_id: parseInt(e.target.value) });
+                        if (personaFormErrors.regimen_laboral_id) setPersonaFormErrors(prev => ({ ...prev, regimen_laboral_id: "" }));
+                      }}
+                      className={`w-full p-2.5 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none transition-all ${
+                        personaFormErrors.regimen_laboral_id ? "border-red-500 ring-1 ring-red-500 bg-red-50/10" : "border-slate-200"
+                      }`}
                     >
+                      <option value="">Seleccione régimen...</option>
                       {regimenes.map((r) => (
                         <option key={r.id} value={r.id}>{r.nombre}</option>
                       ))}
                     </select>
+                    {personaFormErrors.regimen_laboral_id && (
+                      <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1 animate-fadeIn">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {personaFormErrors.regimen_laboral_id}
+                      </p>
+                    )}
                   </div>
 
                   <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Sueldo Básico (S/.)</label>
+                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                      Sueldo Básico (S/.) <span className="text-red-500 font-bold">*</span>
+                    </label>
                     <input
                       type="number"
                       step="0.01"
+                      min="0"
                       value={personaForm.sueldo_basico === undefined ? 1130 : personaForm.sueldo_basico}
-                      onChange={(e) => setPersonaForm({ ...personaForm, sueldo_basico: parseFloat(e.target.value) })}
-                      className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none"
+                      onChange={(e) => {
+                        setPersonaForm({ ...personaForm, sueldo_basico: e.target.value === "" ? "" : parseFloat(e.target.value) });
+                        if (personaFormErrors.sueldo_basico) setPersonaFormErrors(prev => ({ ...prev, sueldo_basico: "" }));
+                      }}
+                      className={`w-full p-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none transition-all ${
+                        personaFormErrors.sueldo_basico ? "border-red-500 ring-1 ring-red-500 bg-red-50/10" : "border-slate-200"
+                      }`}
                     />
+                    {personaFormErrors.sueldo_basico && (
+                      <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1 animate-fadeIn">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {personaFormErrors.sueldo_basico}
+                      </p>
+                    )}
                   </div>
 
                   <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Bono de Movilidad (S/.)</label>
+                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-1">Bono de Movilidad (S/.)</label>
                     <input
                       type="number"
                       step="0.01"
-                      value={personaForm.bono || ""}
+                      min="0"
+                      value={personaForm.bono === undefined ? 0 : personaForm.bono}
                       onChange={(e) => {
                         const val = e.target.value;
                         setPersonaForm({ ...personaForm, bono: val === "" ? "" : parseFloat(val) || 0 });
@@ -3863,11 +4383,12 @@ export function FichasPersonal() {
                   </div>
 
                   <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Bono por Asig. Familiar (S/.)</label>
+                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-1">Bono por Asig. Familiar (S/.)</label>
                     <input
                       type="number"
                       step="0.01"
-                      value={personaForm.bono_secundario || ""}
+                      min="0"
+                      value={personaForm.bono_secundario === undefined ? 0 : personaForm.bono_secundario}
                       onChange={(e) => {
                         const val = e.target.value;
                         setPersonaForm({ ...personaForm, bono_secundario: val === "" ? "" : parseFloat(val) || 0 });
@@ -3877,11 +4398,12 @@ export function FichasPersonal() {
                   </div>
 
                   <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Bono por Asistencia Perfecta (S/.)</label>
+                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-1">Bono por Asistencia Perfecta (S/.)</label>
                     <input
                       type="number"
                       step="0.01"
-                      value={personaForm.bono_asistencia_perfecta || ""}
+                      min="0"
+                      value={personaForm.bono_asistencia_perfecta === undefined ? 0 : personaForm.bono_asistencia_perfecta}
                       onChange={(e) => {
                         const val = e.target.value;
                         setPersonaForm({ ...personaForm, bono_asistencia_perfecta: val === "" ? "" : parseFloat(val) || 0 });
@@ -3891,11 +4413,12 @@ export function FichasPersonal() {
                   </div>
 
                   <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Bono por Alimentación (S/.)</label>
+                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-1">Bono por Alimentación (S/.)</label>
                     <input
                       type="number"
                       step="0.01"
-                      value={personaForm.bono_alimentacion || ""}
+                      min="0"
+                      value={personaForm.bono_alimentacion === undefined ? 0 : personaForm.bono_alimentacion}
                       onChange={(e) => {
                         const val = e.target.value;
                         setPersonaForm({ ...personaForm, bono_alimentacion: val === "" ? "" : parseFloat(val) || 0 });
@@ -3905,37 +4428,60 @@ export function FichasPersonal() {
                   </div>
 
                   <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Especificación Lugar Trabajo</label>
+                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-1">Especificación Lugar Trabajo</label>
                     <input
                       type="text"
                       value={personaForm.lugar_especifico_trabajo || ""}
                       onChange={(e) => setPersonaForm({ ...personaForm, lugar_especifico_trabajo: e.target.value })}
                       className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none"
-                      placeholder="Ej. Garita de Control, Almacén"
+                      placeholder="Ej. Garita de Control, Almacén Principal"
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Fecha de Ingreso Laboral</label>
+                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                      Fecha de Ingreso Laboral <span className="text-red-500 font-bold">*</span>
+                    </label>
                     <input
                       type="date"
-                      required
                       value={personaForm.fecha_ingreso || ""}
-                      onChange={(e) => setPersonaForm({ ...personaForm, fecha_ingreso: e.target.value })}
-                      className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none font-mono"
+                      onChange={(e) => {
+                        setPersonaForm({ ...personaForm, fecha_ingreso: e.target.value });
+                        if (personaFormErrors.fecha_ingreso) setPersonaFormErrors(prev => ({ ...prev, fecha_ingreso: "" }));
+                      }}
+                      className={`w-full p-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none font-mono transition-all ${
+                        personaFormErrors.fecha_ingreso ? "border-red-500 ring-1 ring-red-500 bg-red-50/10" : "border-slate-200"
+                      }`}
                     />
+                    {personaFormErrors.fecha_ingreso && (
+                      <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1 animate-fadeIn">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {personaFormErrors.fecha_ingreso}
+                      </p>
+                    )}
                   </div>
+
                   <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Fecha de 1° Contrato</label>
+                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                      Fecha de 1° Contrato <span className="text-red-500 font-bold">*</span>
+                    </label>
                     <input
                       type="date"
-                      required
                       value={personaForm.fecha_primer_contrato || ""}
-                      onChange={(e) => setPersonaForm({ ...personaForm, fecha_primer_contrato: e.target.value })}
-                      className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none font-mono"
+                      onChange={(e) => {
+                        setPersonaForm({ ...personaForm, fecha_primer_contrato: e.target.value });
+                        if (personaFormErrors.fecha_primer_contrato) setPersonaFormErrors(prev => ({ ...prev, fecha_primer_contrato: "" }));
+                      }}
+                      className={`w-full p-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none font-mono transition-all ${
+                        personaFormErrors.fecha_primer_contrato ? "border-red-500 ring-1 ring-red-500 bg-red-50/10" : "border-slate-200"
+                      }`}
                     />
+                    {personaFormErrors.fecha_primer_contrato && (
+                      <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1 animate-fadeIn">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {personaFormErrors.fecha_primer_contrato}
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -3955,20 +4501,30 @@ export function FichasPersonal() {
                       }}
                       className="rounded text-blue-600 focus:ring-blue-500 h-4.5 w-4.5 cursor-pointer accent-blue-600"
                     />
-                    <label htmlFor="creation_asignacion_familiar" className="text-xs font-bold text-slate-500 uppercase tracking-wider cursor-pointer select-none">
+                    <label htmlFor="creation_asignacion_familiar" className="text-xs font-bold text-slate-700 uppercase tracking-wider cursor-pointer select-none">
                       Aplica Asignación Familiar
                     </label>
                   </div>
 
                   {!!personaForm.asignacion_familiar && (
                     <div className="animate-fadeIn">
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">F. Vencimiento Asig. Familiar (Opcional)</label>
+                      <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-1">F. Vencimiento Asig. Familiar (Opcional)</label>
                       <input
                         type="date"
                         value={personaForm.vencimiento_asignacion_familiar || ""}
-                        onChange={(e) => setPersonaForm({ ...personaForm, vencimiento_asignacion_familiar: e.target.value })}
-                        className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none"
+                        onChange={(e) => {
+                          setPersonaForm({ ...personaForm, vencimiento_asignacion_familiar: e.target.value });
+                          if (personaFormErrors.vencimiento_asignacion_familiar) setPersonaFormErrors(prev => ({ ...prev, vencimiento_asignacion_familiar: "" }));
+                        }}
+                        className={`w-full p-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none transition-all ${
+                          personaFormErrors.vencimiento_asignacion_familiar ? "border-red-500 ring-1 ring-red-500 bg-red-50/10" : "border-slate-200"
+                        }`}
                       />
+                      {personaFormErrors.vencimiento_asignacion_familiar && (
+                        <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1 animate-fadeIn">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {personaFormErrors.vencimiento_asignacion_familiar}
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>
@@ -3977,36 +4533,67 @@ export function FichasPersonal() {
                   <h3 className="text-sm font-bold text-slate-700 mb-3">Detalle del Contrato Inicial</h3>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Modalidad de Contrato</label>
+                      <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-1">Modalidad de Contrato</label>
                       <select
                         value={personaForm.contrato_modalidad_id || ""}
-                        onChange={(e) => setPersonaForm({ ...personaForm, contrato_modalidad_id: parseInt(e.target.value) })}
-                        className="w-full p-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none"
+                        onChange={(e) => {
+                          setPersonaForm({ ...personaForm, contrato_modalidad_id: parseInt(e.target.value) });
+                          if (personaFormErrors.contrato_modalidad_id) setPersonaFormErrors(prev => ({ ...prev, contrato_modalidad_id: "" }));
+                        }}
+                        className={`w-full p-2.5 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none transition-all ${
+                          personaFormErrors.contrato_modalidad_id ? "border-red-500 ring-1 ring-red-500 bg-red-50/10" : "border-slate-200"
+                        }`}
                       >
+                        <option value="">Seleccione modalidad...</option>
                         {modalidades.map((m) => (
                           <option key={m.id} value={m.id}>{m.nombre}</option>
                         ))}
                       </select>
+                      {personaFormErrors.contrato_modalidad_id && (
+                        <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1 animate-fadeIn">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {personaFormErrors.contrato_modalidad_id}
+                        </p>
+                      )}
                     </div>
 
                     <div>
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">F. Inicio Contrato</label>
+                      <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-1">F. Inicio Contrato</label>
                       <input
                         type="date"
                         value={personaForm.contrato_fecha_inicio || ""}
-                        onChange={(e) => setPersonaForm({ ...personaForm, contrato_fecha_inicio: e.target.value })}
-                        className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none font-mono"
+                        onChange={(e) => {
+                          setPersonaForm({ ...personaForm, contrato_fecha_inicio: e.target.value });
+                          if (personaFormErrors.contrato_fecha_inicio) setPersonaFormErrors(prev => ({ ...prev, contrato_fecha_inicio: "" }));
+                        }}
+                        className={`w-full p-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none font-mono transition-all ${
+                          personaFormErrors.contrato_fecha_inicio ? "border-red-500 ring-1 ring-red-500 bg-red-50/10" : "border-slate-200"
+                        }`}
                       />
+                      {personaFormErrors.contrato_fecha_inicio && (
+                        <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1 animate-fadeIn">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {personaFormErrors.contrato_fecha_inicio}
+                        </p>
+                      )}
                     </div>
 
                     <div>
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">F. Fin (Opcional)</label>
+                      <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-1">F. Fin (Opcional)</label>
                       <input
                         type="date"
                         value={personaForm.contrato_fecha_fin || ""}
-                        onChange={(e) => setPersonaForm({ ...personaForm, contrato_fecha_fin: e.target.value })}
-                        className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none font-mono"
+                        onChange={(e) => {
+                          setPersonaForm({ ...personaForm, contrato_fecha_fin: e.target.value });
+                          if (personaFormErrors.contrato_fecha_fin) setPersonaFormErrors(prev => ({ ...prev, contrato_fecha_fin: "" }));
+                        }}
+                        className={`w-full p-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-100 focus:outline-none font-mono transition-all ${
+                          personaFormErrors.contrato_fecha_fin ? "border-red-500 ring-1 ring-red-500 bg-red-50/10" : "border-slate-200"
+                        }`}
                       />
+                      {personaFormErrors.contrato_fecha_fin && (
+                        <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1 animate-fadeIn">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {personaFormErrors.contrato_fecha_fin}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -4018,14 +4605,14 @@ export function FichasPersonal() {
               <button
                 type="button"
                 onClick={() => setViewMode("list")}
-                className="px-4 py-2 border border-slate-200 text-slate-600 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-all"
+                className="px-4 py-2 border border-slate-200 text-slate-600 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-all cursor-pointer"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={loading}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 active:scale-95 shadow-md shadow-blue-200 transition-all flex items-center gap-2"
+                className="px-6 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 active:scale-95 shadow-md shadow-blue-200 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4 stroke-[3]" />}
                 Guardar Ficha
@@ -5368,6 +5955,14 @@ export function FichasPersonal() {
                   <div className="p-2 bg-amber-50 rounded-lg text-amber-600 animate-pulse">
                     <AlertCircle className="w-6 h-6" />
                   </div>
+                ) : systemAlert.title?.toLowerCase().includes("error") || systemAlert.title?.toLowerCase().includes("inconsistencias") || systemAlert.title?.toLowerCase().includes("requerido") ? (
+                  <div className="p-2 bg-red-50 rounded-lg text-red-600">
+                    <AlertCircle className="w-6 h-6" />
+                  </div>
+                ) : systemAlert.title?.toLowerCase().includes("exitoso") || systemAlert.title?.toLowerCase().includes("correcto") ? (
+                  <div className="p-2 bg-emerald-50 rounded-lg text-emerald-600">
+                    <CheckCircle2 className="w-6 h-6" />
+                  </div>
                 ) : (
                   <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
                     <Info className="w-6 h-6" />
@@ -5375,9 +5970,9 @@ export function FichasPersonal() {
                 )}
                 <h3 className="text-base font-extrabold text-slate-900">{systemAlert.title}</h3>
               </div>
-              <p className="text-xs text-slate-600 leading-relaxed font-semibold">
+              <div className="text-xs text-slate-700 leading-relaxed font-medium whitespace-pre-line max-h-60 overflow-y-auto">
                 {systemAlert.message}
-              </p>
+              </div>
             </div>
             <div className="bg-slate-50 px-6 py-4 flex items-center justify-end gap-2 border-t border-slate-100">
               {systemAlert.isConfirm ? (

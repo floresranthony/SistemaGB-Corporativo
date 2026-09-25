@@ -129,7 +129,7 @@ export function Layout() {
     }
   }, [location.pathname, navigate, currentRole]);
 
-  // Cierre de sesión automático por inactividad (1 hora)
+  // Cierre de sesión automático por inactividad (2 horas)
   React.useEffect(() => {
     let timeoutId: NodeJS.Timeout;
 
@@ -138,7 +138,7 @@ export function Layout() {
       timeoutId = setTimeout(() => {
         signOut();
         alert("Tu sesión ha sido cerrada automáticamente por inactividad.");
-      }, 3600000); // 1 hora en ms
+      }, 10800000); // 3 horas en ms (3 * 60 * 60 * 1000)
     };
 
     // Eventos que demuestran actividad
