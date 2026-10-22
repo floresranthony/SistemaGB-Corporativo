@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { SedeLocationPicker } from "../components/common/SedeLocationPicker";
+import { SedeDetailModal } from "../components/common/SedeDetailModal";
 
 const cleanUrl = (url: string | null | undefined): string => {
   if (!url) return "";
@@ -35,10 +36,11 @@ type StructureTab = "empresas" | "clientes" | "sedes";
 export function EstructuraComercial() {
   const { role } = useAuth();
   const currentRole = role || "admin";
-  const showBudget = currentRole !== "supervisor" && currentRole !== "rrhh";
+  const isReclutador = currentRole === "reclutador" || currentRole === "reclutamiento";
+  const showBudget = currentRole !== "supervisor" && currentRole !== "rrhh" && !isReclutador;
   const canWrite = (currentRole === "admin" || currentRole === "logistica") && currentRole !== "gerencia";
 
-  const [activeTab, setActiveTab] = useState<StructureTab>("empresas");
+  const [activeTab, setActiveTab] = useState<StructureTab>(isReclutador ? "sedes" : "empresas");
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -58,6 +60,7 @@ export function EstructuraComercial() {
   const [formValues, setFormValues] = useState<Record<string, any>>({});
   const [seeding, setSeeding] = useState(false);
   const [selectedLogoFile, setSelectedLogoFile] = useState<File | null>(null);
+  const [selectedSedeForDetail, setSelectedSedeForDetail] = useState<any | null>(null);
 
   const handleLogoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null;
@@ -1041,7 +1044,7 @@ export function EstructuraComercial() {
                       <th className="px-6 py-4">Supervisores</th>
                       <th className="px-6 py-4">Contacto</th>
                       {showBudget && <th className="px-6 py-4">Presupuesto</th>}
-                      <th className="px-6 py-4">Ubicación</th>
+                      <th className="px-6 py-4">Ubicación / Mapa</th>
                     </>
                   )}
 
@@ -1139,7 +1142,7 @@ export function EstructuraComercial() {
                         )}
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-1.5">
-                            <div className="text-sm font-semibold text-slate-800">{item.distrito}</div>
+                            <div className="text-sm font-semibold text-slate-800">{item.distrito || "Sin distrito"}</div>
                             {item.latitud && item.longitud ? (
                               <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-black bg-blue-50 text-blue-700 border border-blue-200" title={`Coordenadas exactas: ${item.latitud}, ${item.longitud}`}>
                                 GPS
@@ -1150,7 +1153,18 @@ export function EstructuraComercial() {
                               </span>
                             )}
                           </div>
-                          <div className="text-[10px] text-slate-400 truncate max-w-[140px]" title={item.direccion}>{item.direccion}</div>
+                          <div className="text-[11px] text-slate-500 font-medium max-w-[220px] line-clamp-2 mt-0.5" title={item.direccion}>
+                            {item.direccion || "Sin dirección registrada"}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedSedeForDetail(item)}
+                            className="mt-1.5 inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-[11px] font-bold transition-all hover:shadow-xs active:scale-95 cursor-pointer"
+                            title="Ver mapa interactivo y dirección completa"
+                          >
+                            <MapPin className="w-3 h-3 text-blue-600" />
+                            Ver Mapa y Dirección
+                          </button>
                         </td>
                       </>
                     )}
@@ -1703,6 +1717,13 @@ export function EstructuraComercial() {
           </div>
         </div>
       )}
+
+      {/* Modal de Detalle de Sede con Mapa para Reclutadores y Supervisores */}
+      <SedeDetailModal
+        isOpen={!!selectedSedeForDetail}
+        onClose={() => setSelectedSedeForDetail(null)}
+        sede={selectedSedeForDetail}
+      />
     </div>
   );
 }

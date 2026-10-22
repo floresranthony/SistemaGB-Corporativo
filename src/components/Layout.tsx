@@ -92,7 +92,7 @@ const isPathAllowed = (path: string, currentRole: string): boolean => {
           if (group.name === "Recursos Humanos" && item.path !== "/rrhh/fichas" && item.path !== "/rrhh/vacaciones") return false;
           if (group.name === "Almacén") return false;
           if (group.name === "Reportes") return false;
-          if (group.name === "Configuración") return false;
+          if (group.name === "Configuración" && item.path !== "/config/estructura") return false;
           if (group.name === "Requerimientos" && item.path !== "/requerimientos/uniformes") return false;
           return true;
         }
@@ -230,13 +230,6 @@ export function Layout() {
         }
         return <DiccionariosDatos />;
       case "/config/estructura":
-        if (role === "reclutador" || role === "reclutamiento") {
-          return (
-            <div className="p-8 text-center text-slate-600 font-bold bg-white rounded-2xl border border-slate-150 shadow-sm max-w-lg mx-auto mt-12">
-              ⚠️ Acceso Denegado: Tu rol de usuario no tiene autorización para ver la Estructura Comercial.
-            </div>
-          );
-        }
         return <EstructuraComercial />;
       case "/reportes/descarga":
         return <Reportes />;

@@ -86,7 +86,7 @@ export function Sidebar({
             if (group.name === "Recursos Humanos" && item.path !== "/rrhh/fichas" && item.path !== "/rrhh/vacaciones") return false;
             if (group.name === "Almacén") return false;
             if (group.name === "Reportes") return false;
-            if (group.name === "Configuración") return false;
+            if (group.name === "Configuración" && item.path !== "/config/estructura") return false;
             if (group.name === "Requerimientos" && item.path !== "/requerimientos/uniformes") return false;
             return true;
           }
