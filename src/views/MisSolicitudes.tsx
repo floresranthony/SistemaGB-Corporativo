@@ -24,7 +24,8 @@ import {
   Eye,
   ArrowLeft,
   Filter,
-  Copy
+  Copy,
+  CheckCircle2
 } from "lucide-react";
 
 interface CartItem {
@@ -176,6 +177,8 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
   const [horarioAtencion, setHorarioAtencion] = useState("");
   const [personalContacto, setPersonalContacto] = useState("");
   const [numeroContacto, setNumeroContacto] = useState("");
+  const [autoFilledDelivery, setAutoFilledDelivery] = useState(false);
+  const [loadingDeliveryData, setLoadingDeliveryData] = useState(false);
   const preserveCartOnSedeChange = React.useRef(false);
 
   const uniqueClientes = React.useMemo(() => {
@@ -537,6 +540,60 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
       setSedes(sedeData || []);
     } catch (err) {
       console.error("Error loading sedes:", err);
+    }
+  };
+
+  const handleSedeSelect = async (val: string | number) => {
+    const newSedeId = val === "" ? "" : Number(val);
+    setSelectedSedeId(newSedeId);
+    setAutoFilledDelivery(false);
+
+    if (!newSedeId) {
+      setLugarDespacho("");
+      setPersonalContacto("");
+      setNumeroContacto("");
+      setHorarioAtencion("");
+      return;
+    }
+
+    const s = sedes.find((item) => item.id === newSedeId);
+    const defaultAddress = s ? [s.direccion, s.distrito].filter(Boolean).join(" - ") : "";
+    setLugarDespacho(defaultAddress);
+
+    setLoadingDeliveryData(true);
+    try {
+      // Buscar los requerimientos más recientes de esta sede para recuperar el contacto de recepción y horario habitual
+      const { data: recentReqs } = await supabase
+        .from("requerimientos")
+        .select("horario_atencion, personal_contacto, numero_contacto, lugar_despacho")
+        .eq("sede_id", newSedeId)
+        .order("id", { ascending: false })
+        .limit(10);
+
+      const matched = recentReqs?.find(
+        (r) => (r.personal_contacto && r.personal_contacto.trim() !== "") ||
+               (r.horario_atencion && r.horario_atencion.trim() !== "") ||
+               (r.numero_contacto && r.numero_contacto.trim() !== "")
+      );
+
+      if (matched) {
+        if (matched.personal_contacto) setPersonalContacto(matched.personal_contacto);
+        if (matched.numero_contacto) setNumeroContacto(matched.numero_contacto);
+        if (matched.horario_atencion) setHorarioAtencion(matched.horario_atencion);
+        if (matched.lugar_despacho) setLugarDespacho(matched.lugar_despacho);
+        setAutoFilledDelivery(true);
+      } else {
+        setPersonalContacto("");
+        setNumeroContacto("");
+        setHorarioAtencion("Lunes a Viernes 08:00 - 17:00");
+      }
+    } catch (err) {
+      console.error("Error al buscar último requerimiento de la sede:", err);
+      setPersonalContacto("");
+      setNumeroContacto("");
+      setHorarioAtencion("Lunes a Viernes 08:00 - 17:00");
+    } finally {
+      setLoadingDeliveryData(false);
     }
   };
 
@@ -1562,6 +1619,7 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
       setHorarioAtencion("");
       setPersonalContacto("");
       setNumeroContacto("");
+      setAutoFilledDelivery(false);
       setIsExtraordinarySupport(false);
       setEditingDraftId(null);
       setEditingDraftCode(null);
@@ -1942,6 +2000,12 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
                 setCart([]);
                 setSelectedProductId("");
                 setSelectedSedeId("");
+                setSelectedClienteId("");
+                setLugarDespacho("");
+                setHorarioAtencion("");
+                setPersonalContacto("");
+                setNumeroContacto("");
+                setAutoFilledDelivery(false);
                 setBulkProductId("");
                 setIsExtraordinarySupport(false);
                 setEditingDraftId(null);
@@ -2804,6 +2868,11 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
               setCart([]);
               setSelectedSedeId("");
               setSelectedClienteId("");
+              setLugarDespacho("");
+              setHorarioAtencion("");
+              setPersonalContacto("");
+              setNumeroContacto("");
+              setAutoFilledDelivery(false);
               setIsExtraordinarySupport(false);
               setEditingDraftId(null);
               setEditingDraftCode(null);
@@ -2876,6 +2945,11 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
                     onChange={(value) => {
                       setSelectedClienteId(value === "" ? "" : Number(value));
                       setSelectedSedeId("");
+                      setAutoFilledDelivery(false);
+                      setLugarDespacho("");
+                      setPersonalContacto("");
+                      setNumeroContacto("");
+                      setHorarioAtencion("");
                     }}
                   />
                 </div>
@@ -2889,25 +2963,7 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
                         placeholder="Seleccione una sede..."
                         searchPlaceholder="Buscar sede..."
                         options={sedes.filter((s) => s.clientes?.id === selectedClienteId).map((s) => ({ value: s.id, label: s.nombre }))}
-                        onChange={(value) => {
-                          const newSedeId = value === "" ? "" : Number(value);
-                          setSelectedSedeId(newSedeId);
-                          if (newSedeId) {
-                            const s = sedes.find((item) => item.id === newSedeId);
-                            if (s) {
-                              const defaultAddress = [s.direccion, s.distrito].filter(Boolean).join(" - ") || "";
-                              setLugarDespacho(defaultAddress);
-                              setPersonalContacto("");
-                              setNumeroContacto("");
-                              setHorarioAtencion((prev) => prev || "Lunes a Viernes 08:00 - 17:00");
-                            }
-                          } else {
-                            setLugarDespacho("");
-                            setPersonalContacto("");
-                            setNumeroContacto("");
-                            setHorarioAtencion("");
-                          }
-                        }}
+                        onChange={handleSedeSelect}
                       />
                     </div>
 
@@ -2918,7 +2974,19 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
                             <Truck className="w-3.5 h-3.5 text-blue-600" />
                             Datos de Entrega y Despacho
                           </span>
-                          <span className="text-[10px] text-slate-400 font-medium">Llenar según corresponda</span>
+                          {loadingDeliveryData ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] text-blue-600 font-medium animate-pulse">
+                              <RefreshCw className="w-3 h-3 animate-spin" />
+                              Cargando datos habituales...
+                            </span>
+                          ) : autoFilledDelivery ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md font-bold animate-fade-in">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              Autocompletado del último despacho
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 font-medium">Llenar según corresponda</span>
+                          )}
                         </div>
 
                         <div>
