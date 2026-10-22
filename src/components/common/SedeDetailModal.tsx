@@ -14,9 +14,18 @@ import {
   Compass,
   Share2,
   CheckCircle2,
-  MessageCircle
+  MessageCircle,
+  Bus,
+  RotateCcw,
+  Navigation,
+  Info
 } from "lucide-react";
-import { obtenerCentroideDistrito } from "../../utils/geoUtils";
+import {
+  obtenerCentroideDistrito,
+  LISTA_DISTRITOS_CANONICOS,
+  calcularDistanciaKm,
+  formatearDistancia
+} from "../../utils/geoUtils";
 
 interface SedeDetailModalProps {
   isOpen: boolean;
@@ -24,6 +33,7 @@ interface SedeDetailModalProps {
   sede: any | null;
 }
 
+// Icono Azul para la Sede (Destino)
 const createSedeIcon = () => {
   return L.divIcon({
     className: "custom-sede-detail-pin",
@@ -51,12 +61,71 @@ const createSedeIcon = () => {
   });
 };
 
+// Icono Verde para el Origen (Casa / Punto de partida del postulante)
+const createOriginIcon = () => {
+  return L.divIcon({
+    className: "custom-origin-detail-pin",
+    html: `
+      <div style="
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 38px;
+        height: 38px;
+        background: linear-gradient(135deg, #10b981, #059669);
+        border: 3px solid #ffffff;
+        border-radius: 50% 50% 50% 0;
+        transform: rotate(-45deg);
+        box-shadow: 0 6px 16px rgba(16, 185, 129, 0.45);
+        cursor: grab;
+      ">
+        <svg style="transform: rotate(45deg); width: 18px; height: 18px; color: #ffffff;" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+        </svg>
+      </div>
+    `,
+    iconSize: [38, 38],
+    iconAnchor: [19, 38],
+    popupAnchor: [0, -38]
+  });
+};
+
 export function SedeDetailModal({ isOpen, onClose, sede }: SedeDetailModalProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
+  const originMarkerRef = useRef<L.Marker | null>(null);
+  const routeLineRef = useRef<L.Polyline | null>(null);
 
   const [copiedAddress, setCopiedAddress] = useState(false);
   const [copiedPostulante, setCopiedPostulante] = useState(false);
+
+  // Estados para cálculo de ruta de carros / origen
+  const [originCoords, setOriginCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [originName, setOriginName] = useState<string>("");
+  const [selectedOriginDistrito, setSelectedOriginDistrito] = useState<string>("");
+  const [distanceKm, setDistanceKm] = useState<number | null>(null);
+
+  // Coordenadas calculadas de la sede destino
+  const getDestCoords = () => {
+    if (!sede) return { lat: -12.046374, lng: -77.042793, hasExact: false };
+    const hasExact =
+      sede.latitud != null &&
+      sede.longitud != null &&
+      !isNaN(Number(sede.latitud)) &&
+      !isNaN(Number(sede.longitud)) &&
+      Number(sede.latitud) !== 0;
+
+    if (hasExact) {
+      return { lat: Number(sede.latitud), lng: Number(sede.longitud), hasExact: true };
+    }
+    if (sede.distrito) {
+      const distCoords = obtenerCentroideDistrito(sede.distrito);
+      if (distCoords) {
+        return { lat: distCoords.lat, lng: distCoords.lng, hasExact: false };
+      }
+    }
+    return { lat: -12.046374, lng: -77.042793, hasExact: false };
+  };
 
   // Escuchar tecla Escape para cerrar
   useEffect(() => {
@@ -69,6 +138,24 @@ export function SedeDetailModal({ isOpen, onClose, sede }: SedeDetailModalProps)
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, onClose]);
 
+  // Limpiar origen cuando cambie la sede o se abra el modal
+  useEffect(() => {
+    if (isOpen) {
+      setOriginCoords(null);
+      setOriginName("");
+      setSelectedOriginDistrito("");
+      setDistanceKm(null);
+      if (originMarkerRef.current && mapInstanceRef.current) {
+        mapInstanceRef.current.removeLayer(originMarkerRef.current);
+        originMarkerRef.current = null;
+      }
+      if (routeLineRef.current && mapInstanceRef.current) {
+        mapInstanceRef.current.removeLayer(routeLineRef.current);
+        routeLineRef.current = null;
+      }
+    }
+  }, [isOpen, sede?.id]);
+
   // Inicializar o actualizar el mapa Leaflet
   useEffect(() => {
     if (!isOpen || !sede || !mapContainerRef.current) return;
@@ -79,33 +166,11 @@ export function SedeDetailModal({ isOpen, onClose, sede }: SedeDetailModalProps)
       mapInstanceRef.current = null;
     }
 
-    const hasExactCoords =
-      sede.latitud != null &&
-      sede.longitud != null &&
-      !isNaN(Number(sede.latitud)) &&
-      !isNaN(Number(sede.longitud)) &&
-      Number(sede.latitud) !== 0;
-
-    let targetLat = -12.046374;
-    let targetLng = -77.042793;
-    let zoomLevel = 13;
-
-    if (hasExactCoords) {
-      targetLat = Number(sede.latitud);
-      targetLng = Number(sede.longitud);
-      zoomLevel = 16;
-    } else if (sede.distrito) {
-      const distCoords = obtenerCentroideDistrito(sede.distrito);
-      if (distCoords) {
-        targetLat = distCoords.lat;
-        targetLng = distCoords.lng;
-        zoomLevel = 14;
-      }
-    }
+    const dest = getDestCoords();
 
     const map = L.map(mapContainerRef.current, {
-      center: [targetLat, targetLng],
-      zoom: zoomLevel,
+      center: [dest.lat, dest.lng],
+      zoom: dest.hasExact ? 16 : 14,
       zoomControl: true,
       scrollWheelZoom: true
     });
@@ -115,8 +180,8 @@ export function SedeDetailModal({ isOpen, onClose, sede }: SedeDetailModalProps)
       maxZoom: 19
     }).addTo(map);
 
-    // Añadir Pin
-    const marker = L.marker([targetLat, targetLng], {
+    // Añadir Pin Destino de la Sede
+    const destMarker = L.marker([dest.lat, dest.lng], {
       icon: createSedeIcon()
     }).addTo(map);
 
@@ -125,11 +190,16 @@ export function SedeDetailModal({ isOpen, onClose, sede }: SedeDetailModalProps)
         <strong style="color: #1e293b; font-size: 13px; display: block; margin-bottom: 3px;">${sede.nombre}</strong>
         <span style="color: #64748b; font-size: 11px; display: block;">${sede.direccion || "Sin dirección"}</span>
         <span style="color: #2563eb; font-weight: bold; font-size: 10px; display: block; margin-top: 4px;">
-          ${hasExactCoords ? "📍 Ubicación Exacta GPS" : "📍 Ubicación Aproximada (" + (sede.distrito || "") + ")"}
+          ${dest.hasExact ? "📍 Ubicación Exacta GPS" : "📍 Ubicación Aproximada (" + (sede.distrito || "") + ")"}
         </span>
       </div>
     `;
-    marker.bindPopup(popupHtml).openPopup();
+    destMarker.bindPopup(popupHtml).openPopup();
+
+    // Evento de clic en mapa para definir punto de partida del postulante
+    map.on("click", (e: L.LeafletMouseEvent) => {
+      handleSetOrigin(e.latlng.lat, e.latlng.lng, "Punto marcado en el mapa", map);
+    });
 
     mapInstanceRef.current = map;
 
@@ -147,21 +217,134 @@ export function SedeDetailModal({ isOpen, onClose, sede }: SedeDetailModalProps)
     };
   }, [isOpen, sede]);
 
+  // Función para establecer el punto de partida (origen)
+  const handleSetOrigin = (
+    lat: number,
+    lng: number,
+    label: string,
+    currentMap?: L.Map | null
+  ) => {
+    const map = currentMap || mapInstanceRef.current;
+    if (!map) return;
+
+    const dest = getDestCoords();
+    setOriginCoords({ lat, lng });
+    setOriginName(label);
+
+    const dist = calcularDistanciaKm(lat, lng, dest.lat, dest.lng);
+    setDistanceKm(dist);
+
+    // Actualizar o crear marcador de origen
+    if (originMarkerRef.current) {
+      originMarkerRef.current.setLatLng([lat, lng]);
+    } else {
+      const marker = L.marker([lat, lng], {
+        icon: createOriginIcon(),
+        draggable: true
+      }).addTo(map);
+
+      marker.on("dragend", () => {
+        const pos = marker.getLatLng();
+        handleSetOrigin(pos.lat, pos.lng, "Punto marcado en el mapa", map);
+      });
+
+      originMarkerRef.current = marker;
+    }
+
+    originMarkerRef.current
+      .bindPopup(
+        `<div style="font-family: inherit; font-size: 12px; line-height: 1.4;">
+          <strong style="color: #059669; font-size: 13px; display: block;">Punto de Partida (Postulante)</strong>
+          <span style="color: #64748b; font-size: 11px;">${label}</span>
+          <span style="color: #10b981; font-weight: bold; font-size: 10px; display: block; margin-top: 3px;">
+            ~${formatearDistancia(dist)} hacia la sede
+          </span>
+        </div>`
+      )
+      .openPopup();
+
+    // Actualizar o crear línea de ruta directa
+    if (routeLineRef.current) {
+      routeLineRef.current.setLatLngs([
+        [lat, lng],
+        [dest.lat, dest.lng]
+      ]);
+    } else {
+      const polyline = L.polyline(
+        [
+          [lat, lng],
+          [dest.lat, dest.lng]
+        ],
+        {
+          color: "#10b981",
+          weight: 3.5,
+          dashArray: "6, 8",
+          opacity: 0.85
+        }
+      ).addTo(map);
+      routeLineRef.current = polyline;
+    }
+
+    // Ajustar zoom para que se vean ambos puntos en pantalla
+    map.fitBounds(
+      [
+        [lat, lng],
+        [dest.lat, dest.lng]
+      ],
+      { padding: [50, 50] }
+    );
+  };
+
+  // Limpiar el origen y volver a centrar en la sede
+  const handleClearOrigin = () => {
+    if (originMarkerRef.current && mapInstanceRef.current) {
+      mapInstanceRef.current.removeLayer(originMarkerRef.current);
+      originMarkerRef.current = null;
+    }
+    if (routeLineRef.current && mapInstanceRef.current) {
+      mapInstanceRef.current.removeLayer(routeLineRef.current);
+      routeLineRef.current = null;
+    }
+    setOriginCoords(null);
+    setOriginName("");
+    setSelectedOriginDistrito("");
+    setDistanceKm(null);
+
+    const dest = getDestCoords();
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.setView([dest.lat, dest.lng], dest.hasExact ? 16 : 14);
+    }
+  };
+
+  // Seleccionar distrito desde el dropdown rápido
+  const handleDistritoChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const dist = e.target.value;
+    setSelectedOriginDistrito(dist);
+    if (!dist) {
+      handleClearOrigin();
+      return;
+    }
+    const coords = obtenerCentroideDistrito(dist);
+    if (coords) {
+      handleSetOrigin(coords.lat, coords.lng, `Distrito de ${dist}`);
+    }
+  };
+
   if (!isOpen || !sede) return null;
 
-  const hasExactCoords =
-    sede.latitud != null &&
-    sede.longitud != null &&
-    !isNaN(Number(sede.latitud)) &&
-    !isNaN(Number(sede.longitud)) &&
-    Number(sede.latitud) !== 0;
+  const dest = getDestCoords();
 
-  // Generar link de Google Maps
-  const googleMapsUrl = hasExactCoords
-    ? `https://www.google.com/maps/search/?api=1&query=${sede.latitud},${sede.longitud}`
+  // Generar link de Google Maps solo de la Sede
+  const googleMapsUrl = dest.hasExact
+    ? `https://www.google.com/maps/search/?api=1&query=${dest.lat},${dest.lng}`
     : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
         `${sede.direccion || ""}, ${sede.distrito || ""}, Lima, Peru`
       )}`;
+
+  // Generar link de Google Maps en modo Transporte Público (Transit) para ver qué carros tomar
+  const googleTransitUrl = originCoords
+    ? `https://www.google.com/maps/dir/?api=1&origin=${originCoords.lat},${originCoords.lng}&destination=${dest.lat},${dest.lng}&travelmode=transit`
+    : null;
 
   // Copiar solo la dirección
   const handleCopyAddress = () => {
@@ -172,18 +355,17 @@ export function SedeDetailModal({ isOpen, onClose, sede }: SedeDetailModalProps)
   };
 
   // Copiar formato listo para enviar por WhatsApp al postulante
+  // REGLA: SIN CONTACTO EN SEDE (es confidencial de la empresa)
   const handleCopyPostulante = () => {
-    const sups = sede.usuario_sedes?.map((us: any) => us.usuarios).filter(Boolean) || [];
-    const supNames = sups.map((s: any) => `${s.nombres} ${s.apellidos}`).join(", ");
-
     const text = [
       `📍 *SEDE:* ${sede.nombre}`,
       sede.clientes?.razon_social ? `🏢 *CLIENTE:* ${sede.clientes.razon_social}` : null,
       `🏙️ *DISTRITO:* ${sede.distrito || "Por confirmar"}`,
       `🗺️ *DIRECCIÓN:* ${sede.direccion || "Por confirmar"}`,
-      sede.contacto_nombre ? `👤 *CONTACTO EN SEDE:* ${sede.contacto_nombre} ${sede.contacto_telefono ? `(${sede.contacto_telefono})` : ""}` : null,
-      supNames ? `👮 *SUPERVISOR:* ${supNames}` : null,
-      `📌 *UBICACIÓN GOOGLE MAPS:* ${googleMapsUrl}`
+      `📌 *UBICACIÓN GOOGLE MAPS:* ${googleMapsUrl}`,
+      googleTransitUrl
+        ? `🚌 *CÓMO LLEGAR (RUTAS DE CARROS EN TRANSPORTE PÚBLICO):*\n${googleTransitUrl}`
+        : null
     ].filter(Boolean).join("\n");
 
     navigator.clipboard.writeText(text);
@@ -222,7 +404,7 @@ export function SedeDetailModal({ isOpen, onClose, sede }: SedeDetailModalProps)
                 >
                   {sede.activo ? "Activo" : "Inactivo"}
                 </span>
-                {hasExactCoords ? (
+                {dest.hasExact ? (
                   <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">
                     <Compass className="w-3 h-3" /> GPS Calibrado
                   </span>
@@ -302,7 +484,7 @@ export function SedeDetailModal({ isOpen, onClose, sede }: SedeDetailModalProps)
                 type="button"
                 onClick={handleCopyPostulante}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
-                title="Copia los datos de la sede formateados para pegar en WhatsApp del candidato"
+                title="Copia los datos de la sede formateados para pegar en WhatsApp del candidato (sin contactos internos)"
               >
                 {copiedPostulante ? (
                   <>
@@ -319,13 +501,18 @@ export function SedeDetailModal({ isOpen, onClose, sede }: SedeDetailModalProps)
             </div>
           </div>
 
-          {/* Grilla Secundaria: Contacto en Sede y Supervisores */}
+          {/* Grilla Secundaria: Contacto en Sede y Supervisores (Exclusivo para la Empresa) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            {/* Contacto */}
+            {/* Contacto Administrativo */}
             <div className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-3.5 space-y-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                Contacto / Encargado en Sede
-              </span>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                  Contacto en Sede (Uso Interno)
+                </span>
+                <span className="text-[9px] font-semibold text-slate-400 bg-slate-200/60 px-1.5 py-0.5 rounded">
+                  Solo Empresa
+                </span>
+              </div>
               <div className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
                 <User className="w-4 h-4 text-slate-400 shrink-0" />
                 <span>{sede.contacto_nombre || "No especificado"}</span>
@@ -377,23 +564,111 @@ export function SedeDetailModal({ isOpen, onClose, sede }: SedeDetailModalProps)
             </div>
           </div>
 
-          {/* Visor de Mapa Interactivo */}
+          {/* Sección de Rutas en Transporte Público / Selector de Origen (Opción A) */}
+          <div className="bg-gradient-to-br from-emerald-50/60 to-teal-50/40 border border-emerald-200/90 rounded-2xl p-4 sm:p-4.5 space-y-3.5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-md shadow-emerald-200 shrink-0">
+                  <Bus className="w-4.5 h-4.5" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-black uppercase tracking-wider text-emerald-950 flex items-center gap-1.5">
+                    ¿Qué carros puedo tomar? (Transporte Público)
+                  </h4>
+                  <p className="text-[11px] text-emerald-700 font-medium">
+                    Haz clic en el mapa donde vive el postulante o selecciona su distrito de partida:
+                  </p>
+                </div>
+              </div>
+
+              {/* Selector Rápido de Distrito de Origen */}
+              <div className="w-full sm:w-60">
+                <select
+                  value={selectedOriginDistrito}
+                  onChange={handleDistritoChange}
+                  className="w-full text-xs font-bold text-slate-700 bg-white border border-emerald-200 rounded-xl px-3 py-2 shadow-2xs focus:outline-none focus:ring-2 focus:ring-emerald-400 cursor-pointer"
+                >
+                  <option value="">🏙️ Elegir distrito de partida...</option>
+                  {LISTA_DISTRITOS_CANONICOS.map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Banner de Ruta Activa cuando hay Origen marcado */}
+            {originCoords ? (
+              <div className="bg-white rounded-xl border border-emerald-200 p-3 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-2xs animate-fade-in">
+                <div className="flex items-center gap-2.5">
+                  <span className="w-3 h-3 rounded-full bg-emerald-500 animate-ping shrink-0" />
+                  <div className="text-xs">
+                    <span className="font-bold text-slate-800">
+                      Desde: <strong className="text-emerald-700">{originName}</strong>
+                    </span>
+                    <span className="text-slate-400 mx-1.5">➔</span>
+                    <span className="font-bold text-slate-800">
+                      Hacia: <strong className="text-blue-700">{sede.nombre}</strong>
+                    </span>
+                    {distanceKm != null && (
+                      <span className="ml-2 font-mono font-bold text-[10px] bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded border border-emerald-200">
+                        ~{formatearDistancia(distanceKm)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <a
+                    href={googleTransitUrl || "#"}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-md shadow-emerald-200 transition-all active:scale-95 cursor-pointer"
+                    title="Abre Google Maps con todas las líneas de transporte público, micros, corredores y metro"
+                  >
+                    <Bus className="w-3.5 h-3.5" />
+                    <span>Ver qué carros tomar</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+
+                  <button
+                    type="button"
+                    onClick={handleClearOrigin}
+                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors cursor-pointer"
+                    title="Quitar punto de partida"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 text-[11px] text-emerald-800/80 bg-white/70 px-3 py-2 rounded-xl border border-emerald-100">
+                <Info className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                <span>
+                  <strong>Tip:</strong> Puedes hacer clic directo sobre el mapa en cualquier avenida o barrio del postulante para colocar el pin verde y trazar las líneas de buses.
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Visor de Mapa Interactivo con Soporte de Origen (Verde) y Destino (Azul) */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 uppercase tracking-wider">
                 <MapPin className="w-4 h-4 text-blue-600" />
-                <span>Mapa de Ubicación</span>
+                <span>Mapa Interactivo (Haz clic para marcar el punto de partida)</span>
               </div>
-              {hasExactCoords && (
+              {dest.hasExact && (
                 <span className="text-[11px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
-                  GPS: {Number(sede.latitud).toFixed(5)}, {Number(sede.longitud).toFixed(5)}
+                  GPS: {Number(dest.lat).toFixed(5)}, {Number(dest.lng).toFixed(5)}
                 </span>
               )}
             </div>
 
             {/* Contenedor Leaflet */}
-            <div className="w-full h-64 sm:h-72 rounded-2xl overflow-hidden border border-slate-300 shadow-inner relative z-0">
-              <div ref={mapContainerRef} className="w-full h-full" />
+            <div className="w-full h-72 sm:h-80 rounded-2xl overflow-hidden border border-slate-300 shadow-inner relative z-0">
+              <div ref={mapContainerRef} className="w-full h-full cursor-crosshair" />
             </div>
           </div>
         </div>
@@ -401,7 +676,7 @@ export function SedeDetailModal({ isOpen, onClose, sede }: SedeDetailModalProps)
         {/* Footer */}
         <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between shrink-0">
           <span className="text-xs text-slate-400">
-            {hasExactCoords
+            {dest.hasExact
               ? "Ubicación GPS calibrada con exactitud."
               : "Ubicación referencial basada en el distrito."}
           </span>
