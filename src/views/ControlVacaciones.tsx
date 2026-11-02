@@ -1569,6 +1569,184 @@ export function ControlVacaciones() {
     XLSX.writeFile(wb, fileName);
   };
 
+  // Export individual person's vacation history and period breakdown to Excel (.xlsx)
+  const exportPersonVacationHistoryToExcel = () => {
+    if (!selectedPersona || !activeVinculo || !selectedMetrics) return;
+
+    const wb = XLSX.utils.book_new();
+    const fullName = `${selectedPersona.apellidos || ""}, ${selectedPersona.nombres || ""}`.trim();
+    const dni = selectedPersona.numero_documento || "-";
+    const empresa = activeVinculo.empresas_internas?.razon_social || "Grupo Bax";
+    const cliente = activeVinculo.sedes?.clientes?.razon_social || "Sin Cliente";
+    const sede = activeVinculo.sedes?.nombre || "Sin Sede";
+    const cargo = activeVinculo.cargos?.nombre || "Sin Puesto";
+    const regimen = activeVinculo.regimenes_laborales?.nombre || "Régimen General";
+
+    const estadoGeneral =
+      selectedMetrics.status === "critico"
+        ? "CRÍTICO (2+ Períodos)"
+        : selectedMetrics.status === "proximo"
+        ? "PRÓXIMO AL LÍMITE"
+        : "ÓPTIMO / NORMAL";
+
+    // --- HOJA 1: FICHA RESUMEN + DESGLOSE POR PERÍODOS ---
+    const sheet1Data: any[][] = [
+      ["REPORTE INDIVIDUAL DE SALDOS Y PERÍODOS VACACIONALES"],
+      ["Fecha de Exportación:", new Date().toLocaleString("es-PE")],
+      [],
+      ["1. DATOS DEL COLABORADOR", "", "2. RESUMEN VACACIONAL", ""],
+      ["Colaborador:", fullName, "Inicio de Acumulación:", formatDMY(selectedMetrics.startDateStr)],
+      ["DNI / Documento:", dni, "Años de Servicio:", `${selectedMetrics.years} años`],
+      ["Empresa:", empresa, "Días Anuales por Régimen:", `${selectedMetrics.daysPerYear} días/año`],
+      ["Cliente:", cliente, "Total Días Ganados:", selectedMetrics.earned],
+      ["Sede / Unidad:", sede, "Total Días Gozados:", selectedMetrics.taken],
+      ["Cargo / Puesto:", cargo, "Saldo Pendiente Total:", selectedMetrics.balance],
+      ["Régimen Laboral:", regimen, "Estado de Alerta Legal:", estadoGeneral],
+      [],
+      ["3. DESGLOSE DETALLADO POR PERÍODOS VACACIONALES"],
+      [
+        "N° Período",
+        "Período Anual",
+        "Inicio Período",
+        "Fin Período",
+        "Límite Legal de Goce",
+        "Días Ganados",
+        "Días Gozados",
+        "Saldo Pendiente (Deuda)",
+        "% Avance",
+        "Estado / Alerta del Período",
+        "Descansos Registrados"
+      ]
+    ];
+
+    if (periodosBreakdown.length === 0) {
+      sheet1Data.push(["-", "Sin períodos generados", "-", "-", "-", 0, 0, 0, "0%", "SIN PERÍODOS", 0]);
+    } else {
+      periodosBreakdown.forEach((p) => {
+        const alertaTexto =
+          p.alerta === "vencido"
+            ? `DEUDA VENCIDA (${p.diasPendientes} días)`
+            : p.alerta === "por_vencer"
+            ? `PENDIENTE DE GOCE (${p.diasPendientes} días)`
+            : p.alerta === "en_curso"
+            ? `EN CURSO / ACUMULANDO (${p.diasGanados} d. ganados)`
+            : "COMPLETO / AL DÍA (0 deuda)";
+
+        sheet1Data.push([
+          `Período #${p.periodoNum}`,
+          p.label,
+          formatDMY(p.start),
+          formatDMY(p.end),
+          formatDMY(p.limiteGoceStr),
+          p.diasGanados,
+          p.diasGozados,
+          p.diasPendientes,
+          `${p.pctGozado}%`,
+          alertaTexto,
+          p.goces?.length || 0
+        ]);
+      });
+    }
+
+    const wsResumen = XLSX.utils.aoa_to_sheet(sheet1Data);
+    wsResumen["!cols"] = [
+      { wch: 18 },
+      { wch: 28 },
+      { wch: 24 },
+      { wch: 18 },
+      { wch: 22 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 24 },
+      { wch: 12 },
+      { wch: 34 },
+      { wch: 22 }
+    ];
+    XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen y Periodos");
+
+    // --- HOJA 2: HISTORIAL CRONOLÓGICO DE DESCANSOS ---
+    const cronologicoAsc = [...(activeVinculo.vacaciones_historico || [])].sort((a: any, b: any) => {
+      const dateA = a.fecha_inicio || a.periodo_inicio || "";
+      const dateB = b.fecha_inicio || b.periodo_inicio || "";
+      return dateA.localeCompare(dateB);
+    });
+
+    const sheet2Data: any[][] = [
+      [`HISTORIAL CRONOLÓGICO DE DESCANSOS VACACIONALES - ${fullName} (DNI: ${dni})`],
+      [`Cargo: ${cargo} | Sede: ${sede} | Total Días Gozados: ${selectedMetrics.taken} días`],
+      [],
+      [
+        "N°",
+        "Fecha Inicio Descanso",
+        "Fecha Fin Descanso",
+        "Días Calendario Gozados",
+        "Período Vacacional Imputado",
+        "Notas / Observaciones",
+        "Fecha de Registro"
+      ]
+    ];
+
+    if (cronologicoAsc.length === 0) {
+      sheet2Data.push(["-", "No registra descansos físicos gozados", "-", 0, "-", "-", "-"]);
+    } else {
+      cronologicoAsc.forEach((vac: any, idx: number) => {
+        const periodoTexto =
+          vac.periodo_inicio && vac.periodo_fin
+            ? `${formatDMY(vac.periodo_inicio)} al ${formatDMY(vac.periodo_fin)}`
+            : (() => {
+                const key = getVacationPeriodKey(vac, availablePeriods);
+                if (!key) return "Sin período asignado";
+                const [s, e] = key.split("|");
+                return `${formatDMY(s)} al ${formatDMY(e)}`;
+              })();
+
+        const fechaReg = vac.creado_en
+          ? new Date(vac.creado_en).toLocaleDateString("es-PE")
+          : "-";
+
+        sheet2Data.push([
+          idx + 1,
+          formatDMY(vac.fecha_inicio),
+          formatDMY(vac.fecha_fin),
+          vac.dias_calendario || 0,
+          periodoTexto,
+          vac.notas || "-",
+          fechaReg
+        ]);
+      });
+
+      sheet2Data.push([
+        "",
+        "",
+        "TOTAL DÍAS GOZADOS:",
+        selectedMetrics.taken,
+        "",
+        "",
+        ""
+      ]);
+    }
+
+    const wsHistorial = XLSX.utils.aoa_to_sheet(sheet2Data);
+    wsHistorial["!cols"] = [
+      { wch: 6 },
+      { wch: 22 },
+      { wch: 22 },
+      { wch: 24 },
+      { wch: 28 },
+      { wch: 36 },
+      { wch: 18 }
+    ];
+    XLSX.utils.book_append_sheet(wb, wsHistorial, "Historial Cronologico");
+
+    const cleanLastName = (selectedPersona.apellidos || "Colaborador")
+      .replace(/[^a-zA-Z0-9]/g, "_")
+      .replace(/_+/g, "_");
+    const dateStr = new Date().toISOString().split("T")[0];
+    const fileName = `Historial_Vacaciones_${dni}_${cleanLastName}_${dateStr}.xlsx`;
+
+    XLSX.writeFile(wb, fileName);
+  };
+
   const handlePrintRequest = () => {
     setPrintingRequest(true);
     setTimeout(() => {
@@ -2106,6 +2284,15 @@ export function ControlVacaciones() {
                       <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
                       Imprimir Kardex
                     </button>
+                    <button
+                      type="button"
+                      onClick={exportPersonVacationHistoryToExcel}
+                      className="w-full inline-flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white py-2 rounded-lg text-xs font-bold border border-emerald-700 shadow-xs transition-colors cursor-pointer"
+                      title="Descargar ficha resumen, períodos y descansos en Excel (.xlsx)"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      Exportar Historial (Excel)
+                    </button>
                   </div>
                 </div>
 
@@ -2222,18 +2409,30 @@ export function ControlVacaciones() {
                     </button>
                   </div>
 
-                  {/* Quick toggle sorting when on historial */}
-                  {modalTab === "historial" && (
+                  <div className="flex items-center gap-2">
+                    {/* Quick toggle sorting when on historial */}
+                    {modalTab === "historial" && (
+                      <button
+                        type="button"
+                        onClick={() => setHistorySortOrder(prev => prev === "asc" ? "desc" : "asc")}
+                        className="px-2.5 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-[11px] font-bold flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer"
+                        title="Cambiar orden de visualización"
+                      >
+                        <ArrowUpDown className="w-3.5 h-3.5 text-slate-500" />
+                        <span>{historySortOrder === "asc" ? "Antiguo ➔ Nuevo" : "Nuevo ➔ Antiguo"}</span>
+                      </button>
+                    )}
+
                     <button
                       type="button"
-                      onClick={() => setHistorySortOrder(prev => prev === "asc" ? "desc" : "asc")}
-                      className="px-2.5 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-[11px] font-bold flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer"
-                      title="Cambiar orden de visualización"
+                      onClick={exportPersonVacationHistoryToExcel}
+                      className="px-2.5 py-1.5 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 rounded-lg text-[11px] font-bold flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer"
+                      title="Exportar historial y desglose por períodos de este colaborador a Excel (.xlsx)"
                     >
-                      <ArrowUpDown className="w-3.5 h-3.5 text-slate-500" />
-                      <span>{historySortOrder === "asc" ? "Antiguo ➔ Nuevo" : "Nuevo ➔ Antiguo"}</span>
+                      <FileDown className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Exportar Excel</span>
                     </button>
-                  )}
+                  </div>
                 </div>
 
                 {/* Tab 1: Desglose por Períodos */}
