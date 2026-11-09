@@ -1280,7 +1280,7 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
 
           const { error: updateErr } = await supabase
             .from("requerimientos")
-            .update({ estado: "Pendiente Aprobacion" })
+            .update({ estado: "Pendiente Aprobacion", fecha_solicitud: new Date().toISOString(), actualizado_en: new Date().toISOString() })
             .eq("id", reqId);
 
           if (updateErr) throw updateErr;
@@ -1543,6 +1543,7 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
             personal_contacto: personalContacto.trim() || null,
             numero_contacto: numeroContacto.trim() || null,
             lugar_despacho: lugarDespacho.trim() || null,
+            ...(isDraft ? {} : { fecha_solicitud: new Date().toISOString() }),
             actualizado_en: new Date().toISOString()
           })
           .eq("id", editingDraftId)
@@ -2436,8 +2437,8 @@ export function MisSolicitudes({ defaultTab, lockTab = false }: MisSolicitudesPr
     const approverName = selectedReq.usuario_aprobador ? `${selectedReq.usuario_aprobador.nombres} ${selectedReq.usuario_aprobador.apellidos}` : "";
 
     const timeline = [
-      { name: "Borrador", completed: true, date: selectedReq.fecha_solicitud, actor: solicitorName },
-      { name: "Enviado a logística", completed: selectedReq.estado !== "Borrador", date: selectedReq.fecha_solicitud, actor: solicitorName },
+      { name: "Borrador", completed: true, date: selectedReq.estado === "Borrador" ? selectedReq.fecha_solicitud : null, actor: solicitorName },
+      { name: "Enviado a logística", completed: selectedReq.estado !== "Borrador", date: selectedReq.estado !== "Borrador" ? selectedReq.fecha_solicitud : null, actor: solicitorName },
       { name: "Aprobado", completed: !!selectedReq.fecha_aprobacion && selectedReq.estado !== "Rechazado", date: selectedReq.fecha_aprobacion, actor: approverName },
       { name: "Enviado", completed: !!selectedReq.fecha_envio, date: selectedReq.fecha_envio, actor: "Logística / Almacén" },
       { name: "Entregado", completed: selectedReq.estado === "Entregado" || selectedReq.estado === "Entregado Incompleto", date: selectedReq.fecha_entrega, stateText: selectedReq.estado === "Entregado Incompleto" ? "Incompleto" : "Completo", actor: solicitorName }
