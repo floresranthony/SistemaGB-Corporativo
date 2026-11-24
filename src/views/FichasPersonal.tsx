@@ -427,7 +427,7 @@ export function FichasPersonal() {
       cargo_id: cargos[0]?.id || "",
       tipo_trabajador_id: tiposTrab[0]?.id || "",
       regimen_laboral_id: regimenes[0]?.id || "",
-      sueldo_basico: 1130.00,
+      sueldo_basico: 1230.00,
       bono: 0.00,
       bono_secundario: 0.00,
       bono_asistencia_perfecta: 0.00,
@@ -750,7 +750,7 @@ export function FichasPersonal() {
             cargo_id: parseInt(personaForm.cargo_id),
             tipo_trabajador_id: parseInt(personaForm.tipo_trabajador_id),
             regimen_laboral_id: parseInt(personaForm.regimen_laboral_id),
-            sueldo_basico: parseFloat(personaForm.sueldo_basico) || 1130.00,
+            sueldo_basico: parseFloat(personaForm.sueldo_basico) || 1230.00,
             bono: parseFloat(personaForm.bono) || 0.00,
             bono_secundario: parseFloat(personaForm.bono_secundario) || 0.00,
             bono_asistencia_perfecta: parseFloat(personaForm.bono_asistencia_perfecta) || 0.00,
@@ -1661,7 +1661,7 @@ export function FichasPersonal() {
       cargo_id: defaultCargo?.id || "",
       tipo_trabajador_id: tiposTrab[0]?.id || "",
       regimen_laboral_id: regimenes[0]?.id || "",
-      sueldo_basico: 1130.00,
+      sueldo_basico: 1230.00,
       bono: 0.00,
       bono_secundario: 0.00,
       bono_asistencia_perfecta: 0.00,
@@ -4351,7 +4351,7 @@ export function FichasPersonal() {
                       type="number"
                       step="0.01"
                       min="0"
-                      value={personaForm.sueldo_basico === undefined ? 1130 : personaForm.sueldo_basico}
+                      value={personaForm.sueldo_basico === undefined ? 1230 : personaForm.sueldo_basico}
                       onChange={(e) => {
                         setPersonaForm({ ...personaForm, sueldo_basico: e.target.value === "" ? "" : parseFloat(e.target.value) });
                         if (personaFormErrors.sueldo_basico) setPersonaFormErrors(prev => ({ ...prev, sueldo_basico: "" }));
@@ -5126,7 +5126,7 @@ export function FichasPersonal() {
                       step="0.01"
                       min={0}
                       required
-                      value={vinculoForm.sueldo_basico ?? 1130.00}
+                      value={vinculoForm.sueldo_basico ?? 1230.00}
                       onChange={(e) => setVinculoForm({ ...vinculoForm, sueldo_basico: parseFloat(e.target.value) || 0 })}
                       className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none font-semibold text-indigo-750"
                     />
